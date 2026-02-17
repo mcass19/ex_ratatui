@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: ["26", "27", "28"]
+        elixir: ["1.17", "1.18", "1.19"]
+        exclude:
+          # Elixir 1.17 does not support OTP 28
+          - otp: "28"
+            elixir: "1.17"
+          # Elixir 1.19 requires OTP 27+
+          - otp: "26"
+            elixir: "1.19"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache mix deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+
+      - name: Cache build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: build-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}
+          restore-keys: build-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/ex_ratatui/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('native/ex_ratatui/Cargo.lock', 'Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - run: mix deps.get
+
+      - run: mix compile --warnings-as-errors
+
+      - name: Run cargo tests
+        run: cargo test --manifest-path native/ex_ratatui/Cargo.toml
+
+      - run: mix test
+
+      - run: mix format --check-formatted

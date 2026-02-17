@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  - package-ecosystem: mix
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      hex-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "elixir"
+
+  - package-ecosystem: cargo
+    directory: "/native/ex_ratatui"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"

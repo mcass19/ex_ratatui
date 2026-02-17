@@ -1,6 +1,9 @@
-## Roadmap
+## Doing
 
 - **Precompiled binaries** — `rustler_precompiled` for distribution without a Rust toolchain
+
+## Roadmap
+
 - **Viewport modes** — `inline(height)` and `fixed(rect)` in addition to fullscreen
 - **More widgets** — Tabs, Sparkline, BarChart, Calendar, Canvas
 - **Scrollbar widget** — built-in scrollbar support
@@ -11,4 +14,3 @@
 - **Clipboard integration** — copy/paste support
 - **Theming system** — named themes with color palette definitions
 - **Benchmarks** — performance comparison vs pure-Elixir TUI libraries
-- **CI/CD pipeline** — GitHub Actions for testing across Elixir/OTP versions
