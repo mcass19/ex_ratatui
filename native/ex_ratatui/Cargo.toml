@@ -9,5 +9,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = "0.37.2"
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = "0.30"
+crossterm = "0.29"
