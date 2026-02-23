@@ -8,7 +8,14 @@ defmodule ExRatatui.Server do
   alias ExRatatui.Frame
   alias ExRatatui.Native
 
-  defstruct [:mod, :user_state, :test_mode, poll_interval: 16, terminal_initialized: false]
+  defstruct [
+    :mod,
+    :user_state,
+    :test_mode,
+    :terminal_ref,
+    poll_interval: 16,
+    terminal_initialized: false
+  ]
 
   @doc false
   def start_link(opts) do
@@ -32,7 +39,10 @@ defmodule ExRatatui.Server do
     Process.flag(:trap_exit, true)
 
     case init_terminal(test_mode) do
-      :ok ->
+      {:error, reason} ->
+        {:stop, {:terminal_init_failed, reason}}
+
+      terminal_ref ->
         case mod.mount(opts) do
           {:ok, user_state} ->
             state = %__MODULE__{
@@ -40,6 +50,7 @@ defmodule ExRatatui.Server do
               user_state: user_state,
               poll_interval: poll_interval,
               test_mode: test_mode,
+              terminal_ref: terminal_ref,
               terminal_initialized: true
             }
 
@@ -49,12 +60,9 @@ defmodule ExRatatui.Server do
             {:ok, state}
 
           {:error, reason} ->
-            restore_terminal()
+            restore_terminal(terminal_ref)
             {:stop, reason}
         end
-
-      {:error, reason} ->
-        {:stop, {:terminal_init_failed, reason}}
     end
   end
 
@@ -98,7 +106,7 @@ defmodule ExRatatui.Server do
 
   @impl true
   def terminate(reason, %__MODULE__{terminal_initialized: true} = state) do
-    restore_terminal()
+    restore_terminal(state.terminal_ref)
     state.mod.terminate(reason, state.user_state)
     :ok
   end
@@ -110,8 +118,8 @@ defmodule ExRatatui.Server do
   defp init_terminal(nil), do: Native.init_terminal()
   defp init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
 
-  defp restore_terminal do
-    Native.restore_terminal()
+  defp restore_terminal(terminal_ref) do
+    Native.restore_terminal(terminal_ref)
   rescue
     e ->
       Logger.warning("Failed to restore terminal: #{Exception.message(e)}")
@@ -144,7 +152,7 @@ defmodule ExRatatui.Server do
     frame = %Frame{width: w, height: h}
 
     widgets = state.mod.render(state.user_state, frame)
-    draw_widgets(widgets)
+    draw_widgets(state.terminal_ref, widgets)
     state
   rescue
     e ->
@@ -152,10 +160,10 @@ defmodule ExRatatui.Server do
       state
   end
 
-  defp draw_widgets([]), do: :ok
+  defp draw_widgets(_terminal_ref, []), do: :ok
 
-  defp draw_widgets(widgets) do
-    case ExRatatui.draw(widgets) do
+  defp draw_widgets(terminal_ref, widgets) do
+    case ExRatatui.draw(terminal_ref, widgets) do
       :ok -> :ok
       {:error, reason} -> Logger.error("ExRatatui draw error: #{inspect(reason)}")
     end

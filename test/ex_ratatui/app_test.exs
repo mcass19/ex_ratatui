@@ -1,5 +1,5 @@
 defmodule ExRatatui.AppTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   defmodule SampleApp do
     use ExRatatui.App
@@ -56,12 +56,6 @@ defmodule ExRatatui.AppTest do
 
     @impl true
     def handle_event(_event, state), do: {:noreply, state}
-  end
-
-  setup do
-    ExRatatui.Native.restore_terminal()
-    on_exit(fn -> ExRatatui.Native.restore_terminal() end)
-    :ok
   end
 
   test "start_link starts the server via App module" do

@@ -6,7 +6,7 @@ use crossterm::ExecutableCommand;
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::Terminal;
 
-use rustler::{Atom, Error};
+use rustler::{Atom, Error, Resource, ResourceArc};
 
 mod atoms {
     rustler::atoms! {
@@ -15,20 +15,43 @@ mod atoms {
 }
 
 /// Supports both real (crossterm) and test (headless) terminals.
-enum AnyTerminal {
+pub(crate) enum AnyTerminal {
     Crossterm(Terminal<CrosstermBackend<Stdout>>),
     Test(Terminal<TestBackend>),
 }
 
-/// Global terminal state — one terminal per BEAM node.
-static TERMINAL: Mutex<Option<AnyTerminal>> = Mutex::new(None);
+/// Per-process terminal resource, wrapped in a ResourceArc for BEAM GC integration.
+pub struct TerminalResource {
+    pub terminal: Mutex<Option<AnyTerminal>>,
+    is_crossterm: bool,
+}
 
-/// Draw a frame using whichever terminal is currently initialized.
-pub fn with_terminal_draw<F>(f: F) -> Result<Atom, Error>
+#[rustler::resource_impl]
+impl Resource for TerminalResource {}
+
+impl Drop for TerminalResource {
+    fn drop(&mut self) {
+        let mut guard = match self.terminal.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+
+        if self.is_crossterm {
+            if let Some(AnyTerminal::Crossterm(_)) = guard.take() {
+                let _ = terminal::disable_raw_mode();
+                let _ = std::io::stdout().execute(LeaveAlternateScreen);
+            }
+        }
+    }
+}
+
+/// Draw a frame using the given terminal resource.
+pub fn with_terminal_draw<F>(resource: &TerminalResource, f: F) -> Result<Atom, Error>
 where
     F: FnOnce(&mut ratatui::Frame),
 {
-    let mut guard = TERMINAL
+    let mut guard = resource
+        .terminal
         .lock()
         .map_err(|_| Error::Term(Box::new("terminal lock poisoned")))?;
     let terminal = guard
@@ -45,7 +68,7 @@ where
 }
 
 #[rustler::nif]
-fn init_terminal() -> Result<Atom, Error> {
+fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
     terminal::enable_raw_mode().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
     std::io::stdout()
         .execute(EnterAlternateScreen)
@@ -54,16 +77,16 @@ fn init_terminal() -> Result<Atom, Error> {
     let backend = CrosstermBackend::new(std::io::stdout());
     let terminal = Terminal::new(backend).map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
 
-    let mut guard = TERMINAL
-        .lock()
-        .map_err(|_| Error::Term(Box::new("terminal lock poisoned")))?;
-    *guard = Some(AnyTerminal::Crossterm(terminal));
-    Ok(atoms::ok())
+    Ok(ResourceArc::new(TerminalResource {
+        terminal: Mutex::new(Some(AnyTerminal::Crossterm(terminal))),
+        is_crossterm: true,
+    }))
 }
 
 #[rustler::nif]
-fn restore_terminal() -> Result<Atom, Error> {
-    let mut guard = TERMINAL
+fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Error> {
+    let mut guard = resource
+        .terminal
         .lock()
         .map_err(|_| Error::Term(Box::new("terminal lock poisoned")))?;
 
@@ -91,27 +114,20 @@ fn terminal_size() -> Result<(u16, u16), Error> {
 }
 
 #[rustler::nif]
-fn init_test_terminal(width: u16, height: u16) -> Result<Atom, Error> {
+fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalResource>, Error> {
     let backend = TestBackend::new(width, height);
     let terminal = Terminal::new(backend).map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
 
-    let mut guard = TERMINAL
-        .lock()
-        .map_err(|_| Error::Term(Box::new("terminal lock poisoned")))?;
-
-    // Clean up any existing real terminal
-    if let Some(AnyTerminal::Crossterm(_)) = guard.as_ref() {
-        let _ = terminal::disable_raw_mode();
-        let _ = std::io::stdout().execute(LeaveAlternateScreen);
-    }
-
-    *guard = Some(AnyTerminal::Test(terminal));
-    Ok(atoms::ok())
+    Ok(ResourceArc::new(TerminalResource {
+        terminal: Mutex::new(Some(AnyTerminal::Test(terminal))),
+        is_crossterm: false,
+    }))
 }
 
 #[rustler::nif]
-fn get_buffer_content() -> Result<String, Error> {
-    let guard = TERMINAL
+fn get_buffer_content(resource: ResourceArc<TerminalResource>) -> Result<String, Error> {
+    let guard = resource
+        .terminal
         .lock()
         .map_err(|_| Error::Term(Box::new("terminal lock poisoned")))?;
 

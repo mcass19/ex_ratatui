@@ -7,7 +7,7 @@ alias ExRatatui.Widgets.{Block, Paragraph}
 
 defmodule HelloWorld do
   def run do
-    ExRatatui.run(fn ->
+    ExRatatui.run(fn terminal ->
       {w, h} = ExRatatui.terminal_size()
 
       paragraph = %Paragraph{
@@ -22,7 +22,7 @@ defmodule HelloWorld do
         }
       }
 
-      ExRatatui.draw([{paragraph, %Rect{x: 0, y: 0, width: w, height: h}}])
+      ExRatatui.draw(terminal, [{paragraph, %Rect{x: 0, y: 0, width: w, height: h}}])
       wait_for_key()
     end)
   end

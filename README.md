@@ -73,7 +73,7 @@ alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
 alias ExRatatui.Widgets.{Block, Paragraph}
 
-ExRatatui.run(fn ->
+ExRatatui.run(fn terminal ->
   {w, h} = ExRatatui.terminal_size()
 
   paragraph = %Paragraph{
@@ -88,7 +88,7 @@ ExRatatui.run(fn ->
     }
   }
 
-  ExRatatui.draw([{paragraph, %Rect{x: 0, y: 0, width: w, height: h}}])
+  ExRatatui.draw(terminal, [{paragraph, %Rect{x: 0, y: 0, width: w, height: h}}])
 
   # Wait for a keypress, then exit
   ExRatatui.poll_event(60_000)
@@ -165,7 +165,7 @@ Terminal events -> Rust NIF (DirtyIo) -> encode to tuples -> Elixir Event struct
 
 - **Rendering:** Elixir widget structs are encoded as string-keyed maps, passed across the NIF boundary, and decoded into ratatui widget types for rendering.
 - **Events:** The `poll_event` NIF runs on BEAM's DirtyIo scheduler, so event polling never blocks normal Elixir processes.
-- **Terminal state:** Managed in Rust via a global mutex supporting two backends — a real crossterm terminal and a headless test backend for CI.
+- **Terminal state:** Each process holds its own terminal reference via Rust ResourceArc, supporting two backends — a real crossterm terminal and a headless test backend for CI. The terminal is automatically restored when the reference is garbage collected.
 - **Layout:** Ratatui's constraint-based layout engine is exposed directly, computing split rectangles on the Rust side and returning them as Elixir tuples.
 
 Precompiled binaries are provided via [rustler_precompiled](https://github.com/philss/rustler_precompiled) so users don't need the Rust toolchain.
@@ -311,16 +311,16 @@ end
 
 ## Testing
 
-ExRatatui includes a headless test backend for CI-friendly rendering verification:
+ExRatatui includes a headless test backend for CI-friendly rendering verification. Each test terminal is independent, enabling `async: true` tests:
 
 ```elixir
 test "renders a paragraph" do
-  :ok = ExRatatui.init_test_terminal(40, 10)
+  terminal = ExRatatui.init_test_terminal(40, 10)
 
   paragraph = %Paragraph{text: "Hello!"}
-  :ok = ExRatatui.draw([{paragraph, %Rect{x: 0, y: 0, width: 40, height: 10}}])
+  :ok = ExRatatui.draw(terminal, [{paragraph, %Rect{x: 0, y: 0, width: 40, height: 10}}])
 
-  content = ExRatatui.get_buffer_content()
+  content = ExRatatui.get_buffer_content(terminal)
   assert content =~ "Hello!"
 end
 ```

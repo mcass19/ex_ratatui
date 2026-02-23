@@ -52,8 +52,8 @@ defmodule TaskTracker do
   }
 
   def run do
-    ExRatatui.run(fn ->
-      loop(%{
+    ExRatatui.run(fn terminal ->
+      loop(terminal, %{
         focus: :team,
         team_selected: 0,
         task_selected: 0,
@@ -73,7 +73,7 @@ defmodule TaskTracker do
     %{state | boards: Map.put(state.boards, current_member(state), tasks)}
   end
 
-  defp loop(state) do
+  defp loop(terminal, state) do
     {w, h} = ExRatatui.terminal_size()
     area = %Rect{x: 0, y: 0, width: w, height: h}
 
@@ -97,7 +97,7 @@ defmodule TaskTracker do
       {status_widget(state), status_area}
     ]
 
-    ExRatatui.draw(widgets)
+    ExRatatui.draw(terminal, widgets)
 
     case ExRatatui.poll_event(100) do
       %Event.Key{code: "q", kind: "press"} when state.input_mode == nil ->
@@ -106,41 +106,41 @@ defmodule TaskTracker do
       # --- Input mode: typing a new task name ---
       %Event.Key{code: "enter", kind: "press"} when state.input_mode == :new_task ->
         state = create_task(state)
-        loop(%{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
+        loop(terminal, %{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
 
       %Event.Key{code: "esc", kind: "press"} when state.input_mode != nil ->
-        loop(%{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
+        loop(terminal, %{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
 
       %Event.Key{code: "backspace", kind: "press"} when state.input_mode != nil ->
         buf = String.slice(state.input_buffer, 0..-2//1)
-        loop(%{state | input_buffer: buf, tick: state.tick + 1})
+        loop(terminal, %{state | input_buffer: buf, tick: state.tick + 1})
 
       %Event.Key{code: char, kind: "press"}
       when state.input_mode != nil and byte_size(char) == 1 ->
-        loop(%{state | input_buffer: state.input_buffer <> char, tick: state.tick + 1})
+        loop(terminal, %{state | input_buffer: state.input_buffer <> char, tick: state.tick + 1})
 
       # --- Normal mode ---
       %Event.Key{code: "tab", kind: "press"} ->
-        loop(%{state | focus: next_panel(state.focus), tick: state.tick + 1})
+        loop(terminal, %{state | focus: next_panel(state.focus), tick: state.tick + 1})
 
       %Event.Key{code: code, kind: "press"} when code in ["up", "k"] ->
-        loop(move_selection(state, -1))
+        loop(terminal, move_selection(state, -1))
 
       %Event.Key{code: code, kind: "press"} when code in ["down", "j"] ->
-        loop(move_selection(state, 1))
+        loop(terminal, move_selection(state, 1))
 
       %Event.Key{code: code, kind: "press"}
       when code in ["enter", " "] and state.focus == :tasks ->
-        loop(toggle_task_status(state))
+        loop(terminal, toggle_task_status(state))
 
       %Event.Key{code: "n", kind: "press"} when state.focus == :tasks ->
-        loop(%{state | input_mode: :new_task, input_buffer: "", tick: state.tick + 1})
+        loop(terminal, %{state | input_mode: :new_task, input_buffer: "", tick: state.tick + 1})
 
       %Event.Key{code: "d", kind: "press"} when state.focus == :tasks ->
-        loop(delete_task(state))
+        loop(terminal, delete_task(state))
 
       _ ->
-        loop(%{state | tick: state.tick + 1})
+        loop(terminal, %{state | tick: state.tick + 1})
     end
   end
 

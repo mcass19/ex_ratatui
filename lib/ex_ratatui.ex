@@ -10,6 +10,8 @@ defmodule ExRatatui do
   alias ExRatatui.Style
   alias ExRatatui.Widgets.{Block, Gauge, List, Paragraph, Table}
 
+  @type terminal_ref :: reference()
+
   @type widget ::
           Paragraph.t()
           | Block.t()
@@ -20,24 +22,25 @@ defmodule ExRatatui do
   @doc """
   Runs a TUI application.
 
-  Initializes the terminal, calls `fun`, and ensures terminal cleanup on exit.
+  Initializes the terminal, calls `fun` with the terminal reference,
+  and ensures terminal cleanup on exit.
 
-      ExRatatui.run(fn ->
+      ExRatatui.run(fn terminal ->
         # your TUI loop here
       end)
   """
-  @spec run((-> term())) :: term() | {:error, term()}
-  def run(fun) when is_function(fun, 0) do
+  @spec run((terminal_ref() -> term())) :: term() | {:error, term()}
+  def run(fun) when is_function(fun, 1) do
     case Native.init_terminal() do
-      :ok ->
-        try do
-          fun.()
-        after
-          Native.restore_terminal()
-        end
-
       {:error, reason} ->
         {:error, reason}
+
+      terminal_ref ->
+        try do
+          fun.(terminal_ref)
+        after
+          Native.restore_terminal(terminal_ref)
+        end
     end
   end
 
@@ -46,14 +49,14 @@ defmodule ExRatatui do
 
   Returns `:ok` on success or `{:error, reason}` on failure.
 
-      ExRatatui.draw([
+      ExRatatui.draw(terminal, [
         {%ExRatatui.Widgets.Paragraph{text: "Hello!"}, rect}
       ])
   """
-  @spec draw([{widget(), Rect.t()}]) :: :ok | {:error, term()}
-  def draw(widgets) when is_list(widgets) do
+  @spec draw(terminal_ref(), [{widget(), Rect.t()}]) :: :ok | {:error, term()}
+  def draw(terminal_ref, widgets) when is_list(widgets) do
     commands = Enum.map(widgets, &encode_command/1)
-    Native.draw_frame(commands)
+    Native.draw_frame(terminal_ref, commands)
   end
 
   @doc """
@@ -102,13 +105,14 @@ defmodule ExRatatui do
   Initializes a headless test terminal with the given dimensions.
 
   Uses ratatui's TestBackend — no real terminal needed. Useful for testing
-  rendering output without a TTY.
+  rendering output without a TTY. Returns a terminal reference.
 
-      :ok = ExRatatui.init_test_terminal(80, 24)
-      ExRatatui.draw([{widget, rect}])
-      content = ExRatatui.get_buffer_content()
+      terminal = ExRatatui.init_test_terminal(80, 24)
+      ExRatatui.draw(terminal, [{widget, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
   """
-  @spec init_test_terminal(non_neg_integer(), non_neg_integer()) :: :ok | {:error, term()}
+  @spec init_test_terminal(non_neg_integer(), non_neg_integer()) ::
+          terminal_ref() | {:error, term()}
   def init_test_terminal(width, height) do
     Native.init_test_terminal(width, height)
   end
@@ -117,14 +121,14 @@ defmodule ExRatatui do
   Returns the test terminal's buffer contents as a string.
 
   Each line is trimmed of trailing whitespace and joined with newlines.
-  Only works after `init_test_terminal/2`.
+  Only works with a test terminal reference from `init_test_terminal/2`.
   """
-  @spec get_buffer_content() :: String.t() | {:error, term()}
-  def get_buffer_content do
-    Native.get_buffer_content()
+  @spec get_buffer_content(terminal_ref()) :: String.t() | {:error, term()}
+  def get_buffer_content(terminal_ref) do
+    Native.get_buffer_content(terminal_ref)
   end
 
-  # -- Encoding: Elixir structs → string-keyed maps for NIF --
+  # -- Encoding: Elixir structs -> string-keyed maps for NIF --
 
   defp encode_command({widget, %Rect{} = rect}) do
     {encode_widget(widget), encode_rect(rect)}

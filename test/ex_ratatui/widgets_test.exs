@@ -1,5 +1,5 @@
 defmodule ExRatatui.WidgetsTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
@@ -7,14 +7,13 @@ defmodule ExRatatui.WidgetsTest do
   alias ExRatatui.Widgets.{Block, Gauge, List, Paragraph, Table}
 
   setup do
-    Native.restore_terminal()
-    :ok = ExRatatui.init_test_terminal(60, 15)
-    on_exit(fn -> Native.restore_terminal() end)
-    :ok
+    terminal = ExRatatui.init_test_terminal(60, 15)
+    on_exit(fn -> Native.restore_terminal(terminal) end)
+    %{terminal: terminal}
   end
 
   describe "Block widget" do
-    test "encoding a standalone block does not raise" do
+    test "encoding a standalone block does not raise", %{terminal: terminal} do
       block = %Block{
         title: "My Block",
         borders: [:all],
@@ -24,19 +23,19 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 10}
 
-      assert :ok = ExRatatui.draw([{block, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{block, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "My Block"
     end
 
-    test "block with individual borders" do
+    test "block with individual borders", %{terminal: terminal} do
       block = %Block{borders: [:top, :bottom], border_type: :plain}
       rect = %Rect{x: 0, y: 0, width: 20, height: 5}
 
-      assert :ok = ExRatatui.draw([{block, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{block, rect}])
     end
 
-    test "block with padding" do
+    test "block with padding", %{terminal: terminal} do
       block = %Block{
         borders: [:all],
         padding: {1, 1, 1, 1}
@@ -44,12 +43,12 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 20, height: 5}
 
-      assert :ok = ExRatatui.draw([{block, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{block, rect}])
     end
   end
 
   describe "Paragraph with block" do
-    test "paragraph inside a block" do
+    test "paragraph inside a block", %{terminal: terminal} do
       paragraph = %Paragraph{
         text: "Inside a box",
         style: %Style{fg: :cyan},
@@ -63,15 +62,15 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 10}
 
-      assert :ok = ExRatatui.draw([{paragraph, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{paragraph, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Inside a box"
       assert content =~ "Title"
     end
   end
 
   describe "List widget" do
-    test "simple list" do
+    test "simple list", %{terminal: terminal} do
       list = %List{
         items: ["Alpha", "Beta", "Gamma"],
         style: %Style{fg: :white}
@@ -79,14 +78,14 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 30, height: 10}
 
-      assert :ok = ExRatatui.draw([{list, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Alpha"
       assert content =~ "Beta"
       assert content =~ "Gamma"
     end
 
-    test "list with selection" do
+    test "list with selection", %{terminal: terminal} do
       list = %List{
         items: ["One", "Two", "Three"],
         highlight_style: %Style{fg: :yellow, modifiers: [:bold]},
@@ -96,13 +95,13 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 30, height: 10}
 
-      assert :ok = ExRatatui.draw([{list, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ ">>"
       assert content =~ "Two"
     end
 
-    test "list with block" do
+    test "list with block", %{terminal: terminal} do
       list = %List{
         items: ["Item A", "Item B"],
         block: %Block{title: "My List", borders: [:all]}
@@ -110,15 +109,15 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 30, height: 10}
 
-      assert :ok = ExRatatui.draw([{list, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "My List"
       assert content =~ "Item A"
     end
   end
 
   describe "Table widget" do
-    test "simple table" do
+    test "simple table", %{terminal: terminal} do
       table = %Table{
         rows: [["Alice", "30"], ["Bob", "25"]],
         widths: [{:length, 15}, {:length, 10}]
@@ -126,13 +125,13 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 10}
 
-      assert :ok = ExRatatui.draw([{table, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Alice"
       assert content =~ "Bob"
     end
 
-    test "table with header" do
+    test "table with header", %{terminal: terminal} do
       table = %Table{
         rows: [["Alice", "30"], ["Bob", "25"]],
         header: ["Name", "Age"],
@@ -141,14 +140,14 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 10}
 
-      assert :ok = ExRatatui.draw([{table, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Name"
       assert content =~ "Age"
       assert content =~ "Alice"
     end
 
-    test "table with selection and block" do
+    test "table with selection and block", %{terminal: terminal} do
       table = %Table{
         rows: [["Row 1"], ["Row 2"], ["Row 3"]],
         widths: [{:percentage, 100}],
@@ -160,13 +159,13 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 10}
 
-      assert :ok = ExRatatui.draw([{table, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Data"
       assert content =~ "Row 1"
     end
 
-    test "table with percentage widths" do
+    test "table with percentage widths", %{terminal: terminal} do
       table = %Table{
         rows: [["A", "B", "C"]],
         widths: [{:percentage, 33}, {:percentage, 33}, {:percentage, 34}]
@@ -174,8 +173,8 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 60, height: 5}
 
-      assert :ok = ExRatatui.draw([{table, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "A"
       assert content =~ "B"
       assert content =~ "C"
@@ -183,7 +182,7 @@ defmodule ExRatatui.WidgetsTest do
   end
 
   describe "Gauge widget" do
-    test "basic gauge" do
+    test "basic gauge", %{terminal: terminal} do
       gauge = %Gauge{
         ratio: 0.5,
         gauge_style: %Style{fg: :green}
@@ -191,10 +190,10 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 1}
 
-      assert :ok = ExRatatui.draw([{gauge, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{gauge, rect}])
     end
 
-    test "gauge with label and block" do
+    test "gauge with label and block", %{terminal: terminal} do
       gauge = %Gauge{
         ratio: 0.75,
         label: "75%",
@@ -204,37 +203,37 @@ defmodule ExRatatui.WidgetsTest do
 
       rect = %Rect{x: 0, y: 0, width: 40, height: 3}
 
-      assert :ok = ExRatatui.draw([{gauge, rect}])
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, [{gauge, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "75%"
       assert content =~ "Progress"
     end
 
-    test "gauge with zero ratio" do
+    test "gauge with zero ratio", %{terminal: terminal} do
       gauge = %Gauge{ratio: 0.0}
       rect = %Rect{x: 0, y: 0, width: 20, height: 1}
 
-      assert :ok = ExRatatui.draw([{gauge, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{gauge, rect}])
     end
 
-    test "gauge with integer ratio coerced to float" do
+    test "gauge with integer ratio coerced to float", %{terminal: terminal} do
       gauge = %Gauge{ratio: 1}
       rect = %Rect{x: 0, y: 0, width: 20, height: 1}
 
-      assert :ok = ExRatatui.draw([{gauge, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{gauge, rect}])
     end
   end
 
   describe "mixed widgets in one frame" do
-    test "multiple widget types in a single draw call" do
+    test "multiple widget types in a single draw call", %{terminal: terminal} do
       widgets = [
         {%Paragraph{text: "Header"}, %Rect{x: 0, y: 0, width: 40, height: 3}},
         {%List{items: ["a", "b"]}, %Rect{x: 0, y: 3, width: 40, height: 5}},
         {%Gauge{ratio: 0.5}, %Rect{x: 0, y: 8, width: 40, height: 1}}
       ]
 
-      assert :ok = ExRatatui.draw(widgets)
-      content = ExRatatui.get_buffer_content()
+      assert :ok = ExRatatui.draw(terminal, widgets)
+      content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Header"
       assert content =~ "a"
       assert content =~ "b"

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: Terminal state is now per-process via Rust ResourceArc instead of a global mutex
+  - `ExRatatui.run/1` closure now receives the terminal reference (1-arity)
+  - `ExRatatui.draw/1` is now `ExRatatui.draw/2` (terminal reference as first argument)
+  - `ExRatatui.init_test_terminal/2` returns a terminal reference instead of `:ok`
+  - `ExRatatui.get_buffer_content/0` is now `ExRatatui.get_buffer_content/1`
+  - `ExRatatui.App` behaviour users: **no API changes**
+- Terminal is automatically restored when the terminal reference is garbage collected (crash safety)
+- Test terminal instances are now independent, enabling `async: true` for rendering tests
+
 ## [0.3.0] - 2026-02-23
 
 ### Added

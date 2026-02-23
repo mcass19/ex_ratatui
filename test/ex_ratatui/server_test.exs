@@ -1,7 +1,6 @@
 defmodule ExRatatui.ServerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  alias ExRatatui.Native
   alias ExRatatui.Frame
 
   defmodule TestApp do
@@ -31,12 +30,6 @@ defmodule ExRatatui.ServerTest do
       send(state.test_pid, {:info, msg})
       {:noreply, state}
     end
-  end
-
-  setup do
-    Native.restore_terminal()
-    on_exit(fn -> Native.restore_terminal() end)
-    :ok
   end
 
   describe "start_link/1" do

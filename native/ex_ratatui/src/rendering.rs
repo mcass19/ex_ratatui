@@ -1,10 +1,10 @@
 use ratatui::layout::{Alignment, Rect};
-use rustler::{Atom, Error, Term};
+use rustler::{Atom, Error, ResourceArc, Term};
 use std::collections::HashMap;
 
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
-use crate::terminal::with_terminal_draw;
+use crate::terminal::{with_terminal_draw, TerminalResource};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::list::{self, ListData};
@@ -25,11 +25,11 @@ struct RenderCommand {
 }
 
 #[rustler::nif]
-fn draw_frame(commands: Term) -> Result<Atom, Error> {
+fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result<Atom, Error> {
     let command_list: Vec<(Term, Term)> = commands.decode()?;
     let render_commands = decode_commands(&command_list)?;
 
-    with_terminal_draw(|frame| {
+    with_terminal_draw(&resource, |frame| {
         for cmd in &render_commands {
             render_widget(frame, cmd);
         }

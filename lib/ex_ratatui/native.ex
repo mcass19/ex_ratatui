@@ -27,11 +27,12 @@ defmodule ExRatatui.Native do
 
   @doc false
   # Enters raw mode, alternate screen, and creates a crossterm-backed terminal.
+  # Returns a terminal reference (ResourceArc).
   def init_terminal, do: :erlang.nif_error(:not_loaded)
 
   @doc false
   # Leaves alternate screen and disables raw mode. Safe to call multiple times.
-  def restore_terminal, do: :erlang.nif_error(:not_loaded)
+  def restore_terminal(_terminal_ref), do: :erlang.nif_error(:not_loaded)
 
   @doc false
   # Returns `{width, height}` of the current terminal.
@@ -41,7 +42,7 @@ defmodule ExRatatui.Native do
 
   @doc false
   # Draws a list of `{widget_map, rect_map}` tuples in a single frame.
-  def draw_frame(_commands), do: :erlang.nif_error(:not_loaded)
+  def draw_frame(_terminal_ref, _commands), do: :erlang.nif_error(:not_loaded)
 
   # Events
 
@@ -59,9 +60,10 @@ defmodule ExRatatui.Native do
 
   @doc false
   # Creates a headless test terminal with given dimensions.
+  # Returns a terminal reference (ResourceArc).
   def init_test_terminal(_width, _height), do: :erlang.nif_error(:not_loaded)
 
   @doc false
   # Returns the test terminal's buffer contents as a string.
-  def get_buffer_content, do: :erlang.nif_error(:not_loaded)
+  def get_buffer_content(_terminal_ref), do: :erlang.nif_error(:not_loaded)
 end
