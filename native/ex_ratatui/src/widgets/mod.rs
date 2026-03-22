@@ -1,6 +1,9 @@
 pub mod block;
 pub mod clear;
 pub mod gauge;
+pub mod line_gauge;
 pub mod list;
 pub mod paragraph;
+pub mod scrollbar;
 pub mod table;
+pub mod tabs;

@@ -33,7 +33,9 @@ defmodule ExRatatui do
 
   See `ExRatatui.Widgets.Paragraph`, `ExRatatui.Widgets.Block`,
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
-  `ExRatatui.Widgets.Gauge`, and `ExRatatui.Widgets.Clear`.
+  `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
+  `ExRatatui.Widgets.Tabs`, `ExRatatui.Widgets.Scrollbar`,
+  and `ExRatatui.Widgets.Clear`.
 
   ## Testing
 
@@ -44,7 +46,18 @@ defmodule ExRatatui do
   alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Clear, Gauge, List, Paragraph, Table}
+
+  alias ExRatatui.Widgets.{
+    Block,
+    Clear,
+    Gauge,
+    LineGauge,
+    List,
+    Paragraph,
+    Scrollbar,
+    Table,
+    Tabs
+  }
 
   @type terminal_ref :: reference()
 
@@ -55,6 +68,9 @@ defmodule ExRatatui do
           | List.t()
           | Table.t()
           | Gauge.t()
+          | LineGauge.t()
+          | Tabs.t()
+          | Scrollbar.t()
 
   @doc """
   Runs a TUI application.
@@ -244,6 +260,48 @@ defmodule ExRatatui do
     }
     |> maybe_put("label", g.label)
     |> maybe_put_block(g.block)
+  end
+
+  defp encode_widget(%LineGauge{} = lg) do
+    %{
+      "type" => "line_gauge",
+      "ratio" => lg.ratio * 1.0,
+      "style" => encode_style(lg.style),
+      "filled_style" => encode_style(lg.filled_style),
+      "unfilled_style" => encode_style(lg.unfilled_style)
+    }
+    |> maybe_put("label", lg.label)
+    |> maybe_put_block(lg.block)
+  end
+
+  defp encode_widget(%Tabs{} = t) do
+    %{
+      "type" => "tabs",
+      "titles" => t.titles,
+      "style" => encode_style(t.style),
+      "highlight_style" => encode_style(t.highlight_style),
+      "padding_left" => elem(t.padding, 0),
+      "padding_right" => elem(t.padding, 1)
+    }
+    |> maybe_put("selected", t.selected)
+    |> maybe_put("divider", t.divider)
+    |> maybe_put_block(t.block)
+  end
+
+  defp encode_widget(%Scrollbar{} = s) do
+    %{
+      "type" => "scrollbar",
+      "orientation" => Atom.to_string(s.orientation),
+      "content_length" => s.content_length,
+      "position" => s.position,
+      "thumb_style" => encode_style(s.thumb_style),
+      "track_style" => encode_style(s.track_style)
+    }
+    |> maybe_put("viewport_content_length", s.viewport_content_length)
+    |> maybe_put("thumb_symbol", s.thumb_symbol)
+    |> maybe_put("track_symbol", s.track_symbol)
+    |> maybe_put("begin_symbol", s.begin_symbol)
+    |> maybe_put("end_symbol", s.end_symbol)
   end
 
   defp encode_block(%Block{} = b) do

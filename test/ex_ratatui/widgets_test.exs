@@ -4,7 +4,18 @@ defmodule ExRatatui.WidgetsTest do
   alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Clear, Gauge, List, Paragraph, Table}
+
+  alias ExRatatui.Widgets.{
+    Block,
+    Clear,
+    Gauge,
+    LineGauge,
+    List,
+    Paragraph,
+    Scrollbar,
+    Table,
+    Tabs
+  }
 
   setup do
     terminal = ExRatatui.init_test_terminal(60, 15)
@@ -294,6 +305,182 @@ defmodule ExRatatui.WidgetsTest do
       gauge = %Gauge{}
       assert gauge.ratio == 0.0
       assert gauge.label == nil
+    end
+
+    test "tabs struct has correct defaults" do
+      tabs = %Tabs{}
+      assert tabs.titles == []
+      assert tabs.selected == nil
+      assert tabs.divider == nil
+      assert tabs.padding == {1, 1}
+    end
+
+    test "scrollbar struct has correct defaults" do
+      scrollbar = %Scrollbar{}
+      assert scrollbar.orientation == :vertical_right
+      assert scrollbar.content_length == 0
+      assert scrollbar.position == 0
+      assert scrollbar.viewport_content_length == nil
+    end
+
+    test "line_gauge struct has correct defaults" do
+      lg = %LineGauge{}
+      assert lg.ratio == 0.0
+      assert lg.label == nil
+    end
+  end
+
+  describe "Tabs widget" do
+    test "basic tabs with selection", %{terminal: terminal} do
+      tabs = %Tabs{
+        titles: ["Home", "Settings", "About"],
+        selected: 0,
+        highlight_style: %Style{fg: :yellow, modifiers: [:bold]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{tabs, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Home"
+      assert content =~ "Settings"
+      assert content =~ "About"
+    end
+
+    test "tabs with custom divider", %{terminal: terminal} do
+      tabs = %Tabs{
+        titles: ["A", "B", "C"],
+        selected: 1,
+        divider: " | "
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{tabs, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "|"
+    end
+
+    test "tabs with block", %{terminal: terminal} do
+      tabs = %Tabs{
+        titles: ["Tab 1", "Tab 2"],
+        selected: 0,
+        block: %Block{title: "Navigation", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{tabs, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Navigation"
+      assert content =~ "Tab 1"
+    end
+
+    test "tabs with no selection", %{terminal: terminal} do
+      tabs = %Tabs{titles: ["X", "Y"]}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{tabs, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "X"
+    end
+  end
+
+  describe "Scrollbar widget" do
+    test "vertical scrollbar renders", %{terminal: terminal} do
+      scrollbar = %Scrollbar{
+        content_length: 100,
+        position: 10,
+        orientation: :vertical_right
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 1, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{scrollbar, rect}])
+    end
+
+    test "horizontal scrollbar renders", %{terminal: terminal} do
+      scrollbar = %Scrollbar{
+        content_length: 200,
+        position: 50,
+        orientation: :horizontal_bottom
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{scrollbar, rect}])
+    end
+
+    test "scrollbar with viewport_content_length", %{terminal: terminal} do
+      scrollbar = %Scrollbar{
+        content_length: 100,
+        position: 0,
+        viewport_content_length: 10
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 1, height: 15}
+
+      assert :ok = ExRatatui.draw(terminal, [{scrollbar, rect}])
+    end
+
+    test "scrollbar with all orientations", %{terminal: terminal} do
+      for orientation <- [:vertical_right, :vertical_left, :horizontal_bottom, :horizontal_top] do
+        scrollbar = %Scrollbar{content_length: 50, position: 25, orientation: orientation}
+
+        {rect, _desc} =
+          case orientation do
+            o when o in [:vertical_right, :vertical_left] ->
+              {%Rect{x: 0, y: 0, width: 1, height: 10}, "vertical"}
+
+            _ ->
+              {%Rect{x: 0, y: 0, width: 40, height: 1}, "horizontal"}
+          end
+
+        assert :ok = ExRatatui.draw(terminal, [{scrollbar, rect}])
+      end
+    end
+  end
+
+  describe "LineGauge widget" do
+    test "basic line gauge", %{terminal: terminal} do
+      lg = %LineGauge{
+        ratio: 0.5,
+        filled_style: %Style{fg: :green}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
+    end
+
+    test "line gauge with label and block", %{terminal: terminal} do
+      lg = %LineGauge{
+        ratio: 0.75,
+        label: "75%",
+        filled_style: %Style{fg: :blue},
+        block: %Block{title: "Download", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "75%"
+      assert content =~ "Download"
+    end
+
+    test "line gauge with zero ratio", %{terminal: terminal} do
+      lg = %LineGauge{ratio: 0.0}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
+    end
+
+    test "line gauge with integer ratio coerced to float", %{terminal: terminal} do
+      lg = %LineGauge{ratio: 1}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
     end
   end
 end

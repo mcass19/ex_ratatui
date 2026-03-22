@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ExRatatui.Widgets.Tabs` — a tab bar widget for switching between views, with customizable selection highlight, divider, and padding
+- `ExRatatui.Widgets.Scrollbar` — a scrollbar widget for indicating scroll position, supporting all four orientations (vertical right/left, horizontal bottom/top)
+- `ExRatatui.Widgets.LineGauge` — a thin single-line progress bar using line-drawing characters, with separate filled/unfilled styles
+- Examples: `tabs_demo.exs`, `scrollbar_demo.exs`, `line_gauge_demo.exs`
+
 ## [0.4.2] - 2026-03-06
 
 ### Added

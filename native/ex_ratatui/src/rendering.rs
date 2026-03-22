@@ -7,9 +7,12 @@ use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::gauge::{self, GaugeData};
+use crate::widgets::line_gauge::{self, LineGaugeData};
 use crate::widgets::list::{self, ListData};
 use crate::widgets::paragraph::{self, ParagraphData};
+use crate::widgets::scrollbar::{self, ScrollbarData};
 use crate::widgets::table::{self, TableData};
+use crate::widgets::tabs::{self, TabsData};
 
 enum WidgetData {
     Paragraph(ParagraphData),
@@ -17,6 +20,9 @@ enum WidgetData {
     List(ListData),
     Table(TableData),
     Gauge(GaugeData),
+    LineGauge(LineGaugeData),
+    Tabs(TabsData),
+    Scrollbar(ScrollbarData),
     Clear,
 }
 
@@ -53,6 +59,9 @@ fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Erro
                 "list" => WidgetData::List(decode_list(&widget_map)?),
                 "table" => WidgetData::Table(decode_table(&widget_map)?),
                 "gauge" => WidgetData::Gauge(decode_gauge(&widget_map)?),
+                "line_gauge" => WidgetData::LineGauge(decode_line_gauge(&widget_map)?),
+                "tabs" => WidgetData::Tabs(decode_tabs(&widget_map)?),
+                "scrollbar" => WidgetData::Scrollbar(decode_scrollbar(&widget_map)?),
                 "clear" => WidgetData::Clear,
                 other => {
                     return Err(Error::Term(Box::new(format!(
@@ -254,6 +263,166 @@ fn decode_gauge(map: &HashMap<String, Term>) -> Result<GaugeData, Error> {
     })
 }
 
+fn decode_tabs(map: &HashMap<String, Term>) -> Result<TabsData, Error> {
+    let titles: Vec<String> = map
+        .get("titles")
+        .ok_or_else(|| Error::Term(Box::new("tabs missing 'titles'")))?
+        .decode()?;
+
+    let selected: Option<usize> = match map.get("selected") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let highlight_style = match map.get("highlight_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let divider: Option<String> = match map.get("divider") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let padding_left: u16 = match map.get("padding_left") {
+        Some(term) => term.decode()?,
+        None => 1,
+    };
+
+    let padding_right: u16 = match map.get("padding_right") {
+        Some(term) => term.decode()?,
+        None => 1,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(TabsData {
+        titles,
+        selected,
+        style,
+        highlight_style,
+        divider,
+        block,
+        padding_left,
+        padding_right,
+    })
+}
+
+fn decode_scrollbar(map: &HashMap<String, Term>) -> Result<ScrollbarData, Error> {
+    let orientation_str: String = match map.get("orientation") {
+        Some(term) => term.decode()?,
+        None => "vertical_right".to_string(),
+    };
+    let orientation = scrollbar::parse_orientation(&orientation_str)?;
+
+    let thumb_style = match map.get("thumb_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let track_style = match map.get("track_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let begin_symbol: Option<String> = match map.get("begin_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let end_symbol: Option<String> = match map.get("end_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let thumb_symbol: Option<String> = match map.get("thumb_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let track_symbol: Option<String> = match map.get("track_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let content_length: usize = map
+        .get("content_length")
+        .ok_or_else(|| Error::Term(Box::new("scrollbar missing 'content_length'")))?
+        .decode()?;
+
+    let position: usize = match map.get("position") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+
+    let viewport_content_length: Option<usize> = match map.get("viewport_content_length") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    Ok(ScrollbarData {
+        orientation,
+        thumb_style,
+        track_style,
+        begin_symbol,
+        end_symbol,
+        thumb_symbol,
+        track_symbol,
+        content_length,
+        position,
+        viewport_content_length,
+    })
+}
+
+fn decode_line_gauge(map: &HashMap<String, Term>) -> Result<LineGaugeData, Error> {
+    let ratio: f64 = map
+        .get("ratio")
+        .ok_or_else(|| Error::Term(Box::new("line_gauge missing 'ratio'")))?
+        .decode()?;
+
+    if !ratio.is_finite() {
+        return Err(Error::Term(Box::new(
+            "line_gauge ratio must be a finite number",
+        )));
+    }
+
+    let label: Option<String> = match map.get("label") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let filled_style = match map.get("filled_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let unfilled_style = match map.get("unfilled_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(LineGaugeData {
+        ratio,
+        label,
+        style,
+        filled_style,
+        unfilled_style,
+        block,
+    })
+}
+
 fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
     match map.get("block") {
         Some(term) => Ok(Some(block::decode_block(*term)?)),
@@ -290,6 +459,9 @@ fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
         WidgetData::List(data) => list::render(frame, data, cmd.area),
         WidgetData::Table(data) => table::render(frame, data, cmd.area),
         WidgetData::Gauge(data) => gauge::render(frame, data, cmd.area),
+        WidgetData::LineGauge(data) => line_gauge::render(frame, data, cmd.area),
+        WidgetData::Tabs(data) => tabs::render(frame, data, cmd.area),
+        WidgetData::Scrollbar(data) => scrollbar::render(frame, data, cmd.area),
         WidgetData::Clear => crate::widgets::clear::render(frame, cmd.area),
     }
 }

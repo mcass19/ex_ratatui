@@ -13,7 +13,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Features
 
-- 6 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, Clear
+- 9 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, LineGauge, Tabs, Scrollbar, Clear
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
@@ -31,6 +31,9 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 | `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only) |
+| `tabs_demo.exs` | `mix run examples/tabs_demo.exs` | Tab bar navigation with selection |
+| `scrollbar_demo.exs` | `mix run examples/scrollbar_demo.exs` | Scrollable content with scrollbar |
+| `line_gauge_demo.exs` | `mix run examples/line_gauge_demo.exs` | Multiple thin progress bars |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with all widgets |
 | `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app |
 
@@ -241,6 +244,47 @@ Progress bar.
   ratio: 0.75,
   label: "75%",
   gauge_style: %Style{fg: :green}
+}
+```
+
+### LineGauge
+
+Thin single-line progress bar with separate filled/unfilled styles.
+
+```elixir
+%LineGauge{
+  ratio: 0.6,
+  label: "60%",
+  filled_style: %Style{fg: :green},
+  unfilled_style: %Style{fg: :dark_gray}
+}
+```
+
+### Tabs
+
+Tab bar for switching between views.
+
+```elixir
+%Tabs{
+  titles: ["Home", "Settings", "Help"],
+  selected: 0,
+  highlight_style: %Style{fg: :cyan, modifiers: [:bold]},
+  divider: " | ",
+  block: %Block{borders: [:all]}
+}
+```
+
+### Scrollbar
+
+Scroll position indicator for long content. Supports vertical and horizontal orientations.
+
+```elixir
+%Scrollbar{
+  content_length: 100,
+  position: 25,
+  viewport_content_length: 10,
+  orientation: :vertical_right,
+  thumb_style: %Style{fg: :cyan}
 }
 ```
 
