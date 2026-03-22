@@ -6,6 +6,7 @@ use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
 use crate::widgets::block::{self, BlockData};
+use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
 use crate::widgets::list::{self, ListData};
@@ -23,6 +24,7 @@ enum WidgetData {
     LineGauge(LineGaugeData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
+    Checkbox(CheckboxData),
     Clear,
 }
 
@@ -62,6 +64,7 @@ fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Erro
                 "line_gauge" => WidgetData::LineGauge(decode_line_gauge(&widget_map)?),
                 "tabs" => WidgetData::Tabs(decode_tabs(&widget_map)?),
                 "scrollbar" => WidgetData::Scrollbar(decode_scrollbar(&widget_map)?),
+                "checkbox" => WidgetData::Checkbox(decode_checkbox(&widget_map)?),
                 "clear" => WidgetData::Clear,
                 other => {
                     return Err(Error::Term(Box::new(format!(
@@ -423,6 +426,50 @@ fn decode_line_gauge(map: &HashMap<String, Term>) -> Result<LineGaugeData, Error
     })
 }
 
+fn decode_checkbox(map: &HashMap<String, Term>) -> Result<CheckboxData, Error> {
+    let label: String = map
+        .get("label")
+        .ok_or_else(|| Error::Term(Box::new("checkbox missing 'label'")))?
+        .decode()?;
+
+    let checked: bool = map
+        .get("checked")
+        .ok_or_else(|| Error::Term(Box::new("checkbox missing 'checked'")))?
+        .decode()?;
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let checked_style = match map.get("checked_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let checked_symbol: Option<String> = match map.get("checked_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let unchecked_symbol: Option<String> = match map.get("unchecked_symbol") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(CheckboxData {
+        label,
+        checked,
+        style,
+        checked_style,
+        checked_symbol,
+        unchecked_symbol,
+        block,
+    })
+}
+
 fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
     match map.get("block") {
         Some(term) => Ok(Some(block::decode_block(*term)?)),
@@ -462,6 +509,7 @@ fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
         WidgetData::LineGauge(data) => line_gauge::render(frame, data, cmd.area),
         WidgetData::Tabs(data) => tabs::render(frame, data, cmd.area),
         WidgetData::Scrollbar(data) => scrollbar::render(frame, data, cmd.area),
+        WidgetData::Checkbox(data) => checkbox::render(frame, data, cmd.area),
         WidgetData::Clear => crate::widgets::clear::render(frame, cmd.area),
     }
 }

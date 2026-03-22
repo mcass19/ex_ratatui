@@ -7,6 +7,7 @@ defmodule ExRatatui.WidgetsTest do
 
   alias ExRatatui.Widgets.{
     Block,
+    Checkbox,
     Clear,
     Gauge,
     LineGauge,
@@ -261,6 +262,67 @@ defmodule ExRatatui.WidgetsTest do
     end
   end
 
+  describe "Checkbox widget" do
+    test "checked checkbox renders symbol and label", %{terminal: terminal} do
+      checkbox = %Checkbox{
+        label: "Accept terms",
+        checked: true,
+        checked_style: %Style{fg: :green}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{checkbox, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "[x]"
+      assert content =~ "Accept terms"
+    end
+
+    test "unchecked checkbox renders symbol and label", %{terminal: terminal} do
+      checkbox = %Checkbox{
+        label: "Subscribe",
+        checked: false
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{checkbox, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "[ ]"
+      assert content =~ "Subscribe"
+    end
+
+    test "checkbox with custom symbols", %{terminal: terminal} do
+      checkbox = %Checkbox{
+        label: "Custom",
+        checked: true,
+        checked_symbol: "✓",
+        unchecked_symbol: "✗"
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{checkbox, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "✓"
+    end
+
+    test "checkbox with block", %{terminal: terminal} do
+      checkbox = %Checkbox{
+        label: "Wrapped",
+        checked: true,
+        block: %Block{title: "Options", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{checkbox, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Options"
+      assert content =~ "[x]"
+    end
+  end
+
   describe "mixed widgets in one frame" do
     test "multiple widget types in a single draw call", %{terminal: terminal} do
       widgets = [
@@ -305,6 +367,14 @@ defmodule ExRatatui.WidgetsTest do
       gauge = %Gauge{}
       assert gauge.ratio == 0.0
       assert gauge.label == nil
+    end
+
+    test "checkbox struct has correct defaults" do
+      cb = %Checkbox{}
+      assert cb.label == ""
+      assert cb.checked == false
+      assert cb.checked_symbol == nil
+      assert cb.unchecked_symbol == nil
     end
 
     test "tabs struct has correct defaults" do

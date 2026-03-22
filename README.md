@@ -13,7 +13,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Features
 
-- 9 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, LineGauge, Tabs, Scrollbar, Clear
+- 10 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, LineGauge, Tabs, Scrollbar, Checkbox, Clear
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
@@ -31,9 +31,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 | `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only) |
-| `tabs_demo.exs` | `mix run examples/tabs_demo.exs` | Tab bar navigation with selection |
-| `scrollbar_demo.exs` | `mix run examples/scrollbar_demo.exs` | Scrollable content with scrollbar |
-| `line_gauge_demo.exs` | `mix run examples/line_gauge_demo.exs` | Multiple thin progress bars |
+| `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with all widgets |
 | `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app |
 
@@ -285,6 +283,20 @@ Scroll position indicator for long content. Supports vertical and horizontal ori
   viewport_content_length: 10,
   orientation: :vertical_right,
   thumb_style: %Style{fg: :cyan}
+}
+```
+
+### Checkbox
+
+Boolean toggle with customizable symbols.
+
+```elixir
+%Checkbox{
+  label: "Enable notifications",
+  checked: true,
+  checked_style: %Style{fg: :green},
+  checked_symbol: "✓",
+  unchecked_symbol: "✗"
 }
 ```
 

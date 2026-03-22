@@ -35,7 +35,7 @@ defmodule ExRatatui do
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
   `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
   `ExRatatui.Widgets.Tabs`, `ExRatatui.Widgets.Scrollbar`,
-  and `ExRatatui.Widgets.Clear`.
+  `ExRatatui.Widgets.Checkbox`, and `ExRatatui.Widgets.Clear`.
 
   ## Testing
 
@@ -49,6 +49,7 @@ defmodule ExRatatui do
 
   alias ExRatatui.Widgets.{
     Block,
+    Checkbox,
     Clear,
     Gauge,
     LineGauge,
@@ -64,6 +65,7 @@ defmodule ExRatatui do
   @type widget ::
           Paragraph.t()
           | Block.t()
+          | Checkbox.t()
           | Clear.t()
           | List.t()
           | Table.t()
@@ -302,6 +304,19 @@ defmodule ExRatatui do
     |> maybe_put("track_symbol", s.track_symbol)
     |> maybe_put("begin_symbol", s.begin_symbol)
     |> maybe_put("end_symbol", s.end_symbol)
+  end
+
+  defp encode_widget(%Checkbox{} = c) do
+    %{
+      "type" => "checkbox",
+      "label" => c.label,
+      "checked" => c.checked,
+      "style" => encode_style(c.style),
+      "checked_style" => encode_style(c.checked_style)
+    }
+    |> maybe_put("checked_symbol", c.checked_symbol)
+    |> maybe_put("unchecked_symbol", c.unchecked_symbol)
+    |> maybe_put_block(c.block)
   end
 
   defp encode_block(%Block{} = b) do

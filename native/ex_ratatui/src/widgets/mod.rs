@@ -1,4 +1,5 @@
 pub mod block;
+pub mod checkbox;
 pub mod clear;
 pub mod gauge;
 pub mod line_gauge;

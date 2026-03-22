@@ -99,6 +99,7 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Widgets.LineGauge,
           ExRatatui.Widgets.Tabs,
           ExRatatui.Widgets.Scrollbar,
+          ExRatatui.Widgets.Checkbox,
           ExRatatui.Widgets.Clear
         ],
         Events: [
