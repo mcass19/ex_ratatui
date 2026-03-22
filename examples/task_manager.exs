@@ -1,4 +1,4 @@
-# Example: interactive task tracker using all widgets — Paragraph, Block, List, Table, Gauge.
+# Example: interactive task tracker showcasing most widgets.
 # Run with: mix run examples/task_manager.exs
 #
 # Each team member has their own task board. Navigate between members
@@ -16,7 +16,7 @@
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
-alias ExRatatui.Widgets.{Block, Gauge, List, Paragraph, Table}
+alias ExRatatui.Widgets.{Block, LineGauge, List, Paragraph, Scrollbar, Table, Tabs, TextInput}
 alias ExRatatui.Event
 
 defmodule TaskTracker do
@@ -60,7 +60,7 @@ defmodule TaskTracker do
         boards: @boards,
         next_id: 600,
         input_mode: nil,
-        input_buffer: "",
+        text_input: ExRatatui.text_input_new(),
         tick: 0
       })
     end)
@@ -77,25 +77,46 @@ defmodule TaskTracker do
     {w, h} = ExRatatui.terminal_size()
     area = %Rect{x: 0, y: 0, width: w, height: h}
 
-    # Main layout: header, body, footer
-    [header_area, body_area, footer_area] =
-      Layout.split(area, :vertical, [{:length, 3}, {:min, 0}, {:length, 3}])
+    # Main layout: header, body, input (conditional), footer
+    input_height = if state.input_mode == :new_task, do: 3, else: 0
+
+    [header_area, body_area, input_area, gauge_area, status_area] =
+      Layout.split(area, :vertical, [
+        {:length, 3},
+        {:min, 0},
+        {:length, input_height},
+        {:length, 1},
+        {:length, 2}
+      ])
 
     # Body: sidebar (team list) | main (task table)
     [sidebar_area, main_area] =
       Layout.split(body_area, :horizontal, [{:percentage, 25}, {:percentage, 75}])
 
-    # Footer: gauge + status
-    [gauge_area, status_area] =
-      Layout.split(footer_area, :vertical, [{:length, 1}, {:length, 2}])
+    # Task table area: table + scrollbar
+    tasks = current_tasks(state)
+    table_width = main_area.width - 1
+    table_area = %Rect{main_area | width: table_width}
+    scrollbar_area = %Rect{main_area | x: main_area.x + table_width, width: 1}
+
+    # Visible rows inside the block (borders take 2 rows, header takes 1)
+    visible_rows = max(main_area.height - 3, 1)
 
     widgets = [
       {header_widget(state), header_area},
       {team_widget(state), sidebar_area},
-      {tasks_widget(state), main_area},
+      {tasks_widget(state), table_area},
+      {scrollbar_widget(tasks, state.task_selected, visible_rows), scrollbar_area},
       {gauge_widget(state), gauge_area},
       {status_widget(state), status_area}
     ]
+
+    widgets =
+      if state.input_mode == :new_task do
+        widgets ++ [{text_input_widget(state), input_area}]
+      else
+        widgets
+      end
 
     ExRatatui.draw(terminal, widgets)
 
@@ -106,18 +127,16 @@ defmodule TaskTracker do
       # --- Input mode: typing a new task name ---
       %Event.Key{code: "enter", kind: "press"} when state.input_mode == :new_task ->
         state = create_task(state)
-        loop(terminal, %{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
+        ExRatatui.text_input_set_value(state.text_input, "")
+        loop(terminal, %{state | input_mode: nil, tick: state.tick + 1})
 
       %Event.Key{code: "esc", kind: "press"} when state.input_mode != nil ->
-        loop(terminal, %{state | input_mode: nil, input_buffer: "", tick: state.tick + 1})
+        ExRatatui.text_input_set_value(state.text_input, "")
+        loop(terminal, %{state | input_mode: nil, tick: state.tick + 1})
 
-      %Event.Key{code: "backspace", kind: "press"} when state.input_mode != nil ->
-        buf = String.slice(state.input_buffer, 0..-2//1)
-        loop(terminal, %{state | input_buffer: buf, tick: state.tick + 1})
-
-      %Event.Key{code: char, kind: "press"}
-      when state.input_mode != nil and byte_size(char) == 1 ->
-        loop(terminal, %{state | input_buffer: state.input_buffer <> char, tick: state.tick + 1})
+      %Event.Key{code: code, kind: "press"} when state.input_mode != nil ->
+        ExRatatui.text_input_handle_key(state.text_input, code)
+        loop(terminal, %{state | tick: state.tick + 1})
 
       # --- Normal mode ---
       %Event.Key{code: "tab", kind: "press"} ->
@@ -134,7 +153,7 @@ defmodule TaskTracker do
         loop(terminal, toggle_task_status(state))
 
       %Event.Key{code: "n", kind: "press"} when state.focus == :tasks ->
-        loop(terminal, %{state | input_mode: :new_task, input_buffer: "", tick: state.tick + 1})
+        loop(terminal, %{state | input_mode: :new_task, tick: state.tick + 1})
 
       %Event.Key{code: "d", kind: "press"} when state.focus == :tasks ->
         loop(terminal, delete_task(state))
@@ -145,12 +164,22 @@ defmodule TaskTracker do
   end
 
   defp header_widget(state) do
-    member = current_member(state)
+    titles =
+      Enum.map(@team, fn name ->
+        tasks = Map.get(state.boards, name, [])
+        done = Enum.count(tasks, &(&1.status == "Done"))
+        total = length(tasks)
+        "#{name} (#{done}/#{total})"
+      end)
 
-    %Paragraph{
-      text: "  ExRatatui Task Tracker — #{member}'s Board",
-      style: %Style{fg: :cyan, modifiers: [:bold]},
+    %Tabs{
+      titles: titles,
+      selected: state.team_selected,
+      style: %Style{fg: :dark_gray},
+      highlight_style: %Style{fg: :cyan, modifiers: [:bold]},
+      divider: " │ ",
       block: %Block{
+        title: " ExRatatui Task Tracker ",
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: :dark_gray}
@@ -197,12 +226,7 @@ defmodule TaskTracker do
         [task.id, task.name, status_display]
       end)
 
-    title =
-      if state.input_mode == :new_task do
-        " New task: #{state.input_buffer}█ "
-      else
-        " #{member}'s Tasks #{if(focused, do: "●", else: "○")} [#{length(tasks)}] "
-      end
+    title = " #{member}'s Tasks #{if(focused, do: "●", else: "○")} [#{length(tasks)}] "
 
     %Table{
       rows: rows,
@@ -224,6 +248,34 @@ defmodule TaskTracker do
     }
   end
 
+  defp scrollbar_widget(tasks, selected, visible_rows) do
+    total = length(tasks)
+
+    %Scrollbar{
+      content_length: max(total, 1),
+      position: selected,
+      viewport_content_length: visible_rows,
+      thumb_style: %Style{fg: :cyan},
+      track_style: %Style{fg: :dark_gray}
+    }
+  end
+
+  defp text_input_widget(state) do
+    %TextInput{
+      state: state.text_input,
+      style: %Style{fg: :white},
+      cursor_style: %Style{fg: :black, bg: :white},
+      placeholder: "Enter task name...",
+      placeholder_style: %Style{fg: :dark_gray},
+      block: %Block{
+        title: " New Task (Enter = confirm, Esc = cancel) ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :yellow}
+      }
+    }
+  end
+
   defp gauge_widget(state) do
     tasks = current_tasks(state)
     done = Enum.count(tasks, &(&1.status == "Done"))
@@ -231,11 +283,11 @@ defmodule TaskTracker do
     ratio = if total > 0, do: done / total, else: 0.0
     member = current_member(state)
 
-    %Gauge{
+    %LineGauge{
       ratio: ratio,
       label: "#{member}: #{done}/#{total} tasks done",
-      gauge_style: %Style{fg: :green},
-      style: %Style{fg: :white}
+      filled_style: %Style{fg: :green},
+      unfilled_style: %Style{fg: :dark_gray}
     }
   end
 
@@ -306,7 +358,7 @@ defmodule TaskTracker do
   defp next_status(_), do: "Todo"
 
   defp create_task(state) do
-    name = String.trim(state.input_buffer)
+    name = ExRatatui.text_input_get_value(state.text_input) |> String.trim()
 
     if name == "" do
       state

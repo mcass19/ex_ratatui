@@ -7,14 +7,18 @@ defmodule TaskManager.TUI do
   ## Layout
 
       +-------------------------------------------+
-      | Task Manager - Filter: All [3 tasks]      |  header
+      | Task Manager                              |  header
       +-------------------------------------------+
-      | # | Title           | Status  | Priority  |  body (table)
+      | All │ Todo │ In Progress │ Done            |  filter tabs
+      +-------------------------------------------+
+      | # | Title           | Status  | Priority  |  body (table + scrollbar)
       | 1 | Buy groceries   | Done    | ***       |
       | 2 | Write tests     | WIP     | **        |
       +-------------------------------------------+
+      | New task: [____________________________]  |  input (when adding)
+      +-------------------------------------------+
       | ============ 33% done                     |  gauge
-      | j/k:nav Enter:toggle n:new d:del p:pri ... |  footer
+      | j/k:nav Enter:toggle n:new d:del p:pri ...|  footer
       +-------------------------------------------+
 
   ## Key Bindings
@@ -24,16 +28,18 @@ defmodule TaskManager.TUI do
     - `j`/Down move selection down
     - `k`/Up move selection up
     - Enter toggle task status
-    - `n` new task
+    - `n` new task (opens text input)
     - `d` delete selected task
     - `p` cycle priority
     - `f` cycle filter
+    - Tab/Shift+Tab switch filter tab
 
   Input mode:
     - Enter confirm new task
     - Esc cancel
-    - Backspace delete char
-    - Any printable char append to input buffer
+    - Left/Right/Home/End cursor navigation
+    - Backspace/Delete edit text
+    - Any printable char inserts at cursor
   """
 
   use ExRatatui.App
@@ -41,7 +47,10 @@ defmodule TaskManager.TUI do
   alias ExRatatui.Layout
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Gauge, Paragraph, Table}
+  alias ExRatatui.Widgets.{Block, LineGauge, Paragraph, Scrollbar, Table, Tabs, TextInput}
+
+  @filters [:all, :todo, :in_progress, :done]
+  @filter_labels ["All", "Todo", "In Progress", "Done"]
 
   # ── Callbacks ──────────────────────────────────────────────────
 
@@ -60,7 +69,7 @@ defmodule TaskManager.TUI do
        selected: 0,
        filter: :all,
        input_mode: nil,
-       input_buffer: "",
+       text_input: ExRatatui.text_input_new(),
        total: total,
        done: done
      }}
@@ -70,20 +79,42 @@ defmodule TaskManager.TUI do
   def render(state, frame) do
     area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
 
-    [header_area, body_area, gauge_area, footer_area] =
+    input_height = if state.input_mode == :new_task, do: 3, else: 0
+
+    [header_area, tabs_area, body_area, input_area, gauge_area, footer_area] =
       Layout.split(area, :vertical, [
         {:length, 3},
+        {:length, 3},
         {:min, 0},
+        {:length, input_height},
         {:length, 1},
         {:length, 3}
       ])
 
-    [
+    # Table + scrollbar side by side
+    table_width = body_area.width - 1
+    table_area = %Rect{body_area | width: table_width}
+    scrollbar_area = %Rect{body_area | x: body_area.x + table_width, width: 1}
+
+    visible_rows = max(body_area.height - 3, 1)
+
+    widgets = [
       {header_widget(state), header_area},
-      {body_widget(state), body_area},
+      {tabs_widget(state), tabs_area},
+      {body_widget(state), table_area},
+      {scrollbar_widget(state, visible_rows), scrollbar_area},
       {gauge_widget(state), gauge_area},
       {footer_widget(state), footer_area}
     ]
+
+    widgets =
+      if state.input_mode == :new_task do
+        widgets ++ [{text_input_widget(state), input_area}]
+      else
+        widgets
+      end
+
+    widgets
   end
 
   @impl true
@@ -117,7 +148,7 @@ defmodule TaskManager.TUI do
   end
 
   def handle_event(%ExRatatui.Event.Key{code: "n", kind: "press"}, %{input_mode: nil} = state) do
-    {:noreply, %{state | input_mode: :new_task, input_buffer: ""}}
+    {:noreply, %{state | input_mode: :new_task}}
   end
 
   def handle_event(%ExRatatui.Event.Key{code: "d", kind: "press"}, %{input_mode: nil} = state) do
@@ -136,6 +167,21 @@ defmodule TaskManager.TUI do
     {:noreply, refresh_tasks(state)}
   end
 
+  def handle_event(%ExRatatui.Event.Key{code: "tab", kind: "press"}, %{input_mode: nil} = state) do
+    next_filter = cycle_filter(state.filter)
+    state = %{state | filter: next_filter}
+    {:noreply, refresh_tasks(state)}
+  end
+
+  def handle_event(
+        %ExRatatui.Event.Key{code: "back_tab", kind: "press"},
+        %{input_mode: nil} = state
+      ) do
+    next_filter = cycle_filter_back(state.filter)
+    state = %{state | filter: next_filter}
+    {:noreply, refresh_tasks(state)}
+  end
+
   def handle_event(_event, state) do
     {:noreply, state}
   end
@@ -143,51 +189,62 @@ defmodule TaskManager.TUI do
   # ── Input Mode Handling ────────────────────────────────────────
 
   defp handle_input_mode("enter", state) do
-    title = String.trim(state.input_buffer)
+    title = ExRatatui.text_input_get_value(state.text_input) |> String.trim()
 
     state =
       if title == "" do
-        %{state | input_mode: nil, input_buffer: ""}
+        %{state | input_mode: nil}
       else
         TaskManager.create_task(%{title: title})
-        state = refresh_tasks(%{state | input_mode: nil, input_buffer: ""})
+        state = refresh_tasks(%{state | input_mode: nil})
         # Select the newly created task (last one in the list)
         %{state | selected: max(length(state.tasks) - 1, 0)}
       end
 
+    ExRatatui.text_input_set_value(state.text_input, "")
     {:noreply, state}
   end
 
   defp handle_input_mode("esc", state) do
-    {:noreply, %{state | input_mode: nil, input_buffer: ""}}
+    ExRatatui.text_input_set_value(state.text_input, "")
+    {:noreply, %{state | input_mode: nil}}
   end
 
-  defp handle_input_mode("backspace", state) do
-    buf = String.slice(state.input_buffer, 0..-2//1)
-    {:noreply, %{state | input_buffer: buf}}
-  end
-
-  defp handle_input_mode(char, state) when byte_size(char) == 1 do
-    {:noreply, %{state | input_buffer: state.input_buffer <> char}}
-  end
-
-  defp handle_input_mode(_code, state) do
+  defp handle_input_mode(code, state) do
+    ExRatatui.text_input_handle_key(state.text_input, code)
     {:noreply, state}
   end
 
   # ── Widgets ────────────────────────────────────────────────────
 
   defp header_widget(state) do
-    filter_label = filter_display(state.filter)
     task_count = length(state.tasks)
 
     %Paragraph{
-      text: "  \u2728 Task Manager \u2014 Filter: #{filter_label} [#{task_count} tasks]",
+      text: "  \u2728 Task Manager [#{task_count} tasks]",
       style: %Style{fg: :white, modifiers: [:bold]},
       block: %Block{
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: {:rgb, 100, 149, 237}}
+      }
+    }
+  end
+
+  defp tabs_widget(state) do
+    selected = Enum.find_index(@filters, &(&1 == state.filter))
+
+    %Tabs{
+      titles: @filter_labels,
+      selected: selected,
+      style: %Style{fg: :dark_gray},
+      highlight_style: %Style{fg: {:rgb, 100, 149, 237}, modifiers: [:bold]},
+      divider: " │ ",
+      block: %Block{
+        title: " Filter ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: {:rgb, 60, 60, 80}}
       }
     }
   end
@@ -205,13 +262,6 @@ defmodule TaskManager.TUI do
         ]
       end)
 
-    title =
-      if state.input_mode == :new_task do
-        " \u270F\uFE0F  New task: #{state.input_buffer}\u2588 "
-      else
-        " \u{1F4CB} Tasks "
-      end
-
     selected =
       if length(state.tasks) > 0 do
         state.selected
@@ -228,10 +278,38 @@ defmodule TaskManager.TUI do
       selected: selected,
       column_spacing: 2,
       block: %Block{
-        title: title,
+        title: " \u{1F4CB} Tasks ",
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: {:rgb, 100, 149, 237}}
+      }
+    }
+  end
+
+  defp scrollbar_widget(state, visible_rows) do
+    total = length(state.tasks)
+
+    %Scrollbar{
+      content_length: max(total, 1),
+      position: state.selected,
+      viewport_content_length: visible_rows,
+      thumb_style: %Style{fg: {:rgb, 100, 149, 237}},
+      track_style: %Style{fg: {:rgb, 60, 60, 80}}
+    }
+  end
+
+  defp text_input_widget(state) do
+    %TextInput{
+      state: state.text_input,
+      style: %Style{fg: :white},
+      cursor_style: %Style{fg: :black, bg: :white},
+      placeholder: "Enter task title...",
+      placeholder_style: %Style{fg: {:rgb, 100, 100, 120}},
+      block: %Block{
+        title: " \u270F\uFE0F  New Task (Enter = confirm, Esc = cancel) ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: {:rgb, 255, 215, 0}}
       }
     }
   end
@@ -244,11 +322,11 @@ defmodule TaskManager.TUI do
         0.0
       end
 
-    %Gauge{
+    %LineGauge{
       ratio: ratio,
-      label: "\u2588 #{state.done}/#{state.total} tasks done",
-      gauge_style: %Style{fg: {:rgb, 80, 200, 120}},
-      style: %Style{fg: :white}
+      label: "#{state.done}/#{state.total} tasks done",
+      filled_style: %Style{fg: {:rgb, 80, 200, 120}},
+      unfilled_style: %Style{fg: {:rgb, 60, 60, 80}}
     }
   end
 
@@ -257,7 +335,7 @@ defmodule TaskManager.TUI do
       if state.input_mode == :new_task do
         "  \u270F\uFE0F  Type task name, Enter to confirm, Esc to cancel"
       else
-        "  j/\u2193 k/\u2191 Enter:toggle  n:new  d:del  p:priority  f:filter  q:quit"
+        "  j/\u2193 k/\u2191 Enter:toggle  n:new  d:del  p:priority  f/Tab:filter  q:quit"
       end
 
     %Paragraph{
@@ -318,10 +396,10 @@ defmodule TaskManager.TUI do
   defp cycle_filter(:in_progress), do: :done
   defp cycle_filter(:done), do: :all
 
-  defp filter_display(:all), do: "All"
-  defp filter_display(:todo), do: "Todo"
-  defp filter_display(:in_progress), do: "In Progress"
-  defp filter_display(:done), do: "Done"
+  defp cycle_filter_back(:all), do: :done
+  defp cycle_filter_back(:done), do: :in_progress
+  defp cycle_filter_back(:in_progress), do: :todo
+  defp cycle_filter_back(:todo), do: :all
 
   defp status_display("done"), do: "\u2714 Done"
   defp status_display("in_progress"), do: "\u25B6 In Progress"

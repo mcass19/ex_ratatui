@@ -393,6 +393,126 @@ defmodule ExRatatui.WidgetsTest do
     end
   end
 
+  describe "TextInput state management" do
+    test "new text input has empty value" do
+      state = ExRatatui.text_input_new()
+      assert ExRatatui.text_input_get_value(state) == ""
+    end
+
+    test "typing characters builds up value" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_handle_key(state, "a")
+      ExRatatui.text_input_handle_key(state, "b")
+      ExRatatui.text_input_handle_key(state, "c")
+      assert ExRatatui.text_input_get_value(state) == "abc"
+    end
+
+    test "set_value replaces content" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_handle_key(state, "x")
+      ExRatatui.text_input_set_value(state, "hello world")
+      assert ExRatatui.text_input_get_value(state) == "hello world"
+    end
+
+    test "set_value to empty string clears input" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "something")
+      ExRatatui.text_input_set_value(state, "")
+      assert ExRatatui.text_input_get_value(state) == ""
+    end
+
+    test "cursor starts at 0" do
+      state = ExRatatui.text_input_new()
+      assert ExRatatui.text_input_cursor(state) == 0
+    end
+
+    test "cursor advances with each character typed" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_handle_key(state, "a")
+      ExRatatui.text_input_handle_key(state, "b")
+      assert ExRatatui.text_input_cursor(state) == 2
+    end
+
+    test "backspace deletes character before cursor" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      ExRatatui.text_input_handle_key(state, "backspace")
+      assert ExRatatui.text_input_get_value(state) == "ab"
+    end
+
+    test "backspace on empty input is a no-op" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_handle_key(state, "backspace")
+      assert ExRatatui.text_input_get_value(state) == ""
+      assert ExRatatui.text_input_cursor(state) == 0
+    end
+
+    test "delete removes character at cursor" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      # Move cursor to beginning
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "delete")
+      assert ExRatatui.text_input_get_value(state) == "bc"
+    end
+
+    test "left arrow moves cursor back" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      # Cursor is at end (3)
+      ExRatatui.text_input_handle_key(state, "left")
+      assert ExRatatui.text_input_cursor(state) == 2
+    end
+
+    test "right arrow moves cursor forward" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "right")
+      assert ExRatatui.text_input_cursor(state) == 1
+    end
+
+    test "home moves cursor to beginning" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "hello")
+      ExRatatui.text_input_handle_key(state, "home")
+      assert ExRatatui.text_input_cursor(state) == 0
+    end
+
+    test "end moves cursor to end" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "hello")
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "end")
+      assert ExRatatui.text_input_cursor(state) == 5
+    end
+
+    test "inserting in the middle of text" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "ac")
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "right")
+      ExRatatui.text_input_handle_key(state, "b")
+      assert ExRatatui.text_input_get_value(state) == "abc"
+      assert ExRatatui.text_input_cursor(state) == 2
+    end
+
+    test "left at beginning is a no-op" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "left")
+      assert ExRatatui.text_input_cursor(state) == 0
+    end
+
+    test "right at end is a no-op" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "abc")
+      ExRatatui.text_input_handle_key(state, "right")
+      assert ExRatatui.text_input_cursor(state) == 3
+    end
+  end
+
   describe "mixed widgets in one frame" do
     test "multiple widget types in a single draw call", %{terminal: terminal} do
       widgets = [

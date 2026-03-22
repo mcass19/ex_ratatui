@@ -8,6 +8,10 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.List
   doctest ExRatatui.Widgets.Table
   doctest ExRatatui.Widgets.Gauge
+  doctest ExRatatui.Widgets.LineGauge
+  doctest ExRatatui.Widgets.Tabs
+  doctest ExRatatui.Widgets.Scrollbar
+  doctest ExRatatui.Widgets.Checkbox
 
   test "widget structs can be created" do
     paragraph = %ExRatatui.Widgets.Paragraph{text: "Hello"}

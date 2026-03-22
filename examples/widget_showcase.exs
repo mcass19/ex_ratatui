@@ -1,5 +1,5 @@
 # Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, and more.
-# Run with: EX_RATATUI_BUILD=true mix run examples/widget_showcase.exs
+# Run with: mix run examples/widget_showcase.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Space = toggle checkbox, q = quit
 

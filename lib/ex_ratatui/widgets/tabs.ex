@@ -8,7 +8,7 @@ defmodule ExRatatui.Widgets.Tabs do
     * `:selected` - zero-based index of the selected tab, or `nil` for no selection
     * `:style` - `%ExRatatui.Style{}` for non-selected tabs
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected tab
-    * `:divider` - separator string between tabs (default: `"|"`)
+    * `:divider` - separator string between tabs (default: `nil`; the Rust backend uses `"│"`)
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
     * `:padding` - `{left, right}` padding around each tab title (default: `{1, 1}`)
 

@@ -17,16 +17,13 @@ pub struct TabsData {
 }
 
 pub fn render(frame: &mut Frame, data: &TabsData, area: Rect) {
+    let left = " ".repeat(data.padding_left as usize);
+    let right = " ".repeat(data.padding_right as usize);
+
     let mut tabs = Tabs::new(data.titles.clone())
         .style(data.style)
         .highlight_style(data.highlight_style)
-        .padding(" ", " ");
-
-    if data.padding_left > 0 || data.padding_right > 0 {
-        let left = " ".repeat(data.padding_left as usize);
-        let right = " ".repeat(data.padding_right as usize);
-        tabs = tabs.padding(left, right);
-    }
+        .padding(left, right);
 
     if let Some(selected) = data.selected {
         tabs = tabs.select(selected);

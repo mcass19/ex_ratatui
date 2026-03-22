@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Widgets.Checkbox` — a checkbox widget for boolean toggles, with customizable checked/unchecked symbols and styles
 - `ExRatatui.Widgets.TextInput` — a single-line text input widget with cursor navigation, viewport scrolling, and placeholder support. First **stateful** widget — state lives in Rust via ResourceArc
 - Example: `widget_showcase.exs` — interactive demo with tabs, progress bars, checkboxes, text input, scrollable logs, and scrollbar (replaces individual `tabs_demo.exs`, `scrollbar_demo.exs`, `line_gauge_demo.exs`)
+- Doctests for `Tabs`, `Scrollbar`, `LineGauge`, and `Checkbox` struct modules
+- Updated `task_manager.exs` example to use `Tabs` (header), `LineGauge` (progress), `Scrollbar` (task table), and `TextInput` (new task creation — replaces hand-rolled input buffer with proper cursor navigation, viewport scrolling, and placeholder support)
+- Updated `examples/task_manager/` App to use `Tabs` (filter bar with Tab/Shift+Tab navigation), `LineGauge` (replaces `Gauge`), `Scrollbar` (task table), and `TextInput` (replaces hand-rolled input buffer)
+- Comprehensive `TextInput` state management tests: get/set value, cursor positioning, backspace, delete, left/right, home/end, and mid-text insertion
+
+### Fixed
+
+- `Checkbox` moduledoc now correctly states that `:checked_symbol` and `:unchecked_symbol` default to `nil` (rendered as `"[x]"` / `"[ ]"` by the Rust backend)
+- Removed redundant `.padding()` call in Rust tabs renderer that was always overwritten
 
 ## [0.4.2] - 2026-03-06
 

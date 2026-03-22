@@ -11,8 +11,8 @@ defmodule ExRatatui.Widgets.Checkbox do
     * `:checked` - whether the checkbox is checked (default: `false`)
     * `:style` - `%ExRatatui.Style{}` for the label text
     * `:checked_style` - `%ExRatatui.Style{}` for the checkbox symbol
-    * `:checked_symbol` - custom string for the checked state (default: `"[x]"`)
-    * `:unchecked_symbol` - custom string for the unchecked state (default: `"[ ]"`)
+    * `:checked_symbol` - custom string for the checked state (rendered as `"[x]"` when `nil`)
+    * `:unchecked_symbol` - custom string for the unchecked state (rendered as `"[ ]"` when `nil`)
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
 
   ## Examples
