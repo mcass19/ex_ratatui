@@ -1,18 +1,18 @@
-# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, and more.
+# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, and more.
 # Run with: EX_RATATUI_BUILD=true mix run examples/widget_showcase.exs
 #
-# Controls: Left/Right = switch tabs, Up/Down = scroll/adjust, Space = toggle checkbox, q = quit
+# Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Space = toggle checkbox, q = quit
 
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
-alias ExRatatui.Widgets.{Block, Checkbox, LineGauge, List, Paragraph, Scrollbar, Tabs}
+alias ExRatatui.Widgets.{Block, Checkbox, LineGauge, Paragraph, Scrollbar, Tabs, TextInput}
 alias ExRatatui.Event
 
 defmodule WidgetShowcase do
   use ExRatatui.App
 
-  @tabs ["Progress", "Settings", "Logs"]
+  @tabs ["Progress", "Settings", "Search", "Logs"]
   @log_lines 40
 
   @impl true
@@ -32,6 +32,8 @@ defmodule WidgetShowcase do
          %{label: "Vim keybindings", checked: false}
        ],
        setting_cursor: 0,
+       # Search tab
+       search_input: ExRatatui.text_input_new(),
        # Logs tab
        scroll: 0
      }}
@@ -158,6 +160,50 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 2} = state, area) do
+    [header_area, input_area, value_area, _spacer] =
+      Layout.split(area, :vertical, [
+        {:length, 2},
+        {:length, 3},
+        {:length, 3},
+        {:min, 0}
+      ])
+
+    header = %Paragraph{
+      text: "  Try typing in the text input below",
+      style: %Style{fg: :cyan, modifiers: [:bold]}
+    }
+
+    input = %TextInput{
+      state: state.search_input,
+      style: %Style{fg: :white},
+      cursor_style: %Style{fg: :black, bg: :white},
+      placeholder: "Type something...",
+      placeholder_style: %Style{fg: :dark_gray},
+      block: %Block{
+        title: " Search ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    current_value = ExRatatui.text_input_get_value(state.search_input)
+    cursor_pos = ExRatatui.text_input_cursor(state.search_input)
+
+    value_display = %Paragraph{
+      text: "  Value: \"#{current_value}\" | Cursor: #{cursor_pos}",
+      style: %Style{fg: :dark_gray},
+      block: %Block{
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+
+    [{header, header_area}, {input, input_area}, {value_display, value_area}]
+  end
+
+  defp render_tab(%{tab: 3} = state, area) do
     content_width = area.width - 1
     content_area = %Rect{area | width: content_width}
     scrollbar_area = %Rect{area | x: area.x + content_width, width: 1}
@@ -194,21 +240,34 @@ defmodule WidgetShowcase do
     [{content, content_area}, {scrollbar, scrollbar_area}]
   end
 
-  defp footer_text(0), do: " Left/Right = tabs | Up/Down = adjust progress | q = quit"
-  defp footer_text(1), do: " Left/Right = tabs | Up/Down = navigate | Space = toggle | q = quit"
-  defp footer_text(2), do: " Left/Right = tabs | Up/Down = scroll | q = quit"
+  defp footer_text(0), do: " Tab/Shift+Tab = switch tabs | Up/Down = adjust progress | q = quit"
+
+  defp footer_text(1),
+    do: " Tab/Shift+Tab = switch tabs | Up/Down = navigate | Space = toggle | q = quit"
+
+  defp footer_text(2),
+    do: " Tab/Shift+Tab = switch tabs | Type to search | Arrows = move cursor | q = quit"
+
+  defp footer_text(3), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
     {:stop, state}
   end
 
-  def handle_event(%Event.Key{code: "right", kind: "press"}, state) do
+  # Global tab switching
+  def handle_event(%Event.Key{code: "tab", kind: "press"}, state) do
     {:noreply, %{state | tab: rem(state.tab + 1, length(@tabs))}}
   end
 
-  def handle_event(%Event.Key{code: "left", kind: "press"}, state) do
+  def handle_event(%Event.Key{code: "back_tab", kind: "press"}, state) do
     {:noreply, %{state | tab: rem(state.tab - 1 + length(@tabs), length(@tabs))}}
+  end
+
+  # Search tab: forward all other keys to text input
+  def handle_event(%Event.Key{code: code, kind: "press"}, %{tab: 2} = state) do
+    ExRatatui.text_input_handle_key(state.search_input, code)
+    {:noreply, state}
   end
 
   # Progress tab: up/down adjusts gauge
@@ -250,11 +309,11 @@ defmodule WidgetShowcase do
   end
 
   # Logs tab: up/down scrolls
-  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 2} = state) do
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 3} = state) do
     {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
   end
 
-  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 2} = state) do
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 3} = state) do
     {:noreply, %{state | scroll: max(state.scroll - 1, 0)}}
   end
 

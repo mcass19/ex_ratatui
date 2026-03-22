@@ -15,7 +15,8 @@ defmodule ExRatatui.WidgetsTest do
     Paragraph,
     Scrollbar,
     Table,
-    Tabs
+    Tabs,
+    TextInput
   }
 
   setup do
@@ -320,6 +321,75 @@ defmodule ExRatatui.WidgetsTest do
       content = ExRatatui.get_buffer_content(terminal)
       assert content =~ "Options"
       assert content =~ "[x]"
+    end
+  end
+
+  describe "TextInput widget" do
+    test "renders text input with value", %{terminal: terminal} do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_handle_key(state, "h")
+      ExRatatui.text_input_handle_key(state, "e")
+      ExRatatui.text_input_handle_key(state, "l")
+      ExRatatui.text_input_handle_key(state, "l")
+      ExRatatui.text_input_handle_key(state, "o")
+
+      input = %TextInput{
+        state: state,
+        style: %Style{fg: :white},
+        cursor_style: %Style{fg: :black, bg: :white}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "hello"
+    end
+
+    test "renders placeholder when empty", %{terminal: terminal} do
+      state = ExRatatui.text_input_new()
+
+      input = %TextInput{
+        state: state,
+        placeholder: "Type here...",
+        placeholder_style: %Style{fg: :dark_gray},
+        cursor_style: %Style{fg: :black, bg: :white}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Type here..."
+    end
+
+    test "renders with block", %{terminal: terminal} do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "test value")
+
+      input = %TextInput{
+        state: state,
+        style: %Style{fg: :white},
+        cursor_style: %Style{fg: :black, bg: :white},
+        block: %Block{title: "Search", borders: [:all], border_type: :rounded}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Search"
+      assert content =~ "test value"
+    end
+
+    test "text_input struct has correct defaults" do
+      input = %TextInput{}
+      assert input.state == nil
+      assert input.placeholder == nil
+      assert input.block == nil
+      assert input.style == %Style{}
+      assert input.cursor_style == %Style{}
+      assert input.placeholder_style == %Style{}
     end
   end
 

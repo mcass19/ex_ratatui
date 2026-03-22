@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
+use crate::text_input::{self, TextInputRenderData, TextInputResource};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
@@ -25,6 +26,7 @@ enum WidgetData {
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
+    TextInput(TextInputRenderData),
     Clear,
 }
 
@@ -65,6 +67,7 @@ fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Erro
                 "tabs" => WidgetData::Tabs(decode_tabs(&widget_map)?),
                 "scrollbar" => WidgetData::Scrollbar(decode_scrollbar(&widget_map)?),
                 "checkbox" => WidgetData::Checkbox(decode_checkbox(&widget_map)?),
+                "text_input" => WidgetData::TextInput(decode_text_input(&widget_map)?),
                 "clear" => WidgetData::Clear,
                 other => {
                     return Err(Error::Term(Box::new(format!(
@@ -470,6 +473,44 @@ fn decode_checkbox(map: &HashMap<String, Term>) -> Result<CheckboxData, Error> {
     })
 }
 
+fn decode_text_input(map: &HashMap<String, Term>) -> Result<TextInputRenderData, Error> {
+    let resource: ResourceArc<TextInputResource> = map
+        .get("state")
+        .ok_or_else(|| Error::Term(Box::new("text_input missing 'state'")))?
+        .decode()?;
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let cursor_style = match map.get("cursor_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let placeholder: Option<String> = match map.get("placeholder") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let placeholder_style = match map.get("placeholder_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(TextInputRenderData {
+        resource,
+        style,
+        cursor_style,
+        placeholder,
+        placeholder_style,
+        block,
+    })
+}
+
 fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
     match map.get("block") {
         Some(term) => Ok(Some(block::decode_block(*term)?)),
@@ -510,6 +551,7 @@ fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
         WidgetData::Tabs(data) => tabs::render(frame, data, cmd.area),
         WidgetData::Scrollbar(data) => scrollbar::render(frame, data, cmd.area),
         WidgetData::Checkbox(data) => checkbox::render(frame, data, cmd.area),
+        WidgetData::TextInput(data) => text_input::render(frame, data, cmd.area),
         WidgetData::Clear => crate::widgets::clear::render(frame, cmd.area),
     }
 }

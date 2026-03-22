@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Widgets.Scrollbar` — a scrollbar widget for indicating scroll position, supporting all four orientations (vertical right/left, horizontal bottom/top)
 - `ExRatatui.Widgets.LineGauge` — a thin single-line progress bar using line-drawing characters, with separate filled/unfilled styles
 - `ExRatatui.Widgets.Checkbox` — a checkbox widget for boolean toggles, with customizable checked/unchecked symbols and styles
-- Example: `widget_showcase.exs` — interactive demo with tabs, progress bars, checkboxes, scrollable logs, and scrollbar (replaces individual `tabs_demo.exs`, `scrollbar_demo.exs`, `line_gauge_demo.exs`)
+- `ExRatatui.Widgets.TextInput` — a single-line text input widget with cursor navigation, viewport scrolling, and placeholder support. First **stateful** widget — state lives in Rust via ResourceArc
+- Example: `widget_showcase.exs` — interactive demo with tabs, progress bars, checkboxes, text input, scrollable logs, and scrollbar (replaces individual `tabs_demo.exs`, `scrollbar_demo.exs`, `line_gauge_demo.exs`)
 
 ## [0.4.2] - 2026-03-06
 

@@ -13,7 +13,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Features
 
-- 10 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, LineGauge, Tabs, Scrollbar, Checkbox, Clear
+- 11 built-in widgets (for now!): Paragraph, Block, List, Table, Gauge, LineGauge, Tabs, Scrollbar, Checkbox, TextInput, Clear
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
@@ -31,7 +31,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 | `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only) |
-| `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, scrollable logs |
+| `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with all widgets |
 | `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app |
 
@@ -297,6 +297,33 @@ Boolean toggle with customizable symbols.
   checked_style: %Style{fg: :green},
   checked_symbol: "✓",
   unchecked_symbol: "✗"
+}
+```
+
+### TextInput
+
+Single-line text input with cursor navigation and viewport scrolling. This is a **stateful** widget — its state lives in Rust via ResourceArc.
+
+```elixir
+# Create state (once, e.g. in mount/1)
+state = ExRatatui.text_input_new()
+
+# Forward key events
+ExRatatui.text_input_handle_key(state, "h")
+ExRatatui.text_input_handle_key(state, "i")
+
+# Read/set value
+ExRatatui.text_input_get_value(state)  #=> "hi"
+ExRatatui.text_input_set_value(state, "hello")
+
+# Render
+%TextInput{
+  state: state,
+  style: %Style{fg: :white},
+  cursor_style: %Style{fg: :black, bg: :white},
+  placeholder: "Type here...",
+  placeholder_style: %Style{fg: :dark_gray},
+  block: %Block{title: "Search", borders: [:all], border_type: :rounded}
 }
 ```
 

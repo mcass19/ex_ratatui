@@ -66,4 +66,26 @@ defmodule ExRatatui.Native do
   @doc false
   # Returns the test terminal's buffer contents as a string.
   def get_buffer_content(_terminal_ref), do: :erlang.nif_error(:not_loaded)
+
+  # TextInput (stateful widget)
+
+  @doc false
+  # Creates a new TextInput state. Returns a ResourceArc reference.
+  def text_input_new, do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Handles a key event on the TextInput state.
+  def text_input_handle_key(_state_ref, _key_code), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Returns the current text value from the TextInput state.
+  def text_input_get_value(_state_ref), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Sets the text value on the TextInput state.
+  def text_input_set_value(_state_ref, _value), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Returns the current cursor position from the TextInput state.
+  def text_input_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
 end

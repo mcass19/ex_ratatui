@@ -35,7 +35,8 @@ defmodule ExRatatui do
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
   `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
   `ExRatatui.Widgets.Tabs`, `ExRatatui.Widgets.Scrollbar`,
-  `ExRatatui.Widgets.Checkbox`, and `ExRatatui.Widgets.Clear`.
+  `ExRatatui.Widgets.Checkbox`, `ExRatatui.Widgets.TextInput`,
+  and `ExRatatui.Widgets.Clear`.
 
   ## Testing
 
@@ -57,7 +58,8 @@ defmodule ExRatatui do
     Paragraph,
     Scrollbar,
     Table,
-    Tabs
+    Tabs,
+    TextInput
   }
 
   @type terminal_ref :: reference()
@@ -73,6 +75,7 @@ defmodule ExRatatui do
           | LineGauge.t()
           | Tabs.t()
           | Scrollbar.t()
+          | TextInput.t()
 
   @doc """
   Runs a TUI application.
@@ -198,6 +201,89 @@ defmodule ExRatatui do
     Native.get_buffer_content(terminal_ref)
   end
 
+  # -- TextInput (stateful widget) --
+
+  @doc """
+  Creates a new TextInput state.
+
+  Returns a reference to the Rust-side state (ResourceArc). Pass this
+  reference as the `:state` field of `%ExRatatui.Widgets.TextInput{}`.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> is_reference(state)
+      true
+  """
+  @spec text_input_new() :: reference()
+  def text_input_new, do: Native.text_input_new()
+
+  @doc """
+  Forwards a key event to the TextInput state.
+
+  Pass the `code` field from an `ExRatatui.Event.Key` struct. Supports
+  printable characters, `"backspace"`, `"delete"`, `"left"`, `"right"`,
+  `"home"`, and `"end"`.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_handle_key(state, "h")
+      :ok
+      iex> ExRatatui.text_input_handle_key(state, "i")
+      :ok
+      iex> ExRatatui.text_input_get_value(state)
+      "hi"
+  """
+  @spec text_input_handle_key(reference(), String.t()) :: :ok
+  def text_input_handle_key(state_ref, key_code),
+    do: Native.text_input_handle_key(state_ref, key_code)
+
+  @doc """
+  Returns the current text value from the TextInput state.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_get_value(state)
+      ""
+  """
+  @spec text_input_get_value(reference()) :: String.t()
+  def text_input_get_value(state_ref), do: Native.text_input_get_value(state_ref)
+
+  @doc """
+  Sets the text value on the TextInput state.
+
+  The cursor is moved to the end of the new value.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_set_value(state, "hello")
+      :ok
+      iex> ExRatatui.text_input_get_value(state)
+      "hello"
+  """
+  @spec text_input_set_value(reference(), String.t()) :: :ok
+  def text_input_set_value(state_ref, value),
+    do: Native.text_input_set_value(state_ref, value)
+
+  @doc """
+  Returns the current cursor position from the TextInput state.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_cursor(state)
+      0
+      iex> ExRatatui.text_input_handle_key(state, "a")
+      :ok
+      iex> ExRatatui.text_input_cursor(state)
+      1
+  """
+  @spec text_input_cursor(reference()) :: non_neg_integer()
+  def text_input_cursor(state_ref), do: Native.text_input_cursor(state_ref)
+
   # -- Encoding: Elixir structs -> string-keyed maps for NIF --
 
   defp encode_command({widget, %Rect{} = rect}) do
@@ -317,6 +403,18 @@ defmodule ExRatatui do
     |> maybe_put("checked_symbol", c.checked_symbol)
     |> maybe_put("unchecked_symbol", c.unchecked_symbol)
     |> maybe_put_block(c.block)
+  end
+
+  defp encode_widget(%TextInput{} = t) do
+    %{
+      "type" => "text_input",
+      "state" => t.state,
+      "style" => encode_style(t.style),
+      "cursor_style" => encode_style(t.cursor_style),
+      "placeholder_style" => encode_style(t.placeholder_style)
+    }
+    |> maybe_put("placeholder", t.placeholder)
+    |> maybe_put_block(t.block)
   end
 
   defp encode_block(%Block{} = b) do
