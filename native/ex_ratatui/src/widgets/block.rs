@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use crate::style::decode_style;
 
+#[derive(Clone)]
 pub struct BlockData {
     pub title: Option<String>,
     pub borders: Borders,

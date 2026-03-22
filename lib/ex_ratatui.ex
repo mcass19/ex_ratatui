@@ -55,11 +55,16 @@ defmodule ExRatatui do
     Gauge,
     LineGauge,
     List,
+    Markdown,
     Paragraph,
     Scrollbar,
     Table,
     Tabs,
-    TextInput
+    Popup,
+    Textarea,
+    TextInput,
+    Throbber,
+    WidgetList
   }
 
   @type terminal_ref :: reference()
@@ -75,7 +80,12 @@ defmodule ExRatatui do
           | LineGauge.t()
           | Tabs.t()
           | Scrollbar.t()
+          | Markdown.t()
+          | Popup.t()
+          | Textarea.t()
           | TextInput.t()
+          | Throbber.t()
+          | WidgetList.t()
 
   @doc """
   Runs a TUI application.
@@ -284,6 +294,93 @@ defmodule ExRatatui do
   @spec text_input_cursor(reference()) :: non_neg_integer()
   def text_input_cursor(state_ref), do: Native.text_input_cursor(state_ref)
 
+  # -- Textarea (stateful multiline widget) --
+
+  @doc """
+  Creates a new Textarea state.
+
+  Returns a reference to the Rust-side state (ResourceArc). Pass this
+  reference as the `:state` field of `%ExRatatui.Widgets.Textarea{}`.
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> is_reference(state)
+      true
+  """
+  @spec textarea_new() :: reference()
+  def textarea_new, do: Native.textarea_new()
+
+  @doc """
+  Forwards a key event with modifiers to the Textarea state.
+
+  The textarea supports Emacs-style shortcuts (Ctrl+Z undo, Ctrl+Y redo, etc.).
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_handle_key(state, "h", [])
+      :ok
+      iex> ExRatatui.textarea_handle_key(state, "i", [])
+      :ok
+      iex> ExRatatui.textarea_get_value(state)
+      "hi"
+  """
+  @spec textarea_handle_key(reference(), String.t(), [String.t()]) :: :ok
+  def textarea_handle_key(state_ref, key_code, modifiers \\ []),
+    do: Native.textarea_handle_key(state_ref, key_code, modifiers)
+
+  @doc """
+  Returns the current text from the Textarea as a string (lines joined with \\n).
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_get_value(state)
+      ""
+  """
+  @spec textarea_get_value(reference()) :: String.t()
+  def textarea_get_value(state_ref), do: Native.textarea_get_value(state_ref)
+
+  @doc """
+  Sets the text value on the Textarea state.
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_set_value(state, "hello\\nworld")
+      :ok
+      iex> ExRatatui.textarea_get_value(state)
+      "hello\\nworld"
+  """
+  @spec textarea_set_value(reference(), String.t()) :: :ok
+  def textarea_set_value(state_ref, value),
+    do: Native.textarea_set_value(state_ref, value)
+
+  @doc """
+  Returns the cursor position as `{row, col}` from the Textarea state.
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_cursor(state)
+      {0, 0}
+  """
+  @spec textarea_cursor(reference()) :: {non_neg_integer(), non_neg_integer()}
+  def textarea_cursor(state_ref), do: Native.textarea_cursor(state_ref)
+
+  @doc """
+  Returns the number of lines in the Textarea state.
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_line_count(state)
+      1
+  """
+  @spec textarea_line_count(reference()) :: non_neg_integer()
+  def textarea_line_count(state_ref), do: Native.textarea_line_count(state_ref)
+
   # -- Encoding: Elixir structs -> string-keyed maps for NIF --
 
   defp encode_command({widget, %Rect{} = rect}) do
@@ -417,6 +514,75 @@ defmodule ExRatatui do
     |> maybe_put_block(t.block)
   end
 
+  defp encode_widget(%Markdown{} = m) do
+    %{
+      "type" => "markdown",
+      "content" => m.content,
+      "style" => encode_style(m.style),
+      "wrap" => m.wrap,
+      "scroll_y" => elem(m.scroll, 0),
+      "scroll_x" => elem(m.scroll, 1)
+    }
+    |> maybe_put_block(m.block)
+  end
+
+  defp encode_widget(%Textarea{} = t) do
+    %{
+      "type" => "textarea",
+      "state" => t.state,
+      "style" => encode_style(t.style),
+      "cursor_style" => encode_style(t.cursor_style),
+      "cursor_line_style" => encode_style(t.cursor_line_style),
+      "placeholder_style" => encode_style(t.placeholder_style)
+    }
+    |> maybe_put("placeholder", t.placeholder)
+    |> maybe_put_style("line_number_style", t.line_number_style)
+    |> maybe_put_block(t.block)
+  end
+
+  defp encode_widget(%Popup{} = p) do
+    base = %{
+      "type" => "popup",
+      "content" => encode_widget(p.content),
+      "percent_width" => p.percent_width,
+      "percent_height" => p.percent_height
+    }
+
+    base
+    |> maybe_put("fixed_width", p.fixed_width)
+    |> maybe_put("fixed_height", p.fixed_height)
+    |> maybe_put_block(p.block)
+  end
+
+  defp encode_widget(%WidgetList{} = wl) do
+    items =
+      Enum.map(wl.items, fn {widget, height} ->
+        {encode_widget(widget), height}
+      end)
+
+    %{
+      "type" => "widget_list",
+      "items" => items,
+      "style" => encode_style(wl.style),
+      "highlight_style" => encode_style(wl.highlight_style),
+      "scroll_offset" => wl.scroll_offset
+    }
+    |> maybe_put("selected", wl.selected)
+    |> maybe_put_block(wl.block)
+  end
+
+  defp encode_widget(%Throbber{} = t) do
+    %{
+      "type" => "throbber",
+      "label" => t.label,
+      "style" => encode_style(t.style),
+      "throbber_style" => encode_style(t.throbber_style),
+      "throbber_set" => Atom.to_string(t.throbber_set),
+      "step" => t.step
+    }
+    |> maybe_put_block(t.block)
+  end
+
   defp encode_block(%Block{} = b) do
     %{
       "borders" => Enum.map(b.borders, &Atom.to_string/1),
@@ -433,6 +599,9 @@ defmodule ExRatatui do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_put_style(map, _key, nil), do: map
+  defp maybe_put_style(map, key, %Style{} = s), do: Map.put(map, key, encode_style(s))
 
   defp maybe_put_block(map, nil), do: map
   defp maybe_put_block(map, %Block{} = b), do: Map.put(map, "block", encode_block(b))

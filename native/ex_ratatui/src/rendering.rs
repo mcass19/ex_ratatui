@@ -6,17 +6,22 @@ use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
 use crate::text_input::{self, TextInputRenderData, TextInputResource};
+use crate::textarea::{self, TextareaRenderData, TextareaResource};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
 use crate::widgets::list::{self, ListData};
+use crate::widgets::markdown::{self, MarkdownData};
 use crate::widgets::paragraph::{self, ParagraphData};
 use crate::widgets::scrollbar::{self, ScrollbarData};
 use crate::widgets::table::{self, TableData};
 use crate::widgets::tabs::{self, TabsData};
+use crate::widgets::popup::{self, PopupData};
+use crate::widgets::throbber::{self, ThrobberData};
+use crate::widgets::widget_list::{self, WidgetListData, WidgetListItem};
 
-enum WidgetData {
+pub enum WidgetData {
     Paragraph(ParagraphData),
     Block(BlockData),
     List(ListData),
@@ -27,6 +32,11 @@ enum WidgetData {
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
     TextInput(TextInputRenderData),
+    Throbber(ThrobberData),
+    Markdown(MarkdownData),
+    Textarea(TextareaRenderData),
+    Popup(PopupData),
+    WidgetList(WidgetListData),
     Clear,
 }
 
@@ -52,29 +62,7 @@ fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Erro
         .iter()
         .map(|(widget_term, rect_term)| {
             let widget_map: HashMap<String, Term> = widget_term.decode()?;
-            let widget_type: String = widget_map
-                .get("type")
-                .ok_or_else(|| Error::Term(Box::new("widget missing 'type' key")))?
-                .decode()?;
-
-            let widget = match widget_type.as_str() {
-                "paragraph" => WidgetData::Paragraph(decode_paragraph(&widget_map)?),
-                "block" => WidgetData::Block(block::decode_block_from_map(&widget_map)?),
-                "list" => WidgetData::List(decode_list(&widget_map)?),
-                "table" => WidgetData::Table(decode_table(&widget_map)?),
-                "gauge" => WidgetData::Gauge(decode_gauge(&widget_map)?),
-                "line_gauge" => WidgetData::LineGauge(decode_line_gauge(&widget_map)?),
-                "tabs" => WidgetData::Tabs(decode_tabs(&widget_map)?),
-                "scrollbar" => WidgetData::Scrollbar(decode_scrollbar(&widget_map)?),
-                "checkbox" => WidgetData::Checkbox(decode_checkbox(&widget_map)?),
-                "text_input" => WidgetData::TextInput(decode_text_input(&widget_map)?),
-                "clear" => WidgetData::Clear,
-                other => {
-                    return Err(Error::Term(Box::new(format!(
-                        "unknown widget type: {other}"
-                    ))))
-                }
-            };
+            let widget = decode_widget_from_map(&widget_map)?;
 
             Ok(RenderCommand {
                 widget,
@@ -82,6 +70,35 @@ fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Erro
             })
         })
         .collect()
+}
+
+pub fn decode_widget_from_map(widget_map: &HashMap<String, Term>) -> Result<WidgetData, Error> {
+    let widget_type: String = widget_map
+        .get("type")
+        .ok_or_else(|| Error::Term(Box::new("widget missing 'type' key")))?
+        .decode()?;
+
+    match widget_type.as_str() {
+        "paragraph" => Ok(WidgetData::Paragraph(decode_paragraph(widget_map)?)),
+        "block" => Ok(WidgetData::Block(block::decode_block_from_map(widget_map)?)),
+        "list" => Ok(WidgetData::List(decode_list(widget_map)?)),
+        "table" => Ok(WidgetData::Table(decode_table(widget_map)?)),
+        "gauge" => Ok(WidgetData::Gauge(decode_gauge(widget_map)?)),
+        "line_gauge" => Ok(WidgetData::LineGauge(decode_line_gauge(widget_map)?)),
+        "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
+        "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
+        "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
+        "text_input" => Ok(WidgetData::TextInput(decode_text_input(widget_map)?)),
+        "throbber" => Ok(WidgetData::Throbber(decode_throbber(widget_map)?)),
+        "markdown" => Ok(WidgetData::Markdown(decode_markdown(widget_map)?)),
+        "textarea" => Ok(WidgetData::Textarea(decode_textarea(widget_map)?)),
+        "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
+        "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
+        "clear" => Ok(WidgetData::Clear),
+        other => Err(Error::Term(Box::new(format!(
+            "unknown widget type: {other}"
+        )))),
+    }
 }
 
 fn decode_paragraph(map: &HashMap<String, Term>) -> Result<ParagraphData, Error> {
@@ -511,6 +528,226 @@ fn decode_text_input(map: &HashMap<String, Term>) -> Result<TextInputRenderData,
     })
 }
 
+fn decode_throbber(map: &HashMap<String, Term>) -> Result<ThrobberData, Error> {
+    let label: Option<String> = match map.get("label") {
+        Some(term) => {
+            let s: String = term.decode()?;
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        }
+        None => None,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let throbber_style = match map.get("throbber_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let throbber_set_name: String = match map.get("throbber_set") {
+        Some(term) => term.decode()?,
+        None => "braille".to_string(),
+    };
+    let throbber_set = throbber::parse_throbber_set(&throbber_set_name);
+
+    let step: i8 = match map.get("step") {
+        Some(term) => {
+            let val: i64 = term.decode()?;
+            (val % 128) as i8
+        }
+        None => 0,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(ThrobberData {
+        label,
+        style,
+        throbber_style,
+        throbber_set,
+        step,
+        block,
+    })
+}
+
+fn decode_markdown(map: &HashMap<String, Term>) -> Result<MarkdownData, Error> {
+    let content: String = map
+        .get("content")
+        .ok_or_else(|| Error::Term(Box::new("markdown missing 'content'")))?
+        .decode()?;
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let wrap: bool = match map.get("wrap") {
+        Some(term) => term.decode()?,
+        None => true,
+    };
+
+    let scroll_y: u16 = match map.get("scroll_y") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+    let scroll_x: u16 = match map.get("scroll_x") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(MarkdownData {
+        content,
+        style,
+        block,
+        scroll: (scroll_y, scroll_x),
+        wrap,
+    })
+}
+
+fn decode_textarea(map: &HashMap<String, Term>) -> Result<TextareaRenderData, Error> {
+    let resource: ResourceArc<TextareaResource> = map
+        .get("state")
+        .ok_or_else(|| Error::Term(Box::new("textarea missing 'state'")))?
+        .decode()?;
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let cursor_style = match map.get("cursor_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let cursor_line_style = match map.get("cursor_line_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let placeholder: Option<String> = match map.get("placeholder") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let placeholder_style = match map.get("placeholder_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let line_number_style: Option<ratatui::style::Style> = match map.get("line_number_style") {
+        Some(term) => Some(decode_style(*term)?),
+        None => None,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(TextareaRenderData {
+        resource,
+        style,
+        cursor_style,
+        cursor_line_style,
+        placeholder,
+        placeholder_style,
+        line_number_style,
+        block,
+    })
+}
+
+fn decode_popup(map: &HashMap<String, Term>) -> Result<PopupData, Error> {
+    let content_map: HashMap<String, Term> = map
+        .get("content")
+        .ok_or_else(|| Error::Term(Box::new("popup missing 'content'")))?
+        .decode()?;
+    let content = Box::new(decode_widget_from_map(&content_map)?);
+
+    let percent_width: u16 = match map.get("percent_width") {
+        Some(term) => term.decode()?,
+        None => 60,
+    };
+
+    let percent_height: u16 = match map.get("percent_height") {
+        Some(term) => term.decode()?,
+        None => 60,
+    };
+
+    let fixed_width: Option<u16> = match map.get("fixed_width") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let fixed_height: Option<u16> = match map.get("fixed_height") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(PopupData {
+        content,
+        block,
+        percent_width,
+        percent_height,
+        fixed_width,
+        fixed_height,
+    })
+}
+
+fn decode_widget_list(map: &HashMap<String, Term>) -> Result<WidgetListData, Error> {
+    let items_terms: Vec<(Term, Term)> = map
+        .get("items")
+        .ok_or_else(|| Error::Term(Box::new("widget_list missing 'items'")))?
+        .decode()?;
+
+    let mut items = Vec::with_capacity(items_terms.len());
+    for (widget_term, height_term) in &items_terms {
+        let widget_map: HashMap<String, Term> = widget_term.decode()?;
+        let widget = decode_widget_from_map(&widget_map)?;
+        let height: u16 = height_term.decode()?;
+        items.push(WidgetListItem { widget, height });
+    }
+
+    let selected: Option<usize> = match map.get("selected") {
+        Some(term) => Some(term.decode()?),
+        None => None,
+    };
+
+    let highlight_style = match map.get("highlight_style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let scroll_offset: usize = match map.get("scroll_offset") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(WidgetListData {
+        items,
+        selected,
+        highlight_style,
+        scroll_offset,
+        block,
+        style,
+    })
+}
+
 fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
     match map.get("block") {
         Some(term) => Ok(Some(block::decode_block(*term)?)),
@@ -541,17 +778,26 @@ pub fn decode_rect(term: Term) -> Result<Rect, Error> {
 }
 
 fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
-    match &cmd.widget {
-        WidgetData::Paragraph(data) => paragraph::render(frame, data, cmd.area),
-        WidgetData::Block(data) => block::render(frame, data, cmd.area),
-        WidgetData::List(data) => list::render(frame, data, cmd.area),
-        WidgetData::Table(data) => table::render(frame, data, cmd.area),
-        WidgetData::Gauge(data) => gauge::render(frame, data, cmd.area),
-        WidgetData::LineGauge(data) => line_gauge::render(frame, data, cmd.area),
-        WidgetData::Tabs(data) => tabs::render(frame, data, cmd.area),
-        WidgetData::Scrollbar(data) => scrollbar::render(frame, data, cmd.area),
-        WidgetData::Checkbox(data) => checkbox::render(frame, data, cmd.area),
-        WidgetData::TextInput(data) => text_input::render(frame, data, cmd.area),
-        WidgetData::Clear => crate::widgets::clear::render(frame, cmd.area),
+    render_widget_data(frame, &cmd.widget, cmd.area);
+}
+
+pub fn render_widget_data(frame: &mut ratatui::Frame, widget: &WidgetData, area: Rect) {
+    match widget {
+        WidgetData::Paragraph(data) => paragraph::render(frame, data, area),
+        WidgetData::Block(data) => block::render(frame, data, area),
+        WidgetData::List(data) => list::render(frame, data, area),
+        WidgetData::Table(data) => table::render(frame, data, area),
+        WidgetData::Gauge(data) => gauge::render(frame, data, area),
+        WidgetData::LineGauge(data) => line_gauge::render(frame, data, area),
+        WidgetData::Tabs(data) => tabs::render(frame, data, area),
+        WidgetData::Scrollbar(data) => scrollbar::render(frame, data, area),
+        WidgetData::Checkbox(data) => checkbox::render(frame, data, area),
+        WidgetData::TextInput(data) => text_input::render(frame, data, area),
+        WidgetData::Throbber(data) => throbber::render(frame, data, area),
+        WidgetData::Markdown(data) => markdown::render(frame, data, area),
+        WidgetData::Textarea(data) => textarea::render(frame, data, area),
+        WidgetData::Popup(data) => popup::render(frame, data, area),
+        WidgetData::WidgetList(data) => widget_list::render(frame, data, area),
+        WidgetData::Clear => crate::widgets::clear::render(frame, area),
     }
 }

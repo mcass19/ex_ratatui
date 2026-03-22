@@ -88,4 +88,24 @@ defmodule ExRatatui.Native do
   @doc false
   # Returns the current cursor position from the TextInput state.
   def text_input_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
+
+  # Textarea (stateful multiline widget)
+
+  @doc false
+  def textarea_new, do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  def textarea_handle_key(_state_ref, _key_code, _modifiers), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  def textarea_get_value(_state_ref), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  def textarea_set_value(_state_ref, _value), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  def textarea_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  def textarea_line_count(_state_ref), do: :erlang.nif_error(:not_loaded)
 end

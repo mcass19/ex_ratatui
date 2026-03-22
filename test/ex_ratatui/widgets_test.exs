@@ -16,7 +16,12 @@ defmodule ExRatatui.WidgetsTest do
     Scrollbar,
     Table,
     Tabs,
-    TextInput
+    TextInput,
+    Markdown,
+    Popup,
+    Textarea,
+    Throbber,
+    WidgetList
   }
 
   setup do
@@ -741,6 +746,501 @@ defmodule ExRatatui.WidgetsTest do
       rect = %Rect{x: 0, y: 0, width: 20, height: 1}
 
       assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
+    end
+  end
+
+  describe "Markdown widget" do
+    test "renders plain text", %{terminal: terminal} do
+      md = %Markdown{content: "Hello world"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Hello world"
+    end
+
+    test "renders heading", %{terminal: terminal} do
+      md = %Markdown{content: "# Title"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Title"
+    end
+
+    test "renders bold text", %{terminal: terminal} do
+      md = %Markdown{content: "**bold**"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "bold"
+    end
+
+    test "renders inline code", %{terminal: terminal} do
+      md = %Markdown{content: "use `code` here"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "code"
+    end
+
+    test "renders code block", %{terminal: terminal} do
+      md = %Markdown{content: "```\nfn main() {}\n```"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "fn main"
+    end
+
+    test "renders bullet list", %{terminal: terminal} do
+      md = %Markdown{content: "- item1\n- item2"}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "item1"
+      assert content =~ "item2"
+    end
+
+    test "renders with block", %{terminal: terminal} do
+      md = %Markdown{
+        content: "Some text",
+        block: %Block{title: "Response", borders: [:all], border_type: :rounded}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Response"
+    end
+
+    test "renders empty content", %{terminal: terminal} do
+      md = %Markdown{content: ""}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{md, rect}])
+    end
+
+    test "markdown struct has correct defaults" do
+      md = %Markdown{}
+      assert md.content == ""
+      assert md.wrap == true
+      assert md.scroll == {0, 0}
+      assert md.block == nil
+      assert md.style == %Style{}
+    end
+  end
+
+  describe "Textarea widget" do
+    test "renders textarea with value", %{terminal: terminal} do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_handle_key(state, "h", [])
+      ExRatatui.textarea_handle_key(state, "e", [])
+      ExRatatui.textarea_handle_key(state, "l", [])
+      ExRatatui.textarea_handle_key(state, "l", [])
+      ExRatatui.textarea_handle_key(state, "o", [])
+
+      input = %Textarea{
+        state: state,
+        style: %Style{fg: :white},
+        cursor_style: %Style{fg: :black, bg: :white}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "hello"
+    end
+
+    test "renders placeholder when empty", %{terminal: terminal} do
+      state = ExRatatui.textarea_new()
+
+      input = %Textarea{
+        state: state,
+        placeholder: "Type a message...",
+        placeholder_style: %Style{fg: :dark_gray},
+        cursor_style: %Style{fg: :black, bg: :white}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Type a message..."
+    end
+
+    test "renders with block", %{terminal: terminal} do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "test value")
+
+      input = %Textarea{
+        state: state,
+        style: %Style{fg: :white},
+        cursor_style: %Style{fg: :black, bg: :white},
+        block: %Block{title: "Message", borders: [:all], border_type: :rounded}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Message"
+      assert content =~ "test value"
+    end
+
+    test "textarea struct has correct defaults" do
+      input = %Textarea{}
+      assert input.state == nil
+      assert input.placeholder == nil
+      assert input.block == nil
+      assert input.line_number_style == nil
+      assert input.style == %Style{}
+      assert input.cursor_style == %Style{}
+    end
+  end
+
+  describe "Textarea state management" do
+    test "new textarea has empty value" do
+      state = ExRatatui.textarea_new()
+      assert ExRatatui.textarea_get_value(state) == ""
+    end
+
+    test "typing characters builds up value" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_handle_key(state, "a", [])
+      ExRatatui.textarea_handle_key(state, "b", [])
+      ExRatatui.textarea_handle_key(state, "c", [])
+      assert ExRatatui.textarea_get_value(state) == "abc"
+    end
+
+    test "enter creates new line" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_handle_key(state, "h", [])
+      ExRatatui.textarea_handle_key(state, "i", [])
+      ExRatatui.textarea_handle_key(state, "enter", [])
+      ExRatatui.textarea_handle_key(state, "x", [])
+      assert ExRatatui.textarea_get_value(state) == "hi\nx"
+    end
+
+    test "set_value replaces content" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_handle_key(state, "x", [])
+      ExRatatui.textarea_set_value(state, "line1\nline2")
+      assert ExRatatui.textarea_get_value(state) == "line1\nline2"
+    end
+
+    test "set_value to empty clears textarea" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "something")
+      ExRatatui.textarea_set_value(state, "")
+      assert ExRatatui.textarea_get_value(state) == ""
+    end
+
+    test "cursor returns row and col" do
+      state = ExRatatui.textarea_new()
+      assert ExRatatui.textarea_cursor(state) == {0, 0}
+
+      ExRatatui.textarea_handle_key(state, "a", [])
+      ExRatatui.textarea_handle_key(state, "b", [])
+      assert ExRatatui.textarea_cursor(state) == {0, 2}
+
+      ExRatatui.textarea_handle_key(state, "enter", [])
+      assert {1, 0} = ExRatatui.textarea_cursor(state)
+    end
+
+    test "line_count returns number of lines" do
+      state = ExRatatui.textarea_new()
+      assert ExRatatui.textarea_line_count(state) == 1
+
+      ExRatatui.textarea_set_value(state, "a\nb\nc")
+      assert ExRatatui.textarea_line_count(state) == 3
+    end
+
+    test "backspace at start of line merges with previous" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "hello\nworld")
+      # Move to start of line 2 and backspace
+      ExRatatui.textarea_handle_key(state, "down", [])
+      ExRatatui.textarea_handle_key(state, "home", [])
+      ExRatatui.textarea_handle_key(state, "backspace", [])
+      assert ExRatatui.textarea_get_value(state) == "helloworld"
+    end
+
+    test "cursor up/down navigation" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "abc\ndef")
+      # Cursor starts at (0, 0) after set_value
+      ExRatatui.textarea_handle_key(state, "down", [])
+      {row, _col} = ExRatatui.textarea_cursor(state)
+      assert row == 1
+      ExRatatui.textarea_handle_key(state, "up", [])
+      {row, _col} = ExRatatui.textarea_cursor(state)
+      assert row == 0
+    end
+
+    test "handle_key with modifiers" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_handle_key(state, "a", [])
+      ExRatatui.textarea_handle_key(state, "b", [])
+      # Ctrl+A (Emacs: beginning of line)
+      ExRatatui.textarea_handle_key(state, "a", ["ctrl"])
+      {_row, col} = ExRatatui.textarea_cursor(state)
+      assert col == 0
+    end
+  end
+
+  describe "Popup widget" do
+    test "renders popup with paragraph content", %{terminal: terminal} do
+      popup = %Popup{
+        content: %Paragraph{text: "Hello from popup"},
+        percent_width: 80,
+        percent_height: 80
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 60, height: 15}
+
+      assert :ok = ExRatatui.draw(terminal, [{popup, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Hello from popup"
+    end
+
+    test "popup clears background area", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 60, height: 15}
+
+      # First draw background
+      bg = %Paragraph{text: String.duplicate("BACKGROUND ", 20)}
+      assert :ok = ExRatatui.draw(terminal, [{bg, rect}])
+      content_before = ExRatatui.get_buffer_content(terminal)
+      assert content_before =~ "BACKGROUND"
+
+      # Now draw popup on top
+      popup = %Popup{
+        content: %Paragraph{text: "Popup"},
+        percent_width: 50,
+        percent_height: 50
+      }
+
+      assert :ok = ExRatatui.draw(terminal, [{bg, rect}, {popup, rect}])
+      content_after = ExRatatui.get_buffer_content(terminal)
+      assert content_after =~ "Popup"
+    end
+
+    test "popup with block border", %{terminal: terminal} do
+      popup = %Popup{
+        content: %Paragraph{text: "Content"},
+        block: %Block{title: "Dialog", borders: [:all], border_type: :rounded},
+        percent_width: 70,
+        percent_height: 70
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 60, height: 15}
+
+      assert :ok = ExRatatui.draw(terminal, [{popup, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Dialog"
+    end
+
+    test "popup with list content", %{terminal: terminal} do
+      popup = %Popup{
+        content: %List{items: ["Option A", "Option B", "Option C"]},
+        percent_width: 60,
+        percent_height: 60
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 60, height: 15}
+
+      assert :ok = ExRatatui.draw(terminal, [{popup, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Option A"
+      assert content =~ "Option B"
+    end
+
+    test "popup with fixed dimensions", %{terminal: terminal} do
+      popup = %Popup{
+        content: %Paragraph{text: "Fixed"},
+        fixed_width: 20,
+        fixed_height: 5
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 60, height: 15}
+
+      assert :ok = ExRatatui.draw(terminal, [{popup, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Fixed"
+    end
+
+    test "popup struct has correct defaults" do
+      popup = %Popup{}
+      assert popup.content == nil
+      assert popup.block == nil
+      assert popup.percent_width == 60
+      assert popup.percent_height == 60
+      assert popup.fixed_width == nil
+      assert popup.fixed_height == nil
+    end
+  end
+
+  describe "Throbber widget" do
+    test "renders throbber with label", %{terminal: terminal} do
+      throbber = %Throbber{
+        label: "Loading...",
+        step: 0,
+        throbber_style: %Style{fg: :cyan}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{throbber, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Loading..."
+    end
+
+    test "throbber with different steps renders", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      throbber0 = %Throbber{label: "Wait", step: 0}
+      assert :ok = ExRatatui.draw(terminal, [{throbber0, rect}])
+
+      throbber3 = %Throbber{label: "Wait", step: 3}
+      assert :ok = ExRatatui.draw(terminal, [{throbber3, rect}])
+    end
+
+    test "throbber with block", %{terminal: terminal} do
+      throbber = %Throbber{
+        label: "Processing...",
+        step: 1,
+        block: %Block{title: "Status", borders: [:all], border_type: :rounded}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{throbber, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Status"
+    end
+
+    test "throbber with different animation sets", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      for set <- [:braille, :dots, :ascii, :vertical_block, :horizontal_block, :arrow, :clock] do
+        throbber = %Throbber{label: "Test", step: 0, throbber_set: set}
+        assert :ok = ExRatatui.draw(terminal, [{throbber, rect}])
+      end
+    end
+
+    test "throbber struct has correct defaults" do
+      throbber = %Throbber{}
+      assert throbber.label == ""
+      assert throbber.step == 0
+      assert throbber.throbber_set == :braille
+      assert throbber.style == %Style{}
+      assert throbber.throbber_style == %Style{}
+      assert throbber.block == nil
+    end
+  end
+
+  describe "WidgetList widget" do
+    test "renders list of paragraphs", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "Message 1"}, 1},
+          {%Paragraph{text: "Message 2"}, 1},
+          {%Paragraph{text: "Message 3"}, 1}
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Message 1"
+      assert content =~ "Message 2"
+      assert content =~ "Message 3"
+    end
+
+    test "renders mixed widget types", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "A paragraph"}, 1},
+          {%Checkbox{label: "Check me", checked: true}, 1}
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "A paragraph"
+      assert content =~ "Check me"
+    end
+
+    test "renders with selection", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "Item A"}, 1},
+          {%Paragraph{text: "Item B"}, 1}
+        ],
+        selected: 0,
+        highlight_style: %Style{bg: :blue}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Item A"
+    end
+
+    test "renders with block", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [{%Paragraph{text: "Content"}, 1}],
+        block: %Block{title: "Messages", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Messages"
+      assert content =~ "Content"
+    end
+
+    test "renders empty list", %{terminal: terminal} do
+      wl = %WidgetList{items: []}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+    end
+
+    test "renders with scroll_offset", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "Hidden"}, 1},
+          {%Paragraph{text: "Visible"}, 1}
+        ],
+        scroll_offset: 1
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Visible"
+    end
+
+    test "widget_list struct has correct defaults" do
+      wl = %WidgetList{}
+      assert wl.items == []
+      assert wl.selected == nil
+      assert wl.scroll_offset == 0
+      assert wl.block == nil
+      assert wl.style == %Style{}
+      assert wl.highlight_style == %Style{}
     end
   end
 end
