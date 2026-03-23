@@ -197,7 +197,10 @@ mod tests {
 
         // Center area should contain our content, not the background
         let mid_line = buffer_line(&terminal, 2, 40);
-        assert!(mid_line.contains("Hello"), "Expected 'Hello' in: {mid_line}");
+        assert!(
+            mid_line.contains("Hello"),
+            "Expected 'Hello' in: {mid_line}"
+        );
     }
 
     #[test]

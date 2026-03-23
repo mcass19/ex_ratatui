@@ -221,9 +221,8 @@ mod tests {
 
     fn input_key(textarea: &mut TextArea<'static>, code: &str, mods: &[&str]) {
         let key_code = string_to_key_code(code);
-        let modifiers = modifiers_from_strings(
-            &mods.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-        );
+        let modifiers =
+            modifiers_from_strings(&mods.iter().map(|s| s.to_string()).collect::<Vec<_>>());
         textarea.input(KeyEvent::new(key_code, modifiers));
     }
 
@@ -263,7 +262,11 @@ mod tests {
 
     #[test]
     fn test_multiline_value() {
-        let lines = vec!["line1".to_string(), "line2".to_string(), "line3".to_string()];
+        let lines = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line3".to_string(),
+        ];
         let textarea = TextArea::new(lines);
         assert_eq!(textarea.lines().join("\n"), "line1\nline2\nline3");
     }
@@ -335,7 +338,10 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
-        assert!(line.contains("hello world"), "Expected 'hello world' in: {line}");
+        assert!(
+            line.contains("hello world"),
+            "Expected 'hello world' in: {line}"
+        );
     }
 
     #[test]
@@ -353,6 +359,9 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
-        assert!(line.contains("Type here..."), "Expected placeholder in: {line}");
+        assert!(
+            line.contains("Type here..."),
+            "Expected placeholder in: {line}"
+        );
     }
 }

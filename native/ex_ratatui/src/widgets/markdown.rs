@@ -61,7 +61,10 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
-        assert!(line.contains("Hello world"), "Expected 'Hello world' in: {line}");
+        assert!(
+            line.contains("Hello world"),
+            "Expected 'Hello world' in: {line}"
+        );
     }
 
     #[test]
@@ -89,7 +92,10 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
-        assert!(line.contains("bold text"), "Expected 'bold text' in: {line}");
+        assert!(
+            line.contains("bold text"),
+            "Expected 'bold text' in: {line}"
+        );
     }
 
     #[test]

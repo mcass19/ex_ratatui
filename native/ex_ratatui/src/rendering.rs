@@ -14,10 +14,10 @@ use crate::widgets::line_gauge::{self, LineGaugeData};
 use crate::widgets::list::{self, ListData};
 use crate::widgets::markdown::{self, MarkdownData};
 use crate::widgets::paragraph::{self, ParagraphData};
+use crate::widgets::popup::{self, PopupData};
 use crate::widgets::scrollbar::{self, ScrollbarData};
 use crate::widgets::table::{self, TableData};
 use crate::widgets::tabs::{self, TabsData};
-use crate::widgets::popup::{self, PopupData};
 use crate::widgets::throbber::{self, ThrobberData};
 use crate::widgets::widget_list::{self, WidgetListData, WidgetListItem};
 

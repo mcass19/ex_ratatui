@@ -93,7 +93,10 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
-        assert!(line.contains("Loading..."), "Expected 'Loading...' in: {line}");
+        assert!(
+            line.contains("Loading..."),
+            "Expected 'Loading...' in: {line}"
+        );
     }
 
     #[test]
@@ -164,7 +167,10 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 10);
-        assert!(!line.trim().is_empty(), "Braille throbber should render a symbol");
+        assert!(
+            !line.trim().is_empty(),
+            "Braille throbber should render a symbol"
+        );
     }
 
     #[test]
@@ -180,6 +186,9 @@ mod tests {
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 10);
-        assert!(!line.trim().is_empty(), "ASCII throbber should render a symbol");
+        assert!(
+            !line.trim().is_empty(),
+            "ASCII throbber should render a symbol"
+        );
     }
 }
