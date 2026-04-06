@@ -1,6 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::Frame;
+use ratatui::widgets::Widget;
 
 use crate::rendering::{render_widget_data, WidgetData};
 use crate::widgets::block::BlockData;
@@ -19,12 +20,12 @@ pub struct WidgetListData {
     pub style: Style,
 }
 
-pub fn render(frame: &mut Frame, data: &WidgetListData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &WidgetListData, area: Rect) {
     // Render block and get inner area
     let inner_area = if let Some(ref block_data) = data.block {
         let block = block_data.to_block();
         let inner = block.inner(area);
-        frame.render_widget(block, area);
+        Widget::render(block, area, buf);
         inner
     } else {
         area
@@ -32,7 +33,7 @@ pub fn render(frame: &mut Frame, data: &WidgetListData, area: Rect) {
 
     // Apply base style to the inner area
     let style_block = ratatui::widgets::Block::default().style(data.style);
-    frame.render_widget(style_block, inner_area);
+    Widget::render(style_block, inner_area, buf);
 
     // Render items vertically starting from scroll_offset
     let mut y = inner_area.y;
@@ -49,10 +50,10 @@ pub fn render(frame: &mut Frame, data: &WidgetListData, area: Rect) {
         // If selected, fill background with highlight style
         if data.selected == Some(idx) {
             let highlight_block = ratatui::widgets::Block::default().style(data.highlight_style);
-            frame.render_widget(highlight_block, item_area);
+            Widget::render(highlight_block, item_area, buf);
         }
 
-        render_widget_data(frame, &item.widget, item_area);
+        render_widget_data(buf, &item.widget, item_area);
 
         y += item.height;
     }
@@ -96,7 +97,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -131,7 +132,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -170,7 +171,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -195,7 +196,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
         // Should not panic
     }

@@ -171,7 +171,7 @@ impl SessionResource {
         terminal
             .draw(|frame| {
                 for (widget, area) in &commands {
-                    render_widget_data(frame, widget, *area);
+                    render_widget_data(frame.buffer_mut(), widget, *area);
                 }
             })
             .map_err(|e| format!("session draw: {e}"))?;

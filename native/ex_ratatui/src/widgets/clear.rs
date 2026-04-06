@@ -1,9 +1,9 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::Clear;
-use ratatui::Frame;
+use ratatui::widgets::{Clear, Widget};
 
-pub fn render(frame: &mut Frame, area: Rect) {
-    frame.render_widget(Clear, area);
+pub fn render(buf: &mut Buffer, area: Rect) {
+    Clear.render(area, buf);
 }
 
 #[cfg(test)]
@@ -23,7 +23,7 @@ mod tests {
             .draw(|frame| {
                 let p = Paragraph::new("Hello World!").style(Style::default());
                 frame.render_widget(p, Rect::new(0, 0, 20, 3));
-                render(frame, Rect::new(0, 0, 10, 1));
+                render(frame.buffer_mut(), Rect::new(0, 0, 10, 1));
             })
             .unwrap();
 

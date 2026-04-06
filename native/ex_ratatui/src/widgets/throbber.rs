@@ -1,6 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::Frame;
+use ratatui::widgets::{StatefulWidget, Widget};
 use throbber_widgets_tui::{self, ThrobberState, WhichUse};
 
 use crate::widgets::block::BlockData;
@@ -14,11 +15,11 @@ pub struct ThrobberData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &ThrobberData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &ThrobberData, area: Rect) {
     let inner_area = if let Some(ref block_data) = data.block {
         let block = block_data.to_block();
         let inner = block.inner(area);
-        frame.render_widget(block, area);
+        Widget::render(block, area, buf);
         inner
     } else {
         area
@@ -37,7 +38,7 @@ pub fn render(frame: &mut Frame, data: &ThrobberData, area: Rect) {
     let mut state = ThrobberState::default();
     state.calc_step(data.step);
 
-    frame.render_stateful_widget(throbber, inner_area, &mut state);
+    StatefulWidget::render(throbber, inner_area, buf, &mut state);
 }
 
 pub fn parse_throbber_set(name: &str) -> throbber_widgets_tui::Set {
@@ -88,7 +89,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 30, 1));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1));
             })
             .unwrap();
 
@@ -108,7 +109,7 @@ mod tests {
         let data1 = make_data(None, 1, "braille");
         terminal
             .draw(|frame| {
-                render(frame, &data1, Rect::new(0, 0, 30, 1));
+                render(frame.buffer_mut(), &data1, Rect::new(0, 0, 30, 1));
             })
             .unwrap();
         let line1 = buffer_line(&terminal, 0, 30);
@@ -116,7 +117,7 @@ mod tests {
         let data3 = make_data(None, 3, "braille");
         terminal
             .draw(|frame| {
-                render(frame, &data3, Rect::new(0, 0, 30, 1));
+                render(frame.buffer_mut(), &data3, Rect::new(0, 0, 30, 1));
             })
             .unwrap();
         let line3 = buffer_line(&terminal, 0, 30);
@@ -147,7 +148,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 30, 3));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3));
             })
             .unwrap();
 
@@ -163,7 +164,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 10, 1));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 1));
             })
             .unwrap();
 
@@ -182,7 +183,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 10, 1));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 1));
             })
             .unwrap();
 

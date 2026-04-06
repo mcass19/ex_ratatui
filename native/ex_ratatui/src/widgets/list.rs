@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::{List, ListItem, ListState};
-use ratatui::Frame;
+use ratatui::widgets::{List, ListItem, ListState, StatefulWidget, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -14,7 +14,7 @@ pub struct ListData {
     pub selected: Option<usize>,
 }
 
-pub fn render(frame: &mut Frame, data: &ListData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &ListData, area: Rect) {
     let items: Vec<ListItem> = data
         .items
         .iter()
@@ -36,9 +36,9 @@ pub fn render(frame: &mut Frame, data: &ListData, area: Rect) {
     if let Some(selected) = data.selected {
         let mut state = ListState::default();
         state.select(Some(selected));
-        frame.render_stateful_widget(list, area, &mut state);
+        StatefulWidget::render(list, area, buf, &mut state);
     } else {
-        frame.render_widget(list, area);
+        Widget::render(list, area, buf);
     }
 }
 
@@ -66,7 +66,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 5)))
             .unwrap();
 
         assert_eq!(buffer_line(&terminal, 0, 20), "Alpha");
@@ -89,7 +89,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 5)))
             .unwrap();
 
         // Selected item (index 1 = "Two") should have highlight symbol
@@ -126,7 +126,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 5)))
             .unwrap();
 
         // Top border should contain title
