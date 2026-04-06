@@ -4,7 +4,8 @@ defmodule ExRatatui.Widgets.Block do
 
   Can be rendered standalone or used as the `:block` field on other widgets
   for composition. Supported by: Paragraph, List, Table, Gauge, LineGauge,
-  Tabs, Checkbox, TextInput, Markdown, Textarea, Throbber, Popup, and WidgetList.
+  Tabs, Checkbox, TextInput, Markdown, Textarea, Throbber, Popup, ScrollView,
+  and WidgetList.
 
   ## Fields
 

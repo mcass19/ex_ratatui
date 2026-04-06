@@ -7,6 +7,7 @@ pub mod list;
 pub mod markdown;
 pub mod paragraph;
 pub mod popup;
+pub mod scroll_view;
 pub mod scrollbar;
 pub mod table;
 pub mod tabs;

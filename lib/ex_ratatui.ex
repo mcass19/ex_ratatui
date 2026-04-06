@@ -63,6 +63,7 @@ defmodule ExRatatui do
     Markdown,
     Paragraph,
     Scrollbar,
+    ScrollView,
     Table,
     Tabs,
     Popup,
@@ -599,6 +600,17 @@ defmodule ExRatatui do
     }
     |> maybe_put("selected", wl.selected)
     |> maybe_put_block(wl.block)
+  end
+
+  defp encode_widget(%ScrollView{} = sv) do
+    %{
+      "type" => "scroll_view",
+      "widget" => encode_widget(sv.widget),
+      "content_height" => sv.content_height,
+      "scroll_offset" => sv.scroll_offset,
+      "style" => encode_style(sv.style)
+    }
+    |> maybe_put_block(sv.block)
   end
 
   defp encode_widget(%Throbber{} = t) do

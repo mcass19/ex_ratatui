@@ -16,7 +16,18 @@
 alias ExRatatui.{Layout, Style}
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Event
-alias ExRatatui.Widgets.{Block, Markdown, Paragraph, Scrollbar, Textarea, Throbber, WidgetList}
+
+alias ExRatatui.Widgets.{
+  Block,
+  Markdown,
+  Paragraph,
+  Scrollbar,
+  ScrollView,
+  Textarea,
+  Throbber,
+  WidgetList
+}
+
 alias ExRatatui.Widgets.SlashCommands
 alias ExRatatui.Widgets.SlashCommands.Command
 
@@ -189,7 +200,7 @@ defmodule ChatApp do
         %{state | autocomplete_selected: new_sel}
 
       true ->
-        max_offset = max(0, length(state.messages) - 1)
+        max_offset = max_scroll_offset(state.messages)
         %{state | scroll_offset: min(state.scroll_offset + 1, max_offset)}
     end
   end
@@ -300,7 +311,7 @@ defmodule ChatApp do
             loading_timer: nil,
             messages: state.messages ++ [{:ai, response}],
             response_index: state.response_index + 1,
-            scroll_offset: max(0, length(state.messages) - 2)
+            scroll_offset: max_scroll_offset(state.messages ++ [{:ai, response}])
         }
       else
         state
@@ -347,11 +358,12 @@ defmodule ChatApp do
     # Scrollbar for messages
     total_lines = total_message_lines(state.messages)
 
+    visible_height = messages_area.height - 2
+
     scrollbar = %Scrollbar{
-      content_length: max(1, total_lines),
+      content_length: max(1, total_lines - visible_height),
       position: state.scroll_offset,
       orientation: :vertical_right,
-      viewport_content_length: messages_area.height,
       thumb_style: %Style{fg: :cyan},
       track_style: %Style{fg: :dark_gray}
     }
@@ -433,6 +445,13 @@ defmodule ChatApp do
     ExRatatui.draw(state.terminal, Enum.reverse(widgets))
   end
 
+  defp max_scroll_offset(messages) do
+    {_w, h} = ExRatatui.terminal_size()
+    # header(1) + input(5) + footer(1) = 7 fixed rows; ScrollView block border = 2
+    messages_visible_height = h - 7 - 2
+    max(0, total_message_lines(messages) - messages_visible_height)
+  end
+
   defp total_message_lines(messages) do
     Enum.reduce(messages, 0, fn
       {:user, text}, acc ->
@@ -490,15 +509,16 @@ defmodule ChatApp do
           [{label, 1}, {content, max(1, lines)}, {spacer, 1}]
       end)
 
-    %WidgetList{
-      items: items,
-      scroll_offset: state.scroll_offset,
+    %ScrollView{
+      widget: %WidgetList{items: items},
       block: %Block{
         title: "Chat (#{length(state.messages)} messages)",
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: :dark_gray}
-      }
+      },
+      content_height: total_message_lines(state.messages),
+      scroll_offset: state.scroll_offset
     }
   end
 end

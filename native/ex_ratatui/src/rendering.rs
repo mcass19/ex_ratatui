@@ -16,6 +16,7 @@ use crate::widgets::list::{self, ListData};
 use crate::widgets::markdown::{self, MarkdownData};
 use crate::widgets::paragraph::{self, ParagraphData};
 use crate::widgets::popup::{self, PopupData};
+use crate::widgets::scroll_view::{self, ScrollViewData};
 use crate::widgets::scrollbar::{self, ScrollbarData};
 use crate::widgets::table::{self, TableData};
 use crate::widgets::tabs::{self, TabsData};
@@ -38,6 +39,7 @@ pub enum WidgetData {
     Textarea(TextareaRenderData),
     Popup(PopupData),
     WidgetList(WidgetListData),
+    ScrollView(ScrollViewData),
     Clear,
 }
 
@@ -95,6 +97,7 @@ pub fn decode_widget_from_map(widget_map: &HashMap<String, Term>) -> Result<Widg
         "textarea" => Ok(WidgetData::Textarea(decode_textarea(widget_map)?)),
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
+        "scroll_view" => Ok(WidgetData::ScrollView(decode_scroll_view(widget_map)?)),
         "clear" => Ok(WidgetData::Clear),
         other => Err(Error::Term(Box::new(format!(
             "unknown widget type: {other}"
@@ -749,6 +752,39 @@ fn decode_widget_list(map: &HashMap<String, Term>) -> Result<WidgetListData, Err
     })
 }
 
+fn decode_scroll_view(map: &HashMap<String, Term>) -> Result<ScrollViewData, Error> {
+    let widget_map: HashMap<String, Term> = map
+        .get("widget")
+        .ok_or_else(|| Error::Term(Box::new("scroll_view missing 'widget'")))?
+        .decode()?;
+    let widget = Box::new(decode_widget_from_map(&widget_map)?);
+
+    let content_height: u16 = match map.get("content_height") {
+        Some(term) => term.decode()?,
+        None => 10,
+    };
+
+    let scroll_offset: u16 = match map.get("scroll_offset") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => decode_style(*term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(ScrollViewData {
+        widget,
+        content_height,
+        scroll_offset,
+        style,
+        block,
+    })
+}
+
 fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
     match map.get("block") {
         Some(term) => Ok(Some(block::decode_block(*term)?)),
@@ -799,6 +835,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Textarea(data) => textarea::render(buf, data, area),
         WidgetData::Popup(data) => popup::render(buf, data, area),
         WidgetData::WidgetList(data) => widget_list::render(buf, data, area),
+        WidgetData::ScrollView(data) => scroll_view::render(buf, data, area),
         WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }
