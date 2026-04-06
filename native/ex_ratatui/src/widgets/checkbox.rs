@@ -1,8 +1,8 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
+use ratatui::widgets::{Paragraph, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -16,7 +16,7 @@ pub struct CheckboxData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &CheckboxData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &CheckboxData, area: Rect) {
     let symbol = if data.checked {
         data.checked_symbol.as_deref().unwrap_or("[x]")
     } else {
@@ -34,7 +34,7 @@ pub fn render(frame: &mut Frame, data: &CheckboxData, area: Rect) {
         paragraph = paragraph.block(block_data.to_block());
     }
 
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, buf);
 }
 
 #[cfg(test)]
@@ -61,7 +61,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -85,7 +85,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -109,7 +109,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -133,7 +133,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);

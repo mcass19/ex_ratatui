@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
+use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use crate::widgets::block::BlockData;
 
@@ -14,7 +14,7 @@ pub struct ParagraphData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &ParagraphData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &ParagraphData, area: Rect) {
     let mut widget = Paragraph::new(data.text.clone())
         .style(data.style)
         .alignment(data.alignment);
@@ -31,7 +31,7 @@ pub fn render(frame: &mut Frame, data: &ParagraphData, area: Rect) {
         widget = widget.block(block_data.to_block());
     }
 
-    frame.render_widget(widget, area);
+    widget.render(area, buf);
 }
 
 #[cfg(test)]
@@ -57,7 +57,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
             .unwrap();
 
         assert_eq!(buffer_line(&terminal, 0, 20), "Hello");
@@ -81,7 +81,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
             .unwrap();
 
         let buf = terminal.backend().buffer();
@@ -106,7 +106,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
 
         // "Hi" centered in 20 chars = 9 spaces + "Hi" + 9 spaces
@@ -132,7 +132,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 10, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 3)))
             .unwrap();
 
         // First line should have content
@@ -158,7 +158,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
             .unwrap();
 
         assert_eq!(buffer_line(&terminal, 0, 20), "Line 1");
@@ -182,7 +182,7 @@ mod tests {
 
         // Render at x=5, y=2
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(5, 2, 20, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(5, 2, 20, 3)))
             .unwrap();
 
         let buf = terminal.backend().buffer();

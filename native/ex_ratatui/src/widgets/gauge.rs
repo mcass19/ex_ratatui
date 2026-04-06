@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Gauge;
-use ratatui::Frame;
+use ratatui::widgets::{Gauge, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -13,7 +13,7 @@ pub struct GaugeData {
     pub gauge_style: Style,
 }
 
-pub fn render(frame: &mut Frame, data: &GaugeData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &GaugeData, area: Rect) {
     let mut gauge = Gauge::default()
         .style(data.style)
         .gauge_style(data.gauge_style)
@@ -27,7 +27,7 @@ pub fn render(frame: &mut Frame, data: &GaugeData, area: Rect) {
         gauge = gauge.block(block_data.to_block());
     }
 
-    frame.render_widget(gauge, area);
+    gauge.render(area, buf);
 }
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
 
         // Gauge should render something (not all empty)
@@ -74,7 +74,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 20);
@@ -96,7 +96,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
 
         // Should not panic — that's the test

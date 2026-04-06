@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
-use ratatui::Frame;
+use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget};
 
 pub struct ScrollbarData {
     pub orientation: ScrollbarOrientation,
@@ -16,7 +16,7 @@ pub struct ScrollbarData {
     pub viewport_content_length: Option<usize>,
 }
 
-pub fn render(frame: &mut Frame, data: &ScrollbarData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &ScrollbarData, area: Rect) {
     let mut scrollbar = Scrollbar::new(data.orientation.clone())
         .thumb_style(data.thumb_style)
         .track_style(data.track_style);
@@ -43,7 +43,7 @@ pub fn render(frame: &mut Frame, data: &ScrollbarData, area: Rect) {
         state = state.viewport_content_length(vcl);
     }
 
-    frame.render_stateful_widget(scrollbar, area, &mut state);
+    StatefulWidget::render(scrollbar, area, buf, &mut state);
 }
 
 pub fn parse_orientation(s: &str) -> Result<ScrollbarOrientation, rustler::Error> {
@@ -83,7 +83,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 10)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 10)))
             .unwrap();
         // Should render without panic
     }
@@ -107,7 +107,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 5)))
             .unwrap();
     }
 

@@ -1,3 +1,4 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
 use rustler::{Atom, Error, ResourceArc, Term};
 use std::collections::HashMap;
@@ -778,26 +779,26 @@ pub fn decode_rect(term: Term) -> Result<Rect, Error> {
 }
 
 fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
-    render_widget_data(frame, &cmd.widget, cmd.area);
+    render_widget_data(frame.buffer_mut(), &cmd.widget, cmd.area);
 }
 
-pub fn render_widget_data(frame: &mut ratatui::Frame, widget: &WidgetData, area: Rect) {
+pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
     match widget {
-        WidgetData::Paragraph(data) => paragraph::render(frame, data, area),
-        WidgetData::Block(data) => block::render(frame, data, area),
-        WidgetData::List(data) => list::render(frame, data, area),
-        WidgetData::Table(data) => table::render(frame, data, area),
-        WidgetData::Gauge(data) => gauge::render(frame, data, area),
-        WidgetData::LineGauge(data) => line_gauge::render(frame, data, area),
-        WidgetData::Tabs(data) => tabs::render(frame, data, area),
-        WidgetData::Scrollbar(data) => scrollbar::render(frame, data, area),
-        WidgetData::Checkbox(data) => checkbox::render(frame, data, area),
-        WidgetData::TextInput(data) => text_input::render(frame, data, area),
-        WidgetData::Throbber(data) => throbber::render(frame, data, area),
-        WidgetData::Markdown(data) => markdown::render(frame, data, area),
-        WidgetData::Textarea(data) => textarea::render(frame, data, area),
-        WidgetData::Popup(data) => popup::render(frame, data, area),
-        WidgetData::WidgetList(data) => widget_list::render(frame, data, area),
-        WidgetData::Clear => crate::widgets::clear::render(frame, area),
+        WidgetData::Paragraph(data) => paragraph::render(buf, data, area),
+        WidgetData::Block(data) => block::render(buf, data, area),
+        WidgetData::List(data) => list::render(buf, data, area),
+        WidgetData::Table(data) => table::render(buf, data, area),
+        WidgetData::Gauge(data) => gauge::render(buf, data, area),
+        WidgetData::LineGauge(data) => line_gauge::render(buf, data, area),
+        WidgetData::Tabs(data) => tabs::render(buf, data, area),
+        WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
+        WidgetData::Checkbox(data) => checkbox::render(buf, data, area),
+        WidgetData::TextInput(data) => text_input::render(buf, data, area),
+        WidgetData::Throbber(data) => throbber::render(buf, data, area),
+        WidgetData::Markdown(data) => markdown::render(buf, data, area),
+        WidgetData::Textarea(data) => textarea::render(buf, data, area),
+        WidgetData::Popup(data) => popup::render(buf, data, area),
+        WidgetData::WidgetList(data) => widget_list::render(buf, data, area),
+        WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }

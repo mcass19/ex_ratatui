@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Tabs;
-use ratatui::Frame;
+use ratatui::widgets::{Tabs, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -16,7 +16,7 @@ pub struct TabsData {
     pub padding_right: u16,
 }
 
-pub fn render(frame: &mut Frame, data: &TabsData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &TabsData, area: Rect) {
     let left = " ".repeat(data.padding_left as usize);
     let right = " ".repeat(data.padding_right as usize);
 
@@ -37,7 +37,7 @@ pub fn render(frame: &mut Frame, data: &TabsData, area: Rect) {
         tabs = tabs.block(block_data.to_block());
     }
 
-    frame.render_widget(tabs, area);
+    tabs.render(area, buf);
 }
 
 #[cfg(test)]
@@ -65,7 +65,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 3)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -91,7 +91,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -115,7 +115,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);

@@ -1,10 +1,10 @@
 use std::sync::Mutex;
 
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
+use ratatui::widgets::{Paragraph, Widget};
 
 use rustler::{Atom, Error, Resource, ResourceArc};
 
@@ -157,7 +157,7 @@ pub struct TextInputRenderData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &TextInputRenderData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &TextInputRenderData, area: Rect) {
     let mut state = match data.resource.state.lock() {
         Ok(s) => s,
         Err(_) => return,
@@ -170,7 +170,7 @@ pub fn render(frame: &mut Frame, data: &TextInputRenderData, area: Rect) {
         placeholder_style: data.placeholder_style,
         block: data.block.as_ref(),
     };
-    render_state(frame, &mut state, area, &opts);
+    render_state(buf, &mut state, area, &opts);
 }
 
 struct RenderOpts<'a> {
@@ -181,7 +181,7 @@ struct RenderOpts<'a> {
     block: Option<&'a BlockData>,
 }
 
-fn render_state(frame: &mut Frame, state: &mut TextInputState, area: Rect, opts: &RenderOpts) {
+fn render_state(buf: &mut Buffer, state: &mut TextInputState, area: Rect, opts: &RenderOpts) {
     let inner_width = if opts.block.is_some() {
         area.width.saturating_sub(2) as usize
     } else {
@@ -263,7 +263,7 @@ fn render_state(frame: &mut Frame, state: &mut TextInputState, area: Rect, opts:
         paragraph = paragraph.block(block_data.to_block());
     }
 
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, buf);
 }
 
 #[cfg(test)]
@@ -387,7 +387,7 @@ mod tests {
                     placeholder_style: Style::default(),
                     block: None,
                 };
-                render_state(frame, &mut state, Rect::new(0, 0, 20, 1), &opts);
+                render_state(frame.buffer_mut(), &mut state, Rect::new(0, 0, 20, 1), &opts);
             })
             .unwrap();
 
@@ -410,7 +410,7 @@ mod tests {
                     placeholder_style: Style::default().fg(Color::DarkGray),
                     block: None,
                 };
-                render_state(frame, &mut state, Rect::new(0, 0, 30, 1), &opts);
+                render_state(frame.buffer_mut(), &mut state, Rect::new(0, 0, 30, 1), &opts);
             })
             .unwrap();
 
@@ -433,7 +433,7 @@ mod tests {
                     placeholder_style: Style::default(),
                     block: None,
                 };
-                render_state(frame, &mut state, Rect::new(0, 0, 20, 1), &opts);
+                render_state(frame.buffer_mut(), &mut state, Rect::new(0, 0, 20, 1), &opts);
             })
             .unwrap();
 
@@ -456,7 +456,7 @@ mod tests {
                     placeholder_style: Style::default(),
                     block: None,
                 };
-                render_state(frame, &mut state, Rect::new(0, 0, 5, 1), &opts);
+                render_state(frame.buffer_mut(), &mut state, Rect::new(0, 0, 5, 1), &opts);
             })
             .unwrap();
 

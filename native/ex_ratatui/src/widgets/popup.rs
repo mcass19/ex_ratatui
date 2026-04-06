@@ -1,6 +1,6 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::Clear;
-use ratatui::Frame;
+use ratatui::widgets::{Clear, Widget};
 
 use crate::rendering::{render_widget_data, WidgetData};
 use crate::widgets::block::BlockData;
@@ -28,24 +28,24 @@ fn centered_rect(area: Rect, data: &PopupData) -> Rect {
     Rect::new(x, y, width, height)
 }
 
-pub fn render(frame: &mut Frame, data: &PopupData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &PopupData, area: Rect) {
     let popup_area = centered_rect(area, data);
 
     // Clear the background under the popup
-    frame.render_widget(Clear, popup_area);
+    Clear.render(popup_area, buf);
 
     // Render the block border and get the inner area for content
     let content_area = if let Some(ref block_data) = data.block {
         let block = block_data.to_block();
         let inner = block.inner(popup_area);
-        frame.render_widget(block, popup_area);
+        Widget::render(block, popup_area, buf);
         inner
     } else {
         popup_area
     };
 
     // Render the inner content widget
-    render_widget_data(frame, &data.content, content_area);
+    render_widget_data(buf, &data.content, content_area);
 }
 
 #[cfg(test)]
@@ -191,7 +191,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 40, 10));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
             })
             .unwrap();
 
@@ -219,7 +219,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 40, 10));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
             })
             .unwrap();
 
@@ -251,7 +251,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame, &data, Rect::new(0, 0, 40, 10));
+                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
             })
             .unwrap();
 
