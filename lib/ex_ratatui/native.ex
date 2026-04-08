@@ -100,6 +100,15 @@ defmodule ExRatatui.Native do
   # Drops the session's inner ratatui terminal. Idempotent.
   def session_close(_session_ref), do: :erlang.nif_error(:not_loaded)
 
+  @doc false
+  # Renders a list of `{widget_map, rect_map}` tuples into the session's
+  # in-memory writer. Bytes accumulate until drained via `session_take_output/1`.
+  def session_draw(_session_ref, _commands), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Drains and returns the session's pending output bytes as a binary.
+  def session_take_output(_session_ref), do: :erlang.nif_error(:not_loaded)
+
   # Textarea (stateful multiline widget)
 
   @doc false

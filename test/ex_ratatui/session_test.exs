@@ -48,6 +48,83 @@ defmodule ExRatatui.SessionTest do
     end
   end
 
+  describe "session_draw/2 and session_take_output/1" do
+    test "draw with empty commands still emits a frame into the writer" do
+      ref = Native.session_new(20, 5)
+
+      assert :ok = Native.session_draw(ref, [])
+      output = Native.session_take_output(ref)
+
+      assert is_binary(output)
+
+      assert byte_size(output) > 0,
+             "expected ratatui's frame setup ANSI to land in the writer"
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "draw with a Clear widget round-trips through decoding" do
+      ref = Native.session_new(20, 5)
+
+      commands = [{%{"type" => "clear"}, %{"x" => 0, "y" => 0, "width" => 20, "height" => 5}}]
+      assert :ok = Native.session_draw(ref, commands)
+
+      assert byte_size(Native.session_take_output(ref)) > 0
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "session_take_output drains the buffer between draws" do
+      ref = Native.session_new(20, 5)
+
+      :ok = Native.session_draw(ref, [])
+      first = Native.session_take_output(ref)
+      assert byte_size(first) > 0
+
+      # Second drain with no intervening writes is empty.
+      assert <<>> = Native.session_take_output(ref)
+
+      :ok = Native.session_draw(ref, [])
+      second = Native.session_take_output(ref)
+      assert byte_size(second) > 0
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "draw rejects an unknown widget type" do
+      ref = Native.session_new(20, 5)
+
+      commands = [
+        {%{"type" => "not_a_widget"}, %{"x" => 0, "y" => 0, "width" => 5, "height" => 1}}
+      ]
+
+      assert {:error, _reason} = Native.session_draw(ref, commands)
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "draw on a closed session returns an error" do
+      ref = Native.session_new(20, 5)
+      :ok = Native.session_close(ref)
+
+      assert {:error, reason} = Native.session_draw(ref, [])
+      assert is_binary(reason) or is_bitstring(reason)
+      assert reason =~ "closed"
+    end
+
+    test "concurrent sessions render into independent buffers" do
+      a = Native.session_new(20, 5)
+      b = Native.session_new(20, 5)
+
+      :ok = Native.session_draw(a, [])
+      # b has not been drawn yet — its buffer must be empty.
+      assert <<>> = Native.session_take_output(b)
+      assert byte_size(Native.session_take_output(a)) > 0
+
+      :ok = Native.session_close(a)
+      :ok = Native.session_close(b)
+    end
+  end
+
   describe "BEAM scheduler safety" do
     test "session_new does not block concurrent tasks" do
       tasks =

@@ -14,7 +14,7 @@
 //! SSH, the client already did it). This is what makes it safe to run many
 //! concurrent sessions in one BEAM node without global state collisions.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
@@ -22,7 +22,9 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use rustler::{Atom, Error, Resource, ResourceArc};
+use rustler::{Atom, Binary, Env, Error, NifResult, OwnedBinary, Resource, ResourceArc, Term};
+
+use crate::rendering::{decode_rect, decode_widget_from_map, render_widget_data, WidgetData};
 
 mod atoms {
     rustler::atoms! {
@@ -159,12 +161,62 @@ impl SessionResource {
         *guard = None;
         Ok(())
     }
+
+    /// Renders a list of `(widget, area)` commands into the session's
+    /// terminal. Bytes land in the `SharedWriter` and stay there until the
+    /// transport drains them via [`SessionResource::take_output`]. Returns
+    /// an error if the session has been closed.
+    pub fn draw(&self, commands: Vec<(WidgetData, Rect)>) -> Result<(), String> {
+        let mut guard = self
+            .terminal
+            .lock()
+            .map_err(|_| "session terminal lock poisoned".to_string())?;
+        let terminal = guard
+            .as_mut()
+            .ok_or_else(|| "session is closed".to_string())?;
+
+        terminal
+            .draw(|frame| {
+                for (widget, area) in &commands {
+                    render_widget_data(frame, widget, *area);
+                }
+            })
+            .map_err(|e| format!("session draw: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Drains any bytes the backend has written into the shared buffer since
+    /// the last call. Returns an empty `Vec` if nothing is pending. Safe to
+    /// call after `close` — the writer handle survives until the resource is
+    /// dropped, so anything the backend buffered before close is still
+    /// recoverable.
+    pub fn take_output(&self) -> Vec<u8> {
+        self.writer.drain()
+    }
 }
 
 /// Converts a domain error string into a `rustler::Error::Term` carrying a
 /// BEAM-friendly binary. Keeps the NIF signatures tidy.
 fn nif_error(message: String) -> Error {
     Error::Term(Box::new(message))
+}
+
+/// Decodes a `[{widget_map, rect_map}]` list term into a vector of
+/// `(WidgetData, Rect)` ready for [`SessionResource::draw`]. Mirrors the
+/// shape `draw_frame` (the local-transport NIF) consumes — the Elixir side
+/// builds the same render-command list for both transports.
+fn decode_render_commands(commands: Term<'_>) -> NifResult<Vec<(WidgetData, Rect)>> {
+    let entries: Vec<(Term<'_>, Term<'_>)> = commands.decode()?;
+    entries
+        .into_iter()
+        .map(|(widget_term, rect_term)| {
+            let widget_map: HashMap<String, Term<'_>> = widget_term.decode()?;
+            let widget = decode_widget_from_map(&widget_map)?;
+            let area = decode_rect(rect_term)?;
+            Ok((widget, area))
+        })
+        .collect()
 }
 
 #[rustler::nif]
@@ -177,6 +229,28 @@ fn session_new(width: u16, height: u16) -> Result<ResourceArc<SessionResource>, 
 fn session_close(resource: ResourceArc<SessionResource>) -> Result<Atom, Error> {
     resource.close().map_err(nif_error)?;
     Ok(atoms::ok())
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn session_draw(resource: ResourceArc<SessionResource>, commands: Term<'_>) -> Result<Atom, Error> {
+    let render_commands = decode_render_commands(commands)?;
+    resource.draw(render_commands).map_err(nif_error)?;
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn session_take_output<'a>(env: Env<'a>, resource: ResourceArc<SessionResource>) -> Binary<'a> {
+    let bytes = resource.take_output();
+    // OwnedBinary::new returns None only on allocator failure, in which case
+    // there's nothing useful we can hand the BEAM — fall back to an empty
+    // binary so the caller doesn't have to special-case the error.
+    let mut owned = OwnedBinary::new(bytes.len()).unwrap_or_else(|| {
+        OwnedBinary::new(0).expect("zero-length OwnedBinary allocation cannot fail")
+    });
+    if !bytes.is_empty() {
+        owned.as_mut_slice().copy_from_slice(&bytes);
+    }
+    Binary::from_owned(owned, env)
 }
 
 #[cfg(test)]
@@ -251,6 +325,38 @@ mod tests {
         // Second close is a no-op and must not error.
         session.close().unwrap();
         assert!(session.terminal.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn session_resource_draw_writes_ansi_into_writer() {
+        let session = SessionResource::new(20, 5).unwrap();
+        // Empty command list still triggers a frame flush, which queues the
+        // initial buffer-clear and cursor moves. The shared writer must
+        // contain those bytes after draw returns.
+        session.draw(Vec::new()).unwrap();
+        let bytes = session.take_output();
+        assert!(
+            !bytes.is_empty(),
+            "expected draw to emit ANSI bytes into the writer"
+        );
+    }
+
+    #[test]
+    fn session_resource_take_output_is_idempotent() {
+        let session = SessionResource::new(20, 5).unwrap();
+        session.draw(Vec::new()).unwrap();
+        let _ = session.take_output();
+        // A second drain with no intervening writes returns nothing.
+        assert!(session.take_output().is_empty());
+    }
+
+    #[test]
+    fn session_resource_draw_after_close_errors() {
+        let session = SessionResource::new(20, 5).unwrap();
+        session.close().unwrap();
+        let result = session.draw(Vec::new());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("closed"));
     }
 
     #[test]
