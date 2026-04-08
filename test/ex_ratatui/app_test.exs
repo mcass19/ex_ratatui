@@ -118,14 +118,32 @@ defmodule ExRatatui.AppTest do
     end
 
     test "dispatch_start/1 routes :ssh to ExRatatui.SSH.Daemon" do
-      # ExRatatui.SSH.Daemon lands in task #10. Until then, exercising the
-      # :ssh branch raises UndefinedFunctionError — which is exactly what
-      # we want here: it locks the dispatch shape in place so #10 is a
-      # zero-touch wire-up. Once Daemon exists this test will be replaced
-      # with a real success assertion against it.
-      assert_raise UndefinedFunctionError, fn ->
-        ExRatatui.App.dispatch_start(mod: SupervisedApp, transport: :ssh)
+      # The dispatch shim is transport-only wiring; we don't want this
+      # test to stand up a real `:ssh.daemon/2`. The `:daemon_starter`
+      # injection point makes the wiring observable without any OTP
+      # sockets: if the fake starter fires with our mod, we know the
+      # shim did its job.
+      parent = self()
+
+      fake_starter = fn port, _opts ->
+        send(parent, {:fake_started, port})
+        {:ok, :fake_daemon_ref}
       end
+
+      fake_stopper = fn _ref -> :ok end
+
+      {:ok, pid} =
+        ExRatatui.App.dispatch_start(
+          mod: SupervisedApp,
+          transport: :ssh,
+          name: nil,
+          port: 0,
+          daemon_starter: fake_starter,
+          daemon_stopper: fake_stopper
+        )
+
+      assert_receive {:fake_started, 0}, 1000
+      GenServer.stop(pid)
     end
   end
 end
