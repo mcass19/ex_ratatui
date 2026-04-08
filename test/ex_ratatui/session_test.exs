@@ -258,6 +258,57 @@ defmodule ExRatatui.SessionTest do
     end
   end
 
+  describe "session_resize/3 and session_size/1" do
+    test "session_size returns the dimensions session_new was created with" do
+      ref = Native.session_new(80, 24)
+
+      assert {80, 24} = Native.session_size(ref)
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "session_resize updates the size session_size returns" do
+      ref = Native.session_new(20, 5)
+
+      assert :ok = Native.session_resize(ref, 100, 30)
+      assert {100, 30} = Native.session_size(ref)
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "session_resize lets subsequent draws render at the new size" do
+      ref = Native.session_new(20, 5)
+
+      :ok = Native.session_resize(ref, 40, 10)
+      :ok = Native.session_draw(ref, [])
+
+      assert byte_size(Native.session_take_output(ref)) > 0
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "session_resize on a closed session returns an error" do
+      ref = Native.session_new(20, 5)
+      :ok = Native.session_close(ref)
+
+      assert {:error, reason} = Native.session_resize(ref, 40, 10)
+      assert reason =~ "closed"
+    end
+
+    test "concurrent sessions resize independently" do
+      a = Native.session_new(20, 5)
+      b = Native.session_new(20, 5)
+
+      :ok = Native.session_resize(a, 100, 30)
+      assert {100, 30} = Native.session_size(a)
+      # b stays at its original size — resize on a must not bleed across.
+      assert {20, 5} = Native.session_size(b)
+
+      :ok = Native.session_close(a)
+      :ok = Native.session_close(b)
+    end
+  end
+
   describe "BEAM scheduler safety" do
     test "session_new does not block concurrent tasks" do
       tasks =

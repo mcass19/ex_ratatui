@@ -102,7 +102,6 @@ pub struct SessionResource {
     pub(crate) terminal: Mutex<Option<Terminal<CrosstermBackend<SharedWriter>>>>,
     pub(crate) writer: SharedWriter,
     pub(crate) input: Mutex<InputParser>,
-    #[allow(dead_code)]
     pub(crate) size: Mutex<(u16, u16)>,
 }
 
@@ -189,6 +188,47 @@ impl SessionResource {
         self.writer.drain()
     }
 
+    /// Resizes the session's viewport to `width x height`. The underlying
+    /// ratatui terminal is reconfigured (which clears its back buffers
+    /// and emits clear-screen ANSI into the writer for the transport to
+    /// ship), and the cached size is updated so the next caller of
+    /// [`SessionResource::current_size`] sees the new dimensions.
+    ///
+    /// Returns an error if the session has been closed. We deliberately
+    /// don't fall back to "just update the cached size" — a transport
+    /// that calls resize on a dead session has a bug to know about, not
+    /// a silent state-only update to paper over.
+    pub fn resize(&self, width: u16, height: u16) -> Result<(), String> {
+        let mut terminal_guard = self
+            .terminal
+            .lock()
+            .map_err(|_| "session terminal lock poisoned".to_string())?;
+        let terminal = terminal_guard
+            .as_mut()
+            .ok_or_else(|| "session is closed".to_string())?;
+
+        terminal
+            .resize(Rect::new(0, 0, width, height))
+            .map_err(|e| format!("session resize: {e}"))?;
+
+        let mut size_guard = self
+            .size
+            .lock()
+            .map_err(|_| "session size lock poisoned".to_string())?;
+        *size_guard = (width, height);
+        Ok(())
+    }
+
+    /// Returns the session's current `(width, height)`. Useful for tests
+    /// and for transports that want to snapshot the size after resize.
+    pub fn current_size(&self) -> Result<(u16, u16), String> {
+        let guard = self
+            .size
+            .lock()
+            .map_err(|_| "session size lock poisoned".to_string())?;
+        Ok(*guard)
+    }
+
     /// Feeds raw transport bytes through the session's input parser and
     /// returns any newly-completed events. Bytes that only partially form
     /// a sequence stay buffered inside the parser for the next call —
@@ -258,6 +298,21 @@ fn session_feed_input(
     bytes: Binary<'_>,
 ) -> Result<Vec<NifEvent>, Error> {
     resource.feed_input(bytes.as_slice()).map_err(nif_error)
+}
+
+#[rustler::nif]
+fn session_resize(
+    resource: ResourceArc<SessionResource>,
+    width: u16,
+    height: u16,
+) -> Result<Atom, Error> {
+    resource.resize(width, height).map_err(nif_error)?;
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn session_size(resource: ResourceArc<SessionResource>) -> Result<(u16, u16), Error> {
+    resource.current_size().map_err(nif_error)
 }
 
 #[rustler::nif]
@@ -377,6 +432,35 @@ mod tests {
         let session = SessionResource::new(20, 5).unwrap();
         session.close().unwrap();
         let result = session.draw(Vec::new());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("closed"));
+    }
+
+    #[test]
+    fn session_resource_resize_updates_cached_size() {
+        let session = SessionResource::new(80, 24).unwrap();
+        assert_eq!(session.current_size().unwrap(), (80, 24));
+
+        session.resize(120, 40).unwrap();
+        assert_eq!(session.current_size().unwrap(), (120, 40));
+    }
+
+    #[test]
+    fn session_resource_resize_renders_at_new_dimensions() {
+        // Resize then draw an empty frame and confirm the writer holds
+        // bytes — this proves the underlying ratatui terminal accepted
+        // the new viewport rather than choking on the change.
+        let session = SessionResource::new(20, 5).unwrap();
+        session.resize(40, 10).unwrap();
+        session.draw(Vec::new()).unwrap();
+        assert!(!session.take_output().is_empty());
+    }
+
+    #[test]
+    fn session_resource_resize_after_close_errors() {
+        let session = SessionResource::new(20, 5).unwrap();
+        session.close().unwrap();
+        let result = session.resize(40, 10);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("closed"));
     }

@@ -116,6 +116,15 @@ defmodule ExRatatui.Native do
   # partially form an escape sequence stay buffered for the next call.
   def session_feed_input(_session_ref, _bytes), do: :erlang.nif_error(:not_loaded)
 
+  @doc false
+  # Resizes the session's viewport. Triggers a buffer clear that the
+  # transport will see in the next `session_take_output/1` drain.
+  def session_resize(_session_ref, _width, _height), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Returns the session's current `{width, height}`.
+  def session_size(_session_ref), do: :erlang.nif_error(:not_loaded)
+
   # Textarea (stateful multiline widget)
 
   @doc false
