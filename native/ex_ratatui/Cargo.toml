@@ -14,6 +14,7 @@ crossterm = "0.29"
 throbber-widgets-tui = "0.11"
 ratatui-textarea = "0.8"
 tui-markdown = "0.3"
+vte = "0.15"
 
 [features]
 default = ["nif_version_2_16"]
