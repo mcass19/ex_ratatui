@@ -79,4 +79,53 @@ defmodule ExRatatui.AppTest do
     assert spec.type == :worker
     assert spec.restart == :transient
   end
+
+  describe "transport dispatch" do
+    test "default transport is :local" do
+      # No explicit :transport — must still go through Server.start_link.
+      {:ok, pid} =
+        SupervisedApp.start_link(name: nil, test_pid: self(), test_mode: {40, 10})
+
+      assert_receive {:supervised_mounted, _}, 1000
+      GenServer.stop(pid)
+    end
+
+    test "explicit transport: :local also goes through Server.start_link" do
+      {:ok, pid} =
+        SupervisedApp.start_link(
+          name: nil,
+          transport: :local,
+          test_pid: self(),
+          test_mode: {40, 10}
+        )
+
+      assert_receive {:supervised_mounted, _}, 1000
+      GenServer.stop(pid)
+    end
+
+    test "dispatch_start/1 routes :local to ExRatatui.Server" do
+      {:ok, pid} =
+        ExRatatui.App.dispatch_start(
+          mod: SupervisedApp,
+          name: nil,
+          transport: :local,
+          test_pid: self(),
+          test_mode: {40, 10}
+        )
+
+      assert_receive {:supervised_mounted, _}, 1000
+      GenServer.stop(pid)
+    end
+
+    test "dispatch_start/1 routes :ssh to ExRatatui.SSH.Daemon" do
+      # ExRatatui.SSH.Daemon lands in task #10. Until then, exercising the
+      # :ssh branch raises UndefinedFunctionError — which is exactly what
+      # we want here: it locks the dispatch shape in place so #10 is a
+      # zero-touch wire-up. Once Daemon exists this test will be replaced
+      # with a real success assertion against it.
+      assert_raise UndefinedFunctionError, fn ->
+        ExRatatui.App.dispatch_start(mod: SupervisedApp, transport: :ssh)
+      end
+    end
+  end
 end

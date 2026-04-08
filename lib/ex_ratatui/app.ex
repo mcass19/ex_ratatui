@@ -44,14 +44,31 @@ defmodule ExRatatui.App do
 
   Options are passed through `start_link/1` and forwarded to `mount/1`:
 
+    * `:transport` - which transport to serve the TUI over. One of:
+      * `:local` (default) — drives the OS process' real tty via crossterm.
+        This is the path you want for a desktop TUI launched from a shell.
+      * `:ssh` — starts an SSH daemon that gives every connecting client
+        its own isolated session and `user_state`. Requires the `:port`
+        option (and usually `:authorized_keys` / `:system_dir`); see
+        `ExRatatui.SSH.Daemon` for the full option list.
     * `:name` - process registration name (defaults to the module name,
       pass `nil` to skip registration)
     * `:poll_interval` - event polling interval in milliseconds (default: `16`,
       which gives ~60fps). The poll runs on the BEAM's DirtyIo scheduler so it
       never blocks normal processes. Lower values increase responsiveness but
       use more CPU; higher values reduce CPU but add input latency.
+      Only used by the `:local` transport.
     * `:test_mode` - `{width, height}` tuple to use a headless test terminal
       instead of the real terminal. Enables `async: true` tests without a TTY.
+
+  The same app module can be supervised under multiple transports
+  simultaneously — `mount/1`, `render/2`, `handle_event/2` and
+  `handle_info/2` are transport-agnostic:
+
+      children = [
+        {MyApp.TUI, []},                                      # local TTY
+        {MyApp.TUI, transport: :ssh, port: 2222, ...}         # remote over SSH
+      ]
 
   ## Callbacks
 
@@ -141,8 +158,25 @@ defmodule ExRatatui.App do
 
       @doc false
       def start_link(opts \\ []) when is_list(opts) do
-        ExRatatui.Server.start_link(Keyword.put(opts, :mod, __MODULE__))
+        opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
       end
+    end
+  end
+
+  @doc false
+  # Routes a `use ExRatatui.App` start_link call to the right transport
+  # supervisor. Public so it can be unit-tested directly without going
+  # through a generated start_link/1.
+  def dispatch_start(opts) do
+    case Keyword.get(opts, :transport, :local) do
+      :local ->
+        ExRatatui.Server.start_link(opts)
+
+      :ssh ->
+        # apply/3 (instead of a direct call) defers module resolution to
+        # runtime so this file compiles cleanly under --warnings-as-errors
+        # before ExRatatui.SSH.Daemon lands in the SSH-transport task.
+        apply(ExRatatui.SSH.Daemon, :start_link, [opts])
     end
   end
 end
