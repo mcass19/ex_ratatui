@@ -2,6 +2,7 @@ mod events;
 mod layout;
 mod rendering;
 mod session;
+mod session_input;
 mod style;
 mod terminal;
 mod test_utils;

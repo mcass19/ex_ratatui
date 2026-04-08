@@ -14,7 +14,7 @@
 //! SSH, the client already did it). This is what makes it safe to run many
 //! concurrent sessions in one BEAM node without global state collisions.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
@@ -24,7 +24,9 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use rustler::{Atom, Binary, Env, Error, NifResult, OwnedBinary, Resource, ResourceArc, Term};
 
+use crate::events::NifEvent;
 use crate::rendering::{decode_rect, decode_widget_from_map, render_widget_data, WidgetData};
+use crate::session_input::InputParser;
 
 mod atoms {
     rustler::atoms! {
@@ -87,16 +89,10 @@ impl Write for SharedWriter {
     }
 }
 
-/// A rendered-to-buffer event placeholder. Replaced by a real `ExEvent`-equivalent
-/// when the input parser lands — keeping it as a unit-like enum for now so the
-/// module compiles before the parser is wired in.
-#[allow(dead_code)]
-pub enum SessionEvent {}
-
-/// Per-session resource. Holds its own terminal, writer, event queue, and
-/// current size. Protected by coarse mutexes because all NIF entry points
-/// are short-running and the contention per session is effectively zero
-/// (one BEAM process per session).
+/// Per-session resource. Holds its own terminal, writer, input parser
+/// and current size. Protected by coarse mutexes because all NIF entry
+/// points are short-running and the contention per session is effectively
+/// zero (one BEAM process per session).
 ///
 /// The `terminal` slot is an `Option` so `session_close` can drop the
 /// underlying ratatui `Terminal` (and the backend's writer clone with it)
@@ -104,10 +100,8 @@ pub enum SessionEvent {}
 /// a closed session surface a clear error instead of panicking.
 pub struct SessionResource {
     pub(crate) terminal: Mutex<Option<Terminal<CrosstermBackend<SharedWriter>>>>,
-    #[allow(dead_code)]
     pub(crate) writer: SharedWriter,
-    #[allow(dead_code)]
-    pub(crate) events: Mutex<VecDeque<SessionEvent>>,
+    pub(crate) input: Mutex<InputParser>,
     #[allow(dead_code)]
     pub(crate) size: Mutex<(u16, u16)>,
 }
@@ -143,7 +137,7 @@ impl SessionResource {
         Ok(Self {
             terminal: Mutex::new(Some(terminal)),
             writer,
-            events: Mutex::new(VecDeque::new()),
+            input: Mutex::new(InputParser::new()),
             size: Mutex::new((width, height)),
         })
     }
@@ -194,6 +188,26 @@ impl SessionResource {
     pub fn take_output(&self) -> Vec<u8> {
         self.writer.drain()
     }
+
+    /// Feeds raw transport bytes through the session's input parser and
+    /// returns any newly-completed events. Bytes that only partially form
+    /// a sequence stay buffered inside the parser for the next call —
+    /// the SSH transport may chunk a single arrow-key press across two
+    /// channel-data frames and we must not flush half-events.
+    ///
+    /// Safe to call after `close`: the parser is owned by the session,
+    /// not the (now-dropped) terminal. This is intentional so a transport
+    /// can drain trailing input bytes after deciding to shut the session
+    /// down.
+    pub fn feed_input(&self, bytes: &[u8]) -> Result<Vec<NifEvent>, String> {
+        let mut parser = self
+            .input
+            .lock()
+            .map_err(|_| "session input lock poisoned".to_string())?;
+        let mut events = Vec::new();
+        parser.feed(bytes, &mut events);
+        Ok(events)
+    }
 }
 
 /// Converts a domain error string into a `rustler::Error::Term` carrying a
@@ -236,6 +250,14 @@ fn session_draw(resource: ResourceArc<SessionResource>, commands: Term<'_>) -> R
     let render_commands = decode_render_commands(commands)?;
     resource.draw(render_commands).map_err(nif_error)?;
     Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn session_feed_input(
+    resource: ResourceArc<SessionResource>,
+    bytes: Binary<'_>,
+) -> Result<Vec<NifEvent>, Error> {
+    resource.feed_input(bytes.as_slice()).map_err(nif_error)
 }
 
 #[rustler::nif]
@@ -357,6 +379,52 @@ mod tests {
         let result = session.draw(Vec::new());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("closed"));
+    }
+
+    #[test]
+    fn session_resource_feed_input_round_trips_a_keystroke() {
+        let session = SessionResource::new(20, 5).unwrap();
+        let events = session.feed_input(b"a").unwrap();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            NifEvent::Key(code, mods, kind) => {
+                assert_eq!(code, "a");
+                assert!(mods.is_empty());
+                assert_eq!(kind, "press");
+            }
+            _ => panic!("expected Key event"),
+        }
+    }
+
+    #[test]
+    fn session_resource_feed_input_buffers_partial_csi_across_calls() {
+        // Sanity check that the SessionResource really shares the same
+        // parser across feed_input calls — a partial CSI must not flush
+        // until completion. This is the same guarantee
+        // session_input::tests::buffers_partial_csi_across_feeds verifies
+        // at the parser level, but reproducing it here proves the
+        // session is wiring through to a single InputParser instance
+        // rather than constructing a fresh one per call.
+        let session = SessionResource::new(20, 5).unwrap();
+        assert!(session.feed_input(b"\x1b").unwrap().is_empty());
+        assert!(session.feed_input(b"[").unwrap().is_empty());
+        let events = session.feed_input(b"A").unwrap();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            NifEvent::Key(code, _, _) => assert_eq!(code, "up"),
+            _ => panic!("expected Key event"),
+        }
+    }
+
+    #[test]
+    fn session_resource_feed_input_works_after_close() {
+        let session = SessionResource::new(20, 5).unwrap();
+        session.close().unwrap();
+        // Closing dropped the terminal, but the input parser is still
+        // alive — a transport may want to drain trailing input after
+        // tearing down rendering.
+        let events = session.feed_input(b"a").unwrap();
+        assert_eq!(events.len(), 1);
     }
 
     #[test]

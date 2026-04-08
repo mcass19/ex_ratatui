@@ -125,6 +125,139 @@ defmodule ExRatatui.SessionTest do
     end
   end
 
+  describe "session_feed_input/2" do
+    test "parses a plain ASCII keystroke into a key event" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "a", [], "press"}] = Native.session_feed_input(ref, "a")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses Ctrl+letter from a C0 control byte" do
+      ref = Native.session_new(20, 5)
+
+      # 0x03 is Ctrl+C.
+      assert [{:key, "c", ["ctrl"], "press"}] = Native.session_feed_input(ref, <<0x03>>)
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses named control keys with their friendly names" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "enter", [], "press"}] = Native.session_feed_input(ref, "\n")
+      assert [{:key, "tab", [], "press"}] = Native.session_feed_input(ref, "\t")
+      assert [{:key, "backspace", [], "press"}] = Native.session_feed_input(ref, <<0x7F>>)
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses CSI arrow keys" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "up", [], "press"}] = Native.session_feed_input(ref, "\e[A")
+      assert [{:key, "down", [], "press"}] = Native.session_feed_input(ref, "\e[B")
+      assert [{:key, "right", [], "press"}] = Native.session_feed_input(ref, "\e[C")
+      assert [{:key, "left", [], "press"}] = Native.session_feed_input(ref, "\e[D")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses CSI sequences with modifiers" do
+      ref = Native.session_new(20, 5)
+
+      # CSI 1 ; 5 A — Ctrl+Up.
+      assert [{:key, "up", ["ctrl"], "press"}] = Native.session_feed_input(ref, "\e[1;5A")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses SS3 function keys" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "f1", [], "press"}] = Native.session_feed_input(ref, "\eOP")
+      assert [{:key, "f2", [], "press"}] = Native.session_feed_input(ref, "\eOQ")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses tilde-terminated keys (delete, page_up, F-keys)" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "delete", [], "press"}] = Native.session_feed_input(ref, "\e[3~")
+      assert [{:key, "page_up", [], "press"}] = Native.session_feed_input(ref, "\e[5~")
+      assert [{:key, "f12", [], "press"}] = Native.session_feed_input(ref, "\e[24~")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "buffers a partial escape sequence across calls" do
+      # The whole reason the parser owns a vte::Parser instead of being
+      # stateless: SSH (and any other byte-stream transport) may chunk
+      # an arrow-key press across two channel-data frames. The parser
+      # must hold the half-sequence and only flush when it completes.
+      ref = Native.session_new(20, 5)
+
+      assert [] = Native.session_feed_input(ref, "\e")
+      assert [] = Native.session_feed_input(ref, "[")
+      assert [{:key, "up", [], "press"}] = Native.session_feed_input(ref, "A")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses Alt+letter from ESC + letter" do
+      ref = Native.session_new(20, 5)
+
+      assert [{:key, "a", ["alt"], "press"}] = Native.session_feed_input(ref, "\ea")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "empty input produces no events" do
+      ref = Native.session_new(20, 5)
+
+      assert [] = Native.session_feed_input(ref, "")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "parses mixed text and a control in one feed" do
+      ref = Native.session_new(20, 5)
+
+      assert [
+               {:key, "h", [], "press"},
+               {:key, "i", [], "press"},
+               {:key, "enter", [], "press"}
+             ] = Native.session_feed_input(ref, "hi\n")
+
+      assert :ok = Native.session_close(ref)
+    end
+
+    test "still parses input after the session has been closed" do
+      # Closing the session drops the rendering terminal but the input
+      # parser stays alive — a transport may want to drain trailing input
+      # bytes after deciding to tear down rendering.
+      ref = Native.session_new(20, 5)
+      :ok = Native.session_close(ref)
+
+      assert [{:key, "a", [], "press"}] = Native.session_feed_input(ref, "a")
+    end
+
+    test "concurrent sessions parse independently" do
+      a = Native.session_new(20, 5)
+      b = Native.session_new(20, 5)
+
+      # Drive a partial CSI on `a` and ensure it doesn't bleed into `b`.
+      assert [] = Native.session_feed_input(a, "\e[")
+      assert [{:key, "x", [], "press"}] = Native.session_feed_input(b, "x")
+      assert [{:key, "up", [], "press"}] = Native.session_feed_input(a, "A")
+
+      :ok = Native.session_close(a)
+      :ok = Native.session_close(b)
+    end
+  end
+
   describe "BEAM scheduler safety" do
     test "session_new does not block concurrent tasks" do
       tasks =

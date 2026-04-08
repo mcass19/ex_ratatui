@@ -109,6 +109,13 @@ defmodule ExRatatui.Native do
   # Drains and returns the session's pending output bytes as a binary.
   def session_take_output(_session_ref), do: :erlang.nif_error(:not_loaded)
 
+  @doc false
+  # Feeds raw transport bytes through the session's ANSI parser. Returns
+  # a list of `{:key, code, modifiers, kind} | {:mouse, ...} | {:resize, ...}`
+  # tagged tuples — the same shape `poll_event/1` returns. Bytes that only
+  # partially form an escape sequence stay buffered for the next call.
+  def session_feed_input(_session_ref, _bytes), do: :erlang.nif_error(:not_loaded)
+
   # Textarea (stateful multiline widget)
 
   @doc false
