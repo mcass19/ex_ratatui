@@ -89,6 +89,17 @@ defmodule ExRatatui.Native do
   # Returns the current cursor position from the TextInput state.
   def text_input_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
 
+  # Session (per-connection terminal with pluggable I/O)
+
+  @doc false
+  # Creates a new session backed by an in-memory writer. No OS terminal state
+  # is touched. Returns a session reference (ResourceArc).
+  def session_new(_width, _height), do: :erlang.nif_error(:not_loaded)
+
+  @doc false
+  # Drops the session's inner ratatui terminal. Idempotent.
+  def session_close(_session_ref), do: :erlang.nif_error(:not_loaded)
+
   # Textarea (stateful multiline widget)
 
   @doc false
