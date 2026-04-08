@@ -409,7 +409,12 @@ defmodule ExRatatui do
 
   # -- Encoding: Elixir structs -> string-keyed maps for NIF --
 
-  defp encode_command({widget, %Rect{} = rect}) do
+  @doc false
+  # Internal: shared by `ExRatatui.draw/2` (local transport via
+  # `draw_frame`) and `ExRatatui.Session.draw/2` (per-connection
+  # transport via `session_draw`). Both NIFs accept the same
+  # `[{widget_map, rect_map}]` shape so we encode once here.
+  def encode_command({widget, %Rect{} = rect}) do
     {encode_widget(widget), encode_rect(rect)}
   end
 

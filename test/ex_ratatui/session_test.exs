@@ -327,4 +327,121 @@ defmodule ExRatatui.SessionTest do
       assert Enum.all?(results, &(&1 == :alive))
     end
   end
+
+  describe "ExRatatui.Session (Elixir wrapper)" do
+    alias ExRatatui.Event
+    alias ExRatatui.Layout.Rect
+    alias ExRatatui.Session
+    alias ExRatatui.Widgets.Paragraph
+
+    test "new/2 returns a Session struct holding a reference" do
+      session = Session.new(80, 24)
+
+      assert %Session{ref: ref} = session
+      assert is_reference(ref)
+      assert {80, 24} = Session.size(session)
+
+      :ok = Session.close(session)
+    end
+
+    test "draw/2 encodes widget structs and renders into the in-memory buffer" do
+      session = Session.new(20, 5)
+
+      widgets = [{%Paragraph{text: "hi"}, %Rect{x: 0, y: 0, width: 20, height: 5}}]
+      assert :ok = Session.draw(session, widgets)
+      assert byte_size(Session.take_output(session)) > 0
+
+      :ok = Session.close(session)
+    end
+
+    test "take_output/1 drains and returns an empty binary on second call" do
+      session = Session.new(20, 5)
+
+      :ok = Session.draw(session, [])
+      first = Session.take_output(session)
+      assert byte_size(first) > 0
+      assert "" == Session.take_output(session)
+
+      :ok = Session.close(session)
+    end
+
+    test "feed_input/2 returns decoded Event.Key structs" do
+      session = Session.new(20, 5)
+
+      assert [%Event.Key{code: "a", modifiers: [], kind: "press"}] =
+               Session.feed_input(session, "a")
+
+      :ok = Session.close(session)
+    end
+
+    test "feed_input/2 buffers a partial CSI across calls" do
+      # Same guarantee the underlying NIF makes — exposed through the
+      # Elixir wrapper so a transport can rely on it.
+      session = Session.new(20, 5)
+
+      assert [] = Session.feed_input(session, "\e")
+      assert [] = Session.feed_input(session, "[")
+
+      assert [%Event.Key{code: "up", modifiers: [], kind: "press"}] =
+               Session.feed_input(session, "A")
+
+      :ok = Session.close(session)
+    end
+
+    test "feed_input/2 still works after close/1" do
+      # The input parser outlives the rendering terminal so a transport
+      # can drain trailing input bytes after deciding to tear down rendering.
+      session = Session.new(20, 5)
+      :ok = Session.close(session)
+
+      assert [%Event.Key{code: "x"}] = Session.feed_input(session, "x")
+    end
+
+    test "resize/3 updates the cached size" do
+      session = Session.new(20, 5)
+
+      assert :ok = Session.resize(session, 100, 30)
+      assert {100, 30} = Session.size(session)
+
+      :ok = Session.close(session)
+    end
+
+    test "draw/2 on a closed session returns an error tuple" do
+      session = Session.new(20, 5)
+      :ok = Session.close(session)
+
+      assert {:error, reason} = Session.draw(session, [])
+      assert reason =~ "closed"
+    end
+
+    test "resize/3 on a closed session returns an error tuple" do
+      session = Session.new(20, 5)
+      :ok = Session.close(session)
+
+      assert {:error, reason} = Session.resize(session, 40, 10)
+      assert reason =~ "closed"
+    end
+
+    test "close/1 is idempotent" do
+      session = Session.new(20, 5)
+      assert :ok = Session.close(session)
+      assert :ok = Session.close(session)
+    end
+
+    test "concurrent sessions are independent" do
+      a = Session.new(20, 5)
+      b = Session.new(20, 5)
+
+      :ok = Session.draw(a, [])
+      assert "" == Session.take_output(b)
+      assert byte_size(Session.take_output(a)) > 0
+
+      :ok = Session.resize(a, 100, 30)
+      assert {100, 30} = Session.size(a)
+      assert {20, 5} = Session.size(b)
+
+      :ok = Session.close(a)
+      :ok = Session.close(b)
+    end
+  end
 end
