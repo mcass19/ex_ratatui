@@ -7,12 +7,18 @@ defmodule ExRatatui.Server do
 
   alias ExRatatui.Frame
   alias ExRatatui.Native
+  alias ExRatatui.Session
 
   defstruct [
     :mod,
     :user_state,
     :test_mode,
     :terminal_ref,
+    :session,
+    :writer_fn,
+    :width,
+    :height,
+    transport: :local,
     poll_interval: 16,
     terminal_initialized: false
   ]
@@ -33,8 +39,15 @@ defmodule ExRatatui.Server do
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
-    test_mode = Keyword.get(opts, :test_mode)
-    init_terminal(test_mode) |> continue_init(opts)
+
+    case Keyword.get(opts, :transport, :local) do
+      :local ->
+        test_mode = Keyword.get(opts, :test_mode)
+        init_terminal(test_mode) |> continue_init(opts)
+
+      {:ssh, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
+        continue_init_ssh(session, writer_fn, opts)
+    end
   end
 
   @doc false
@@ -67,12 +80,67 @@ defmodule ExRatatui.Server do
     end
   end
 
+  @doc false
+  # SSH transport init: the Session is created externally by the SSH
+  # channel (which knows how to ship bytes back to the client), so this
+  # path never touches the OS terminal. mount/1 sees augmented opts so an
+  # app can opt into per-client behaviour without breaking the local case.
+  def continue_init_ssh(%Session{} = session, writer_fn, opts) do
+    mod = Keyword.fetch!(opts, :mod)
+    {w, h} = Session.size(session)
+    augmented_opts = augment_ssh_mount_opts(opts, w, h)
+
+    case mod.mount(augmented_opts) do
+      {:ok, user_state} ->
+        state = %__MODULE__{
+          mod: mod,
+          user_state: user_state,
+          transport: :ssh,
+          session: session,
+          writer_fn: writer_fn,
+          width: w,
+          height: h,
+          terminal_initialized: true
+        }
+
+        state = do_render(state)
+        {:ok, state}
+
+      {:error, reason} ->
+        Session.close(session)
+        {:stop, reason}
+    end
+  end
+
+  @doc false
+  def augment_ssh_mount_opts(opts, width, height) do
+    opts
+    |> Keyword.put(:transport, :ssh)
+    |> Keyword.put(:width, width)
+    |> Keyword.put(:height, height)
+  end
+
   @impl true
-  def handle_info(:poll, state) do
+  def handle_info(:poll, %__MODULE__{transport: :local} = state) do
     state.poll_interval
     |> ExRatatui.poll_event()
     |> handle_poll_result(state)
     |> process_poll_result()
+  end
+
+  # Non-local transports are event-driven via mailbox messages from the
+  # transport process — we silently absorb stray :poll messages so they
+  # never reach the user module's handle_info/2.
+  def handle_info(:poll, state), do: {:noreply, state}
+
+  def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: :ssh} = state) do
+    state
+    |> dispatch_event(event)
+    |> process_event_result()
+  end
+
+  def handle_info({:ex_ratatui_resize, w, h}, %__MODULE__{transport: :ssh} = state) do
+    {:noreply, do_render(%{state | width: w, height: h})}
   end
 
   @impl true
@@ -89,8 +157,14 @@ defmodule ExRatatui.Server do
   end
 
   @impl true
-  def terminate(reason, %__MODULE__{terminal_initialized: true} = state) do
+  def terminate(reason, %__MODULE__{transport: :local, terminal_initialized: true} = state) do
     restore_terminal(state.terminal_ref)
+    state.mod.terminate(reason, state.user_state)
+    :ok
+  end
+
+  def terminate(reason, %__MODULE__{transport: :ssh, terminal_initialized: true} = state) do
+    Session.close(state.session)
     state.mod.terminate(reason, state.user_state)
     :ok
   end
@@ -126,6 +200,16 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
+  # SSH/distributed analogue of process_poll_result that does not re-arm a
+  # poll loop — non-local transports get the next event from the mailbox.
+  def process_event_result({:stop, state}), do: {:stop, :normal, state}
+
+  def process_event_result({:continue, state, render?}) do
+    state = if render?, do: do_render(state), else: state
+    {:noreply, state}
+  end
+
+  @doc false
   def resolve_terminal_size({w, h}), do: {w, h}
 
   def resolve_terminal_size(nil) do
@@ -150,12 +234,12 @@ defmodule ExRatatui.Server do
   end
 
   defp do_render(state) do
-    {w, h} = resolve_terminal_size(state.test_mode)
+    {w, h} = current_size(state)
 
     frame = %Frame{width: w, height: h}
 
     widgets = state.mod.render(state.user_state, frame)
-    draw_widgets(state.terminal_ref, widgets)
+    draw_widgets(state, widgets)
     state
   rescue
     e ->
@@ -166,12 +250,30 @@ defmodule ExRatatui.Server do
       state
   end
 
-  defp draw_widgets(_terminal_ref, []), do: :ok
+  defp current_size(%__MODULE__{transport: :ssh, width: w, height: h}), do: {w, h}
+  defp current_size(%__MODULE__{transport: :local, test_mode: tm}), do: resolve_terminal_size(tm)
 
-  defp draw_widgets(terminal_ref, widgets) do
+  defp draw_widgets(_state, []), do: :ok
+
+  defp draw_widgets(%__MODULE__{transport: :local, terminal_ref: terminal_ref}, widgets) do
     case ExRatatui.draw(terminal_ref, widgets) do
       :ok -> :ok
       {:error, reason} -> Logger.error("ExRatatui draw error: #{inspect(reason)}")
+    end
+  end
+
+  defp draw_widgets(
+         %__MODULE__{transport: :ssh, session: session, writer_fn: writer_fn},
+         widgets
+       ) do
+    case Session.draw(session, widgets) do
+      :ok ->
+        bytes = Session.take_output(session)
+        writer_fn.(bytes)
+        :ok
+
+      {:error, reason} ->
+        Logger.error("ExRatatui session draw error: #{inspect(reason)}")
     end
   end
 end
