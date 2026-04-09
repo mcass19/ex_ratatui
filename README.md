@@ -66,6 +66,7 @@ Every SSH client for `task_manager` gets its own isolated TUI session but they a
 
 - **[ash_tui](https://github.com/mcass19/ash_tui)** — Interactive terminal explorer for [Ash](https://ash-hq.org) domains, resources, attributes, actions, and more.
 - **[nerves_ex_ratatui_example](https://github.com/mcass19/nerves_ex_ratatui_example)** — Example [Nerves](https://nerves-project.org) project demonstrating ExRatatui on embedded hardware, with a system monitor and LED control TUI.
+- **[phoenix_ex_ratatui_example](https://github.com/mcass19/phoenix_ex_ratatui_example)** — Example [Phoenix](https://www.phoenixframework.org/) 1.8 project demonstrating an admin TUI served over SSH alongside a public LiveView, sharing PubSub between the browser and the terminal so messages posted in the web app stream live into every connected SSH session.
 
 ## Installation
 
@@ -217,6 +218,11 @@ ssh admin@your-host -p 2222
 Each client gets its own isolated session with its own state and
 screen size. A single daemon can serve many concurrent TUIs.
 
+See [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example)
+for a complete Phoenix 1.8 application doing exactly this — an admin
+TUI served over SSH alongside a public LiveView, sharing PubSub
+between the browser and the terminal.
+
 ### Nerves + `nerves_ssh`
 
 If you're already running `nerves_ssh` on a Nerves device, register
@@ -236,6 +242,11 @@ Connect with:
 ```sh
 ssh nerves.local -s Elixir.MyApp.TUI
 ```
+
+See [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example)
+for a complete Nerves firmware that wires two TUIs (a system monitor
+and an LED control app) into a `nerves_ssh` daemon and runs them on a
+Raspberry Pi.
 
 ### Try It Now
 

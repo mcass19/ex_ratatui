@@ -134,6 +134,11 @@ real size. Clients that _do_ request a PTY first (most modern `ssh`
 clients with `-t`) will render at the exact requested size from the
 first frame.
 
+See the
+[`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example)
+project for an end-to-end Nerves firmware that wires two TUIs into a
+`nerves_ssh` daemon and runs them on a Raspberry Pi.
+
 ## Options Reference
 
 `ExRatatui.SSH.Daemon` accepts:
@@ -211,6 +216,17 @@ For full-custom auth (e.g. looking up users in your own DB), pass
 for the callback signature.
 
 ### Generating Host Keys
+
+There are three reasonable strategies for managing the host key. Pick
+based on where you're running the daemon:
+
+| Strategy | Best for | How |
+|---|---|---|
+| **Explicit `:system_dir`** | Production, multi-machine setups, anything where the host key needs to be backed up or rotated | Generate with `ssh-keygen`, mount under config management, pass `system_dir: ~c"/etc/ex_ratatui/host_keys"` |
+| **`auto_host_key: true`** | Phoenix admin TUIs, internal tools, dev daemons — anywhere you don't want to babysit a directory | Daemon resolves the OTP app for `:mod`, generates a key under `<priv_dir>/ssh/` on first boot, reuses it after |
+| **`nerves_ssh`-managed** | Nerves devices already running an SSH listener for IEx and firmware updates | Don't run your own daemon at all — use `ExRatatui.SSH.subsystem/1` and let `nerves_ssh` reuse its existing host key |
+
+The rest of this section walks through each option in detail.
 
 OTP scans `system_dir` for files named `ssh_host_rsa_key`,
 `ssh_host_ecdsa_key`, `ssh_host_ed25519_key`, etc. You can generate
