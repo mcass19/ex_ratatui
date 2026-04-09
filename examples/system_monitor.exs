@@ -1,7 +1,23 @@
 # Example: system monitor using ExRatatui.App.
-# Run with: mix run examples/system_monitor.exs
 #
-# Controls: q = quit (auto-refreshes every 2 seconds)
+# ┌─────────────────────────────────────────────────────────────────┐
+# │                              MODES                              │
+# └─────────────────────────────────────────────────────────────────┘
+#
+#  1) Local terminal (what you usually want):
+#
+#         mix run examples/system_monitor.exs
+#
+#  2) Over SSH — generates a throwaway host key and listens on 2222
+#     with user/password "demo/demo". Connect from another terminal
+#     (or another machine) with `ssh demo@localhost -p 2222`. `q`
+#     inside the TUI disconnects *that* client but the daemon keeps
+#     running, so multiple clients can attach concurrently.
+#
+#         mix run --no-halt examples/system_monitor.exs --ssh
+#         mix run --no-halt examples/system_monitor.exs --ssh 2223
+#
+# Controls: q = quit, r = refresh (auto-refreshes every 2 seconds).
 #
 # This example demonstrates a system monitor dashboard that reads
 # CPU temperature, memory usage, network info, and BEAM stats.
@@ -424,12 +440,88 @@ defmodule SystemMonitor do
   end
 end
 
-# Start the app directly
-{:ok, pid} = SystemMonitor.start_link([])
+defmodule SystemMonitor.Runner do
+  @moduledoc false
 
-# Wait for the GenServer to exit
-ref = Process.monitor(pid)
+  def main(argv) do
+    case argv do
+      ["--ssh" | rest] -> run_ssh(rest)
+      _ -> run_local()
+    end
+  end
 
-receive do
-  {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+  defp run_local do
+    {:ok, pid} = SystemMonitor.start_link([])
+    wait_for(pid)
+  end
+
+  defp run_ssh(rest) do
+    port =
+      case rest do
+        [port_str] -> String.to_integer(port_str)
+        _ -> 2222
+      end
+
+    system_dir = ensure_host_keys!()
+
+    {:ok, daemon} =
+      ExRatatui.SSH.Daemon.start_link(
+        mod: SystemMonitor,
+        name: nil,
+        port: port,
+        system_dir: system_dir,
+        auth_methods: ~c"password",
+        user_passwords: [{~c"demo", ~c"demo"}]
+      )
+
+    IO.puts("""
+
+    \e[36mSystem Monitor over SSH\e[0m — listening on port #{port}
+
+    Connect from another terminal:
+
+        ssh demo@localhost -p #{port}
+
+    Password: \e[1mdemo\e[0m
+
+    Ctrl-C twice to stop the daemon.
+    """)
+
+    wait_for(daemon)
+  end
+
+  # Persist a throwaway host key under the system tmp dir so every
+  # run doesn't leave a new fingerprint floating around. The
+  # directory name is shared with the other ex_ratatui SSH examples
+  # (e.g. the task_manager app) on purpose — switching from one
+  # example to another on the same port would otherwise trip
+  # `~/.ssh/known_hosts` with a "remote host identification has
+  # changed" warning on every swap. We don't try to be clever about
+  # rotation — if you want real host keys, drop them into the same
+  # directory yourself.
+  defp ensure_host_keys! do
+    dir = Path.join([System.tmp_dir!(), "ex_ratatui_example_host_keys"])
+    File.mkdir_p!(dir)
+    key_path = Path.join(dir, "ssh_host_rsa_key")
+
+    unless File.exists?(key_path) do
+      key = :public_key.generate_key({:rsa, 2048, 65_537})
+      pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, key)
+      pem = :public_key.pem_encode([pem_entry])
+      File.write!(key_path, pem)
+      File.chmod!(key_path, 0o600)
+    end
+
+    String.to_charlist(dir)
+  end
+
+  defp wait_for(pid) do
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    end
+  end
 end
+
+SystemMonitor.Runner.main(System.argv())

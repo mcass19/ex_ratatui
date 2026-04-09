@@ -103,8 +103,9 @@ defmodule ExRatatui.SSH.IntegrationTest do
     assert_receive {:mounted, server_pid}, 2000
     assert is_pid(server_pid)
 
-    # The server does an initial render in handle_continue, which flushes
-    # bytes through the writer_fn → :ssh_connection.send back to us.
+    # The server does an initial render synchronously inside init/1
+    # (via continue_init_ssh/3), which flushes bytes through the
+    # writer_fn → :ssh_connection.send back to us.
     assert_receive :rendered, 2000
     assert_receive {:ssh_cm, ^conn, {:data, ^chan, 0, bytes}}, 2000
     assert is_binary(bytes) or is_list(bytes)

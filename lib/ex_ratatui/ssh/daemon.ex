@@ -28,7 +28,8 @@ defmodule ExRatatui.SSH.Daemon do
 
     * `:mod` (required) — the `ExRatatui.App` module to serve.
     * `:port` (default `2222`) — TCP port to listen on. `0` picks a random
-      free port — use `daemon_info/1` to find it.
+      free port — call `port/1` on the daemon pid to discover the chosen
+      port.
     * `:system_dir` — path to the daemon's host key directory, forwarded
       as-is to `:ssh.daemon/2`.
     * `:user_dir` — path to client-authentication key material.

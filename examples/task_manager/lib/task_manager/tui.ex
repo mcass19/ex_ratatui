@@ -55,7 +55,18 @@ defmodule TaskManager.TUI do
   # ── Callbacks ──────────────────────────────────────────────────
 
   @impl true
-  def terminate(:normal, _state), do: System.stop(0)
+  def terminate(:normal, _state) do
+    # In `:local` transport there's exactly one TUI process and it
+    # owns the VM — pressing `q` should shut the whole app down. In
+    # `:ssh` transport the TUI is one of many per-client sessions
+    # under a long-lived daemon, so a single client quitting must not
+    # take the daemon (or every other connected client) down with it.
+    case Application.get_env(:task_manager, :transport, :local) do
+      :local -> System.stop(0)
+      _ -> :ok
+    end
+  end
+
   def terminate(_reason, _state), do: :ok
 
   @impl true

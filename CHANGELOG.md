@@ -9,9 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSH transport** — serve any `ExRatatui.App` to remote clients over OTP `:ssh`. New `transport: :ssh` option on `ExRatatui.App` and a standalone `ExRatatui.SSH.Daemon` for direct supervision-tree use. Each connected client gets its own isolated TUI session; works as a primary daemon or as a `nerves_ssh` subsystem via `ExRatatui.SSH.subsystem/1`
+- `ExRatatui.Session` — in-memory transport-agnostic terminal session (Rust `SharedWriter` + `Viewport::Fixed`) with `new/2`, `draw/2`, `take_output/1`, `feed_input/2`, `resize/3`, `size/1`, and `close/1`
+- `ExRatatui.SSH` — `:ssh_server_channel` implementation that drives a Session per channel, parses ANSI input via `vte`, and handles PTY negotiation, `window_change`, and alt-screen lifecycle
+- `ExRatatui.SSH.Daemon` — GenServer wrapping `:ssh.daemon/2` with `port/1` and `daemon_ref/1` introspection helpers
+- VTE-based input parser covering arrows, function keys, SS3, CSI modifiers, Alt+letter, Ctrl+letter, and partial-sequence buffering across feeds (SSH delivers byte-at-a-time during interactive use)
+- 7 new session NIFs on ExRatatui.Native: `session_new/2`, `session_close/1`, `session_draw/2`, `session_take_output/1`, `session_feed_input/2`, `session_resize/3`, `session_size/1`
+- Guide: `guides/ssh_transport.md` — architecture, quick start, `nerves_ssh` integration, options reference, host-key generation, troubleshooting
+- Examples ship an SSH mode: `examples/system_monitor.exs --ssh` and `examples/task_manager` via `TASK_MANAGER_SSH=1` (multiple clients share one SQLite database)
+- README "Running Over SSH" section
 - CI enforces 100% Elixir test coverage threshold (NIF modules excluded)
 - Missing doctests for `ExRatatui`, `Event`, `Event.Key`, `Event.Mouse`, `Event.Resize`, and `SlashCommands`
 - Callback documentation for all `ExRatatui.App` callbacks
+
+### Changed
+
+- ExRatatui.Server learns a `transport: :local | :ssh` option and an alternate `init/1` path that drives an injected Session + writer function instead of the local terminal
+- `ExRatatui.App` gains a `:transport` option that dispatches between ExRatatui.Server `start_link/1` and `ExRatatui.SSH.Daemon.start_link/1`
 
 ### Docs
 
@@ -21,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 
 - Bumped Elixir test coverage to 100% — added server, rendering, layout, event, and widget tests
+- End-to-end SSH integration test exercising `:ssh.daemon/2` + `:ssh.connect/3` round trip with a generated host key (mount → render bytes → keystroke roundtrip → window_change)
 
 ## [0.5.1] - 2026-03-25
 

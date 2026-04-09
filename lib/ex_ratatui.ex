@@ -29,6 +29,11 @@ defmodule ExRatatui do
   For supervised TUI applications, see `ExRatatui.App` — a behaviour with
   LiveView-inspired callbacks (`mount/1`, `render/2`, `handle_event/2`).
 
+  ## Running over SSH
+
+  To serve a TUI to remote clients without a local terminal, see
+  `ExRatatui.SSH.Daemon` and the [SSH transport guide](guides/ssh_transport.md).
+
   ## Widgets
 
   See `ExRatatui.Widgets.Paragraph`, `ExRatatui.Widgets.Block`,

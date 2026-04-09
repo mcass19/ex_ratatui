@@ -17,6 +17,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
+- **Built-in SSH transport** — serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - Headless test backend for CI-friendly rendering verification
@@ -30,11 +31,35 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `hello_world.exs` | `mix run examples/hello_world.exs` | Minimal paragraph display |
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
-| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only) |
+| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH** — see below. |
 | `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with tabs, table, scrollbar, line gauge, and more |
 | `chat_interface.exs` | `mix run examples/chat_interface.exs` | AI chat interface — markdown, textarea, throbber, popup, slash commands |
-| `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app |
+| `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app — **also runs over SSH**, multiple clients share one DB |
+
+### Try an example over SSH
+
+Two of the examples ship with a one-flag switch to serve them over SSH instead of your local terminal — great for testing multi-client behaviour or previewing Nerves-style remote TUIs.
+
+**`system_monitor.exs`** (standalone script, `--ssh` flag):
+
+```sh
+mix run --no-halt examples/system_monitor.exs --ssh
+# in another terminal:
+ssh demo@localhost -p 2222      # password: demo
+```
+
+**`task_manager/`** (Mix project, `TASK_MANAGER_SSH` env var):
+
+```sh
+cd examples/task_manager
+mix deps.get && mix ecto.setup   # first time only
+TASK_MANAGER_SSH=1 mix run --no-halt
+# in one or more other terminals:
+ssh demo@localhost -p 2222      # password: demo
+```
+
+Every SSH client for `task_manager` gets its own isolated TUI session but they all read and write the same SQLite database — add a task in one window, see it appear in the others. See the [SSH transport guide](guides/ssh_transport.md) for how this all works.
 
 
 ## Built with ExRatatui
@@ -161,6 +186,70 @@ Supervisor.start_link(children, strategy: :one_for_one)
 | `terminate/2` | Called on shutdown with reason and final state. Optional — default is a no-op |
 
 See the [task_manager example](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) for a full Ecto-backed app using this behaviour.
+
+## Running Over SSH
+
+Any `ExRatatui.App` module can also be served as a remote TUI over
+SSH. The transport is pure OTP `:ssh` — no extra processes, no
+external `sshd`, no native code beyond what ExRatatui already uses.
+
+Drop `ExRatatui.SSH.Daemon` into your supervision tree:
+
+```elixir
+children = [
+  {ExRatatui.SSH.Daemon,
+   mod: MyApp.TUI,
+   port: 2222,
+   system_dir: ~c"/etc/ex_ratatui/host_keys",
+   auth_methods: ~c"password",
+   user_passwords: [{~c"admin", ~c"s3cret"}]}
+]
+
+Supervisor.start_link(children, strategy: :one_for_one)
+```
+
+Then connect from another machine:
+
+```sh
+ssh admin@your-host -p 2222
+```
+
+Each client gets its own isolated session with its own state and
+screen size. A single daemon can serve many concurrent TUIs.
+
+### Nerves + `nerves_ssh`
+
+If you're already running `nerves_ssh` on a Nerves device, register
+`ExRatatui.SSH` as a subsystem instead of standing up a second
+daemon:
+
+```elixir
+config :nerves_ssh,
+  subsystems: [
+    :ssh_sftpd.subsystem_spec(cwd: ~c"/"),
+    ExRatatui.SSH.subsystem(MyApp.TUI)
+  ]
+```
+
+Connect with:
+
+```sh
+ssh nerves.local -s Elixir.MyApp.TUI
+```
+
+### Try It Now
+
+The bundled system monitor example has an `--ssh` flag that generates
+a throwaway host key and listens on port 2222 with `demo/demo` auth:
+
+```sh
+mix run --no-halt examples/system_monitor.exs --ssh
+# (in another terminal)
+ssh demo@localhost -p 2222   # password: demo
+```
+
+See the [Running TUIs over SSH](guides/ssh_transport.md) guide for the
+full options reference, auth setup, and troubleshooting tips.
 
 ## How It Works
 

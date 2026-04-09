@@ -82,12 +82,21 @@ defmodule ExRatatui.MixProject do
       source_ref: "v#{@version}",
       extras: [
         "README.md": [title: "Overview"],
+        "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
+      ],
+      groups_for_extras: [
+        Guides: Path.wildcard("guides/*.md")
       ],
       groups_for_modules: [
         Application: [
           ExRatatui.App
+        ],
+        "SSH Transport": [
+          ExRatatui.Session,
+          ExRatatui.SSH,
+          ExRatatui.SSH.Daemon
         ],
         Layout: [
           ExRatatui.Frame,
