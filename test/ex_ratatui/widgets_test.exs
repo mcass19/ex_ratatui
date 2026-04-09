@@ -1391,6 +1391,43 @@ defmodule ExRatatui.WidgetsTest do
       assert content =~ "item1"
     end
 
+    test "scroll_offset clips top rows of a multi-line item", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "Line 1\nLine 2\nLine 3"}, 3},
+          {%Paragraph{text: "Line 4\nLine 5"}, 2}
+        ],
+        scroll_offset: 1
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      refute content =~ "Line 1"
+      assert content =~ "Line 2"
+      assert content =~ "Line 3"
+      assert content =~ "Line 4"
+      refute content =~ "Line 5"
+    end
+
+    test "scroll_offset past all content does not panic", %{terminal: terminal} do
+      wl = %WidgetList{
+        items: [
+          {%Paragraph{text: "First"}, 1},
+          {%Paragraph{text: "Second"}, 1}
+        ],
+        scroll_offset: 100
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{wl, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      refute content =~ "First"
+      refute content =~ "Second"
+    end
+
     test "widget_list struct has correct defaults" do
       wl = %WidgetList{}
       assert wl.items == []

@@ -189,7 +189,7 @@ defmodule ChatApp do
         %{state | autocomplete_selected: new_sel}
 
       true ->
-        max_offset = max(0, length(state.messages) - 1)
+        max_offset = max_scroll_offset(state.messages)
         %{state | scroll_offset: min(state.scroll_offset + 1, max_offset)}
     end
   end
@@ -293,14 +293,15 @@ defmodule ChatApp do
 
       if elapsed > 1500 do
         response = Enum.at(@ai_responses, rem(state.response_index, length(@ai_responses)))
+        new_messages = state.messages ++ [{:ai, response}]
 
         %{
           state
           | loading: false,
             loading_timer: nil,
-            messages: state.messages ++ [{:ai, response}],
+            messages: new_messages,
             response_index: state.response_index + 1,
-            scroll_offset: max(0, length(state.messages) - 2)
+            scroll_offset: max_scroll_offset(new_messages)
         }
       else
         state
@@ -346,12 +347,13 @@ defmodule ChatApp do
 
     # Scrollbar for messages
     total_lines = total_message_lines(state.messages)
+    visible_height = messages_area.height - 2
 
     scrollbar = %Scrollbar{
-      content_length: max(1, total_lines),
+      content_length: max(1, total_lines - visible_height),
       position: state.scroll_offset,
       orientation: :vertical_right,
-      viewport_content_length: messages_area.height,
+      viewport_content_length: visible_height,
       thumb_style: %Style{fg: :cyan},
       track_style: %Style{fg: :dark_gray}
     }
@@ -431,6 +433,13 @@ defmodule ChatApp do
       end
 
     ExRatatui.draw(state.terminal, Enum.reverse(widgets))
+  end
+
+  defp max_scroll_offset(messages) do
+    {_w, h} = ExRatatui.terminal_size()
+    # header(1) + input(5) + footer(1) = 7 fixed rows; WidgetList block border = 2
+    visible_h = h - 7 - 2
+    max(0, total_message_lines(messages) - visible_h)
   end
 
   defp total_message_lines(messages) do
