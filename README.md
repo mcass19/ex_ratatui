@@ -190,9 +190,7 @@ See the [task_manager example](https://github.com/mcass19/ex_ratatui/tree/main/e
 
 ## Running Over SSH
 
-Any `ExRatatui.App` module can also be served as a remote TUI over
-SSH. The transport is pure OTP `:ssh` — no extra processes, no
-external `sshd`, no native code beyond what ExRatatui already uses.
+Any `ExRatatui.App` module can also be served as a remote TUI over SSH. The transport is pure OTP `:ssh` — no extra processes, no external `sshd`, no native code beyond what ExRatatui already uses. See the [Running TUIs over SSH](guides/ssh_transport.md) guide for the full options reference, auth setup, and troubleshooting tips.
 
 Drop `ExRatatui.SSH.Daemon` into your supervision tree:
 
@@ -215,19 +213,13 @@ Then connect from another machine:
 ssh admin@your-host -p 2222
 ```
 
-Each client gets its own isolated session with its own state and
-screen size. A single daemon can serve many concurrent TUIs.
+Each client gets its own isolated session with its own state and screen size. A single daemon can serve many concurrent TUIs.
 
-See [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example)
-for a complete Phoenix 1.8 application doing exactly this — an admin
-TUI served over SSH alongside a public LiveView, sharing PubSub
-between the browser and the terminal.
+See [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example) for a complete Phoenix 1.8 application doing exactly this — an admin TUI served over SSH alongside a public LiveView, sharing PubSub between the browser and the terminal.
 
 ### Nerves + `nerves_ssh`
 
-If you're already running `nerves_ssh` on a Nerves device, register
-`ExRatatui.SSH` as a subsystem instead of standing up a second
-daemon:
+If you're already running `nerves_ssh` on a Nerves device, register `ExRatatui.SSH` as a subsystem instead of standing up a second daemon:
 
 ```elixir
 config :nerves_ssh,
@@ -243,24 +235,7 @@ Connect with:
 ssh nerves.local -s Elixir.MyApp.TUI
 ```
 
-See [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example)
-for a complete Nerves firmware that wires two TUIs (a system monitor
-and an LED control app) into a `nerves_ssh` daemon and runs them on a
-Raspberry Pi.
-
-### Try It Now
-
-The bundled system monitor example has an `--ssh` flag that generates
-a throwaway host key and listens on port 2222 with `demo/demo` auth:
-
-```sh
-mix run --no-halt examples/system_monitor.exs --ssh
-# (in another terminal)
-ssh demo@localhost -p 2222   # password: demo
-```
-
-See the [Running TUIs over SSH](guides/ssh_transport.md) guide for the
-full options reference, auth setup, and troubleshooting tips.
+See [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example) for a complete Nerves firmware that wires two TUIs (a system monitor and an LED control app) into a `nerves_ssh` daemon and runs them on a Raspberry Pi.
 
 ## How It Works
 
