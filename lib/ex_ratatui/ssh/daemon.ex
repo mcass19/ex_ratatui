@@ -7,8 +7,8 @@ defmodule ExRatatui.SSH.Daemon do
   registers the app module as an SSH subsystem + default shell, and
   tears the daemon down on shutdown. Each connected SSH client gets its
   own `ExRatatui.SSH` channel process, which in turn supervises its own
-  `ExRatatui.Server` — so a single `Daemon` can serve many concurrent
-  clients without any shared state between them.
+  internal server running the app — so a single `Daemon` can serve
+  many concurrent clients without any shared state between them.
 
   ## Usage
 

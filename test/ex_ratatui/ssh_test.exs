@@ -6,6 +6,9 @@ defmodule ExRatatui.SSHTest do
   alias ExRatatui.SSH
   alias ExRatatui.Session
 
+  @enter_screen "\e[?1049h\e[?25l"
+  @leave_screen "\e[?1049l\e[?25h\e[0m"
+
   defmodule SampleApp do
     use ExRatatui.App
 
@@ -74,6 +77,7 @@ defmodule ExRatatui.SSHTest do
       assert is_function(state.starter, 1)
       assert state.session == nil
       assert state.server_pid == nil
+      assert state.rendering == false
     end
 
     test "defaults app_opts/sender/replier/starter when not given" do
@@ -109,6 +113,45 @@ defmodule ExRatatui.SSHTest do
 
       assert {:stop, 3, new_state} = SSH.handle_msg({:EXIT, server_pid, :shutdown}, state)
       assert new_state.server_pid == nil
+    end
+
+    test "flushes leave-screen bytes while the channel is still writable" do
+      # Regression: the leave sequence must be emitted from handle_msg,
+      # not from terminate/2. By the time ssh_server_channel gets around
+      # to calling terminate the channel has already been closed from
+      # under us, so any sender call there is a silent no-op and the
+      # client gets stranded in the alt buffer with the cursor hidden.
+      server_pid = spawn(fn -> :ok end)
+
+      state =
+        build_state()
+        |> Map.merge(%{
+          server_pid: server_pid,
+          channel_id: 3,
+          conn: :conn,
+          rendering: true
+        })
+
+      assert {:stop, 3, new_state} = SSH.handle_msg({:EXIT, server_pid, :normal}, state)
+      assert_receive {:sent, :conn, 3, @leave_screen}
+      # rendering flipped off so terminate/2 won't double-send.
+      assert new_state.rendering == false
+    end
+
+    test "does not emit leave-screen when rendering never started" do
+      server_pid = spawn(fn -> :ok end)
+
+      state =
+        build_state()
+        |> Map.merge(%{
+          server_pid: server_pid,
+          channel_id: 3,
+          conn: :conn,
+          rendering: false
+        })
+
+      assert {:stop, 3, _} = SSH.handle_msg({:EXIT, server_pid, :normal}, state)
+      refute_receive {:sent, :conn, 3, @leave_screen}
     end
 
     test "ignores EXIT messages from other pids" do
@@ -170,7 +213,9 @@ defmodule ExRatatui.SSHTest do
 
       assert {:ok, new_state} = SSH.handle_ssh_msg(shell_msg, state)
       assert is_pid(new_state.server_pid)
+      assert new_state.rendering == true
       assert_receive {:replied, :conn, true, :success, _}
+      assert_receive {:sent, :conn, _, @enter_screen}
 
       cleanup(new_state)
     end
@@ -181,7 +226,10 @@ defmodule ExRatatui.SSHTest do
         |> prime_with_pty(80, 24)
 
       shell_msg = {:ssh_cm, :conn, {:shell, state.channel_id, true}}
-      assert {:stop, _id, _state} = SSH.handle_ssh_msg(shell_msg, state)
+      assert {:stop, _id, new_state} = SSH.handle_ssh_msg(shell_msg, state)
+      # rendering stays false on failure so terminate/2 won't try to
+      # emit a second leave-screen (start_server already did).
+      assert new_state.rendering == false
       assert_receive {:replied, :conn, true, :failure, _}
       Session.close(state.session)
     end
@@ -206,6 +254,7 @@ defmodule ExRatatui.SSHTest do
       assert new_state.conn == :conn
       assert new_state.channel_id == 9
       assert is_pid(new_state.server_pid)
+      assert new_state.rendering == true
 
       assert_receive {:replied, :conn, true, :success, 9}
       assert_receive {:server_opts, _}
@@ -234,6 +283,7 @@ defmodule ExRatatui.SSHTest do
       # Session is the same instance
       assert new_state.session == state.session
       assert Session.size(new_state.session) == {120, 40}
+      assert new_state.rendering == true
 
       cleanup(new_state)
     end
@@ -375,6 +425,21 @@ defmodule ExRatatui.SSHTest do
       state = build_state() |> Map.merge(%{server_pid: dead})
       assert :ok = SSH.terminate(:normal, state)
     end
+
+    test "emits the leave-screen sequence when rendering started" do
+      state =
+        build_state()
+        |> Map.merge(%{
+          rendering: true,
+          conn: :conn,
+          channel_id: 11,
+          session: nil,
+          server_pid: nil
+        })
+
+      assert :ok = SSH.terminate(:normal, state)
+      assert_receive {:sent, :conn, 11, @leave_screen}
+    end
   end
 
   describe "make_writer_fn/3" do
@@ -427,6 +492,27 @@ defmodule ExRatatui.SSHTest do
       assert opts[:name] == nil
       assert {:ssh, _, writer_fn} = opts[:transport]
       assert is_function(writer_fn, 1)
+
+      # enter_screen is queued on the channel before the starter runs
+      # so the client's terminal switches to the alt buffer before any
+      # render frames arrive.
+      assert_receive {:sent, :conn, _, @enter_screen}
+
+      Session.close(state.session)
+    end
+
+    test "emits leave-screen bytes when the starter fails" do
+      state =
+        build_state(starter: fn _opts -> {:error, :boom} end)
+        |> prime_with_pty(80, 24)
+
+      assert {:error, :boom} = SSH.start_server(state)
+
+      # Both prelude and cleanup must reach the client so a briefly
+      # connected session doesn't leave the client stuck on an empty
+      # alt buffer.
+      assert_receive {:sent, :conn, _, @enter_screen}
+      assert_receive {:sent, :conn, _, @leave_screen}
 
       Session.close(state.session)
     end

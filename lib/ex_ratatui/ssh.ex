@@ -4,13 +4,13 @@ defmodule ExRatatui.SSH do
   over a single SSH channel.
 
   One instance is spawned per SSH channel (i.e. per connected client). It
-  owns an `ExRatatui.Session` for that channel and a linked
-  `ExRatatui.Server` running the user's app module in `:ssh` transport
-  mode. Bytes the ratatui backend writes into the session's in-memory
-  buffer are shipped back to the client via `:ssh_connection.send/3`,
-  and bytes the client types come in as `{:data, _, _, _}` events that
-  get fed through the session's ANSI parser and dispatched to the
-  server as `{:ex_ratatui_event, event}` messages.
+  owns an `ExRatatui.Session` for that channel and a linked internal
+  server running the user's app module in `:ssh` transport mode. Bytes
+  the ratatui backend writes into the session's in-memory buffer are
+  shipped back to the client via `:ssh_connection.send/3`, and bytes
+  the client types come in as `{:data, _, _, _}` events that get fed
+  through the session's ANSI parser and dispatched to the server as
+  `{:ex_ratatui_event, event}` messages.
 
   ## Two entry points
 
@@ -45,10 +45,10 @@ defmodule ExRatatui.SSH do
   ## Dependency injection for tests
 
   `init/1` accepts optional `:sender` and `:starter` overrides so unit
-  tests can substitute fakes for `:ssh_connection.send/3` and
-  `ExRatatui.Server.start_link/1` without standing up real infrastructure.
-  Defaults point at the real OTP + Server functions; production callers
-  never pass either key.
+  tests can substitute fakes for `:ssh_connection.send/3` and the
+  internal server's start function without standing up real
+  infrastructure. Defaults point at the real OTP + Server functions;
+  production callers never pass either key.
   """
 
   @behaviour :ssh_server_channel
@@ -61,6 +61,25 @@ defmodule ExRatatui.SSH do
   @default_replier &:ssh_connection.reply_request/4
   @default_starter &ExRatatui.Server.start_link/1
 
+  # Switch the client into the alternate screen buffer and hide the
+  # cursor before the first frame lands. The in-memory `Session`
+  # deliberately never touches these — see
+  # `native/ex_ratatui/src/session.rs` — so the SSH transport has to
+  # emit them itself or the TUI will paint over the client's shell
+  # scrollback instead of onto a clean canvas.
+  @enter_screen "\e[?1049h\e[?25l"
+
+  # Inverse of `@enter_screen`, plus an SGR reset so any colours left
+  # over from the final rendered frame don't bleed into the client's
+  # shell prompt on return. Order matters: we leave the alt buffer
+  # *before* re-showing the cursor so that the `\e[?25h` applies to the
+  # primary buffer. On terminals where cursor visibility is a global
+  # state (xterm, gnome-terminal, kitty, ghostty), reversing this order
+  # leaves the cursor invisible on the client's shell after disconnect.
+  # This matches crossterm's canonical `LeaveAlternateScreen, Show`
+  # teardown.
+  @leave_screen "\e[?1049l\e[?25h\e[0m"
+
   defstruct [
     :mod,
     :app_opts,
@@ -70,7 +89,8 @@ defmodule ExRatatui.SSH do
     :server_pid,
     :sender,
     :replier,
-    :starter
+    :starter,
+    rendering: false
   ]
 
   @type t :: %__MODULE__{
@@ -82,7 +102,8 @@ defmodule ExRatatui.SSH do
           server_pid: pid() | nil,
           sender: (term(), non_neg_integer(), iodata() -> :ok | {:error, term()}),
           replier: (term(), boolean(), :success | :failure, non_neg_integer() -> :ok),
-          starter: (keyword() -> {:ok, pid()} | {:error, term()})
+          starter: (keyword() -> {:ok, pid()} | {:error, term()}),
+          rendering: boolean()
         }
 
   @doc """
@@ -134,9 +155,14 @@ defmodule ExRatatui.SSH do
   end
 
   def handle_msg({:EXIT, pid, _reason}, %__MODULE__{server_pid: pid, channel_id: id} = state) do
-    # Our linked Server died (normal or crash). Either way the channel
-    # has nothing left to do, so close cleanly.
-    {:stop, id, %{state | server_pid: nil}}
+    # Our linked Server died (normal or crash). Flush the leave-screen
+    # sequence *now*, while the channel is still writable — by the time
+    # OTP's ssh_server_channel gets around to calling `terminate/2` it
+    # has already queued a `SSH_MSG_CHANNEL_CLOSE` and any further
+    # `:ssh_connection.send/3` returns `{:error, closed}` silently,
+    # stranding the client in the alt buffer with the cursor hidden.
+    _ = maybe_leave_screen(state)
+    {:stop, id, %{state | server_pid: nil, rendering: false}}
   end
 
   def handle_msg(_msg, state), do: {:ok, state}
@@ -167,7 +193,7 @@ defmodule ExRatatui.SSH do
     case start_server(state) do
       {:ok, server_pid} ->
         state.replier.(conn, want_reply, :success, channel_id)
-        {:ok, %{state | server_pid: server_pid}}
+        {:ok, %{state | server_pid: server_pid, rendering: true}}
 
       {:error, _reason} ->
         state.replier.(conn, want_reply, :failure, channel_id)
@@ -188,7 +214,7 @@ defmodule ExRatatui.SSH do
     case start_server(primed) do
       {:ok, server_pid} ->
         state.replier.(conn, want_reply, :success, channel_id)
-        {:ok, %{primed | server_pid: server_pid}}
+        {:ok, %{primed | server_pid: server_pid, rendering: true}}
 
       {:error, _reason} ->
         Session.close(session)
@@ -206,7 +232,7 @@ defmodule ExRatatui.SSH do
     case start_server(state) do
       {:ok, server_pid} ->
         state.replier.(conn, want_reply, :success, channel_id)
-        {:ok, %{state | server_pid: server_pid}}
+        {:ok, %{state | server_pid: server_pid, rendering: true}}
 
       {:error, _reason} ->
         state.replier.(conn, want_reply, :failure, channel_id)
@@ -266,6 +292,7 @@ defmodule ExRatatui.SSH do
 
   @impl :ssh_server_channel
   def terminate(_reason, %__MODULE__{} = state) do
+    _ = maybe_leave_screen(state)
     _ = maybe_stop_server(state.server_pid)
     _ = maybe_close_session(state.session)
     :ok
@@ -283,7 +310,24 @@ defmodule ExRatatui.SSH do
       |> Keyword.put(:name, nil)
       |> Keyword.put(:transport, {:ssh, state.session, writer_fn})
 
-    state.starter.(opts)
+    # Write the alt-screen+hide-cursor prelude BEFORE starting the
+    # server so the bytes are queued on the SSH channel ahead of any
+    # render output. :ssh_connection.send is FIFO per channel, so
+    # once this call returns the prelude is guaranteed to reach the
+    # client before the server's first frame.
+    _ = state.sender.(state.conn, state.channel_id, @enter_screen)
+
+    case state.starter.(opts) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      error ->
+        # Undo the alt-screen enter so a client that briefly
+        # connected sees a clean shell on disconnect instead of a
+        # stuck alt buffer.
+        _ = state.sender.(state.conn, state.channel_id, @leave_screen)
+        error
+    end
   end
 
   @doc false
@@ -323,4 +367,11 @@ defmodule ExRatatui.SSH do
 
   defp maybe_close_session(nil), do: :ok
   defp maybe_close_session(%Session{} = session), do: Session.close(session)
+
+  defp maybe_leave_screen(%__MODULE__{rendering: false}), do: :ok
+
+  defp maybe_leave_screen(%__MODULE__{sender: sender, conn: conn, channel_id: channel_id}) do
+    _ = sender.(conn, channel_id, @leave_screen)
+    :ok
+  end
 end
