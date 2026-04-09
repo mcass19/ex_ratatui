@@ -462,14 +462,12 @@ defmodule SystemMonitor.Runner do
         _ -> 2222
       end
 
-    system_dir = ensure_host_keys!()
-
     {:ok, daemon} =
       ExRatatui.SSH.Daemon.start_link(
         mod: SystemMonitor,
         name: nil,
         port: port,
-        system_dir: system_dir,
+        system_dir: shared_host_key_dir(),
         auth_methods: ~c"password",
         user_passwords: [{~c"demo", ~c"demo"}]
       )
@@ -496,23 +494,18 @@ defmodule SystemMonitor.Runner do
   # (e.g. the task_manager app) on purpose — switching from one
   # example to another on the same port would otherwise trip
   # `~/.ssh/known_hosts` with a "remote host identification has
-  # changed" warning on every swap. We don't try to be clever about
-  # rotation — if you want real host keys, drop them into the same
-  # directory yourself.
-  defp ensure_host_keys! do
-    dir = Path.join([System.tmp_dir!(), "ex_ratatui_example_host_keys"])
-    File.mkdir_p!(dir)
-    key_path = Path.join(dir, "ssh_host_rsa_key")
-
-    unless File.exists?(key_path) do
-      key = :public_key.generate_key({:rsa, 2048, 65_537})
-      pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, key)
-      pem = :public_key.pem_encode([pem_entry])
-      File.write!(key_path, pem)
-      File.chmod!(key_path, 0o600)
-    end
-
-    String.to_charlist(dir)
+  # changed" warning on every swap.
+  #
+  # We delegate the actual key generation to
+  # `ExRatatui.SSH.Daemon.ensure_host_key!/1`, which handles the
+  # idempotent first-boot creation and `0600` permissions for us. A
+  # Phoenix or Mix application that wants this for free can pass
+  # `auto_host_key: true` to the daemon instead — see the
+  # `phoenix_ex_ratatui_example` repo for that flavour.
+  defp shared_host_key_dir do
+    [System.tmp_dir!(), "ex_ratatui_example_host_keys"]
+    |> Path.join()
+    |> ExRatatui.SSH.Daemon.ensure_host_key!()
   end
 
   defp wait_for(pid) do

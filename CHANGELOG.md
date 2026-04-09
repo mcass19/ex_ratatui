@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Session` — in-memory transport-agnostic terminal session (Rust `SharedWriter` + `Viewport::Fixed`) with `new/2`, `draw/2`, `take_output/1`, `feed_input/2`, `resize/3`, `size/1`, and `close/1`
 - `ExRatatui.SSH` — `:ssh_server_channel` implementation that drives a Session per channel, parses ANSI input via `vte`, and handles PTY negotiation, `window_change`, and alt-screen lifecycle
 - `ExRatatui.SSH.Daemon` — GenServer wrapping `:ssh.daemon/2` with `port/1` and `daemon_ref/1` introspection helpers
+- `ExRatatui.SSH.Daemon` `:auto_host_key` option — when set, the daemon resolves the OTP application that owns `:mod`, ensures `<priv_dir>/ssh/` exists, and generates a 2048-bit RSA host key on first boot. Subsequent boots reuse the same key. Lets Phoenix admin TUIs and similar drop the daemon straight into a supervision tree without hand-rolling host-key bootstrap
+- `ExRatatui.SSH.Daemon` `:system_dir` accepts binary paths in addition to charlists; the daemon converts them before forwarding to `:ssh.daemon/2`
 - VTE-based input parser covering arrows, function keys, SS3, CSI modifiers, Alt+letter, Ctrl+letter, and partial-sequence buffering across feeds (SSH delivers byte-at-a-time during interactive use)
 - 7 new session NIFs on ExRatatui.Native: `session_new/2`, `session_close/1`, `session_draw/2`, `session_take_output/1`, `session_feed_input/2`, `session_resize/3`, `session_size/1`
 - Guide: `guides/ssh_transport.md` — architecture, quick start, `nerves_ssh` integration, options reference, host-key generation, troubleshooting

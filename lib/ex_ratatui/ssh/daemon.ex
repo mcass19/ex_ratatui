@@ -31,7 +31,17 @@ defmodule ExRatatui.SSH.Daemon do
       free port — call `port/1` on the daemon pid to discover the chosen
       port.
     * `:system_dir` — path to the daemon's host key directory, forwarded
-      as-is to `:ssh.daemon/2`.
+      as-is to `:ssh.daemon/2`. May be a binary or charlist; binaries are
+      converted automatically.
+    * `:auto_host_key` (default `false`) — when `true`, the daemon resolves
+      the OTP application that owns `:mod`, ensures `<priv_dir>/ssh/`
+      exists, and generates a 2048-bit RSA host key there on first boot
+      (`ssh_host_rsa_key`). Subsequent boots reuse the same key. Set
+      `:system_dir` explicitly to override the directory; passing both
+      raises. Intended for "drop into a supervision tree and it just
+      works" setups (Phoenix admin TUIs, internal tools); production
+      deployments should keep an explicit `:system_dir` under their own
+      configuration management.
     * `:user_dir` — path to client-authentication key material.
     * `:authorized_keys` — forwarded through to `:ssh.daemon/2`.
     * `:name` — process name (default `__MODULE__`, pass `nil` to skip).
@@ -113,6 +123,7 @@ defmodule ExRatatui.SSH.Daemon do
     port = Keyword.get(opts, :port, @default_port)
     starter = Keyword.get(opts, :daemon_starter, @default_daemon_starter)
     stopper = Keyword.get(opts, :daemon_stopper, @default_daemon_stopper)
+    opts = resolve_host_key_opts(opts, mod)
     daemon_opts = build_daemon_opts(mod, opts)
 
     case starter.(port, daemon_opts) do
@@ -186,8 +197,91 @@ defmodule ExRatatui.SSH.Daemon do
       :daemon_starter,
       :daemon_stopper,
       :app_opts,
-      :transport
+      :transport,
+      :auto_host_key
     ])
+    |> normalize_system_dir()
     |> Keyword.merge(base)
+  end
+
+  @doc false
+  # If `:auto_host_key` is set, derive a `:system_dir` under the OTP
+  # app's priv dir, generating a fresh RSA host key on first boot. This
+  # lets callers drop `ExRatatui.SSH.Daemon` straight into a supervision
+  # tree without managing host keys themselves.
+  def resolve_host_key_opts(opts, mod) do
+    case Keyword.pop(opts, :auto_host_key, false) do
+      {false, opts} ->
+        opts
+
+      {true, opts} ->
+        if Keyword.has_key?(opts, :system_dir) do
+          raise ArgumentError,
+                "ExRatatui.SSH.Daemon: cannot pass both :auto_host_key and :system_dir — pick one"
+        end
+
+        system_dir = ensure_app_host_key!(mod)
+        Keyword.put(opts, :system_dir, system_dir)
+
+      {other, _opts} ->
+        raise ArgumentError,
+              "ExRatatui.SSH.Daemon: :auto_host_key must be a boolean, got: #{inspect(other)}"
+    end
+  end
+
+  @doc false
+  # Resolves the OTP app for `mod` and delegates to `ensure_host_key!/1`
+  # against `<priv_dir>/ssh/`. Raises if the module isn't part of any
+  # loaded application.
+  def ensure_app_host_key!(mod) do
+    otp_app =
+      case Application.get_application(mod) do
+        nil ->
+          raise ArgumentError,
+                "ExRatatui.SSH.Daemon: could not resolve OTP application for #{inspect(mod)} — " <>
+                  "pass :system_dir explicitly instead of :auto_host_key"
+
+        app ->
+          app
+      end
+
+    otp_app
+    |> :code.priv_dir()
+    |> to_string()
+    |> Path.join("ssh")
+    |> ensure_host_key!()
+  end
+
+  @doc false
+  # Ensures `dir` exists and contains an `ssh_host_rsa_key`. Generates a
+  # fresh 2048-bit RSA key on first call, then leaves it alone on every
+  # subsequent call. Returns the directory as a charlist (the shape OTP
+  # `:ssh.daemon/2` wants for `:system_dir`).
+  def ensure_host_key!(dir) when is_binary(dir) do
+    File.mkdir_p!(dir)
+    key_path = Path.join(dir, "ssh_host_rsa_key")
+
+    unless File.exists?(key_path) do
+      Logger.info("ExRatatui.SSH.Daemon generating SSH host key at #{key_path}")
+      generate_rsa_host_key!(key_path)
+    end
+
+    String.to_charlist(dir)
+  end
+
+  defp generate_rsa_host_key!(path) do
+    private_key = :public_key.generate_key({:rsa, 2048, 65_537})
+    pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, private_key)
+    pem = :public_key.pem_encode([pem_entry])
+    File.write!(path, pem)
+    File.chmod!(path, 0o600)
+  end
+
+  defp normalize_system_dir(opts) do
+    case Keyword.get(opts, :system_dir) do
+      nil -> opts
+      dir when is_list(dir) -> opts
+      dir when is_binary(dir) -> Keyword.put(opts, :system_dir, String.to_charlist(dir))
+    end
   end
 end

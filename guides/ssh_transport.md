@@ -144,6 +144,7 @@ first frame.
 | `:port` | `integer()` | `2222` | TCP port to listen on; `0` picks a free port |
 | `:name` | `atom() \| nil` | `ExRatatui.SSH.Daemon` | Registered name, or `nil` to skip |
 | `:app_opts` | `keyword()` | `[]` | Extra opts merged into every client's `mount/1` call |
+| `:auto_host_key` | `boolean()` | `false` | Auto-generate an RSA host key under `<priv_dir>/ssh/` (see ["Generating Host Keys"](#generating-host-keys)) |
 
 Everything else is forwarded verbatim to `:ssh.daemon/2`, so all of
 OTP's `:ssh` options work unchanged:
@@ -170,6 +171,11 @@ strings — i.e. charlists (`~c"..."`), not Elixir binaries. Any option
 that holds a username, password, path, or file content needs to be a
 charlist. If you pass a binary by mistake you'll usually see a cryptic
 `:badarg` from inside `:ssh`.
+
+As a small convenience, `:system_dir` accepts either form: pass a
+binary path (`"./priv/host_keys"`) and the daemon will convert it to a
+charlist before forwarding to `:ssh.daemon/2`. Other charlist options
+still need the `~c"..."` sigil.
 
 ## Authentication
 
@@ -217,6 +223,47 @@ ssh-keygen -t ed25519 -f priv/host_keys/ssh_host_ed25519_key -N ""
 
 Or inside the BEAM at runtime (see `examples/system_monitor.exs` for a
 ready-to-copy snippet using `:public_key.generate_key/1`).
+
+### `auto_host_key: true` for the lazy path
+
+For Phoenix admin TUIs, internal tools, and development daemons where
+you don't want to babysit a `system_dir`, pass `auto_host_key: true`
+and let the daemon take care of it:
+
+```elixir
+children = [
+  {ExRatatui.SSH.Daemon,
+   mod: MyAppWeb.AdminTui,
+   port: 2222,
+   auto_host_key: true,
+   auth_methods: ~c"password",
+   user_passwords: [{~c"admin", ~c"admin"}]}
+]
+```
+
+On first boot, the daemon:
+
+  1. Resolves the OTP application that owns `:mod` (via
+     `Application.get_application/1`).
+  2. Creates `<priv_dir>/ssh/` if it doesn't exist.
+  3. Generates a fresh 2048-bit RSA host key at
+     `<priv_dir>/ssh/ssh_host_rsa_key` with `0600` permissions.
+
+Subsequent boots reuse the same key, so SSH clients won't see host-key
+warnings between restarts. **Add `priv/ssh/` to your `.gitignore`** —
+the key is private to that machine and should never be committed.
+
+Passing both `:auto_host_key` and `:system_dir` is an error. If you
+need an explicit host-key location (production deployments,
+multi-machine setups), pass `:system_dir` and manage the keys
+yourself.
+
+This option exists so you can drop the daemon straight into a Phoenix
+or library supervision tree and have it _just work_ without
+hand-rolling a host-key bootstrap. It is **not** a substitute for
+proper key management in production — see the
+[`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example)
+project for an end-to-end demo.
 
 ## Forwarding `mount/1` Opts
 

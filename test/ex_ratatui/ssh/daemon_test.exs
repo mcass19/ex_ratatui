@@ -229,5 +229,192 @@ defmodule ExRatatui.SSH.DaemonTest do
       assert {ExRatatui.SSH, cli_args} = daemon_opts[:ssh_cli]
       assert cli_args[:app_opts] == []
     end
+
+    test "coerces a binary :system_dir to a charlist" do
+      daemon_opts =
+        Daemon.build_daemon_opts(SampleApp, mod: SampleApp, system_dir: "/etc/ssh")
+
+      assert daemon_opts[:system_dir] == ~c"/etc/ssh"
+    end
+
+    test "leaves a charlist :system_dir alone" do
+      daemon_opts =
+        Daemon.build_daemon_opts(SampleApp, mod: SampleApp, system_dir: ~c"/etc/ssh")
+
+      assert daemon_opts[:system_dir] == ~c"/etc/ssh"
+    end
+
+    test "strips :auto_host_key before forwarding to :ssh.daemon/2" do
+      daemon_opts =
+        Daemon.build_daemon_opts(SampleApp,
+          mod: SampleApp,
+          auto_host_key: true,
+          system_dir: ~c"/already/resolved"
+        )
+
+      refute Keyword.has_key?(daemon_opts, :auto_host_key)
+      assert daemon_opts[:system_dir] == ~c"/already/resolved"
+    end
+  end
+
+  describe "ensure_host_key!/1" do
+    @describetag :tmp_dir
+    @describetag capture_log: true
+
+    test "creates the directory and generates an RSA host key", %{tmp_dir: tmp_dir} do
+      dir = Path.join(tmp_dir, "ssh")
+      refute File.exists?(dir)
+
+      assert ^dir = to_string(Daemon.ensure_host_key!(dir))
+
+      key_path = Path.join(dir, "ssh_host_rsa_key")
+      assert File.exists?(key_path)
+
+      pem = File.read!(key_path)
+      assert pem =~ "BEGIN RSA PRIVATE KEY"
+
+      # PEM should round-trip through :public_key
+      [entry] = :public_key.pem_decode(pem)
+      assert :RSAPrivateKey == elem(entry, 0)
+    end
+
+    test "returns the directory as a charlist", %{tmp_dir: tmp_dir} do
+      dir = Path.join(tmp_dir, "ssh")
+      result = Daemon.ensure_host_key!(dir)
+
+      assert is_list(result)
+      assert to_string(result) == dir
+    end
+
+    test "is idempotent — second call leaves the existing key alone", %{tmp_dir: tmp_dir} do
+      dir = Path.join(tmp_dir, "ssh")
+      _ = Daemon.ensure_host_key!(dir)
+
+      key_path = Path.join(dir, "ssh_host_rsa_key")
+      original = File.read!(key_path)
+      original_mtime = File.stat!(key_path).mtime
+
+      _ = Daemon.ensure_host_key!(dir)
+
+      assert File.read!(key_path) == original
+      assert File.stat!(key_path).mtime == original_mtime
+    end
+
+    test "writes the host key with 0600 permissions", %{tmp_dir: tmp_dir} do
+      dir = Path.join(tmp_dir, "ssh")
+      _ = Daemon.ensure_host_key!(dir)
+
+      key_path = Path.join(dir, "ssh_host_rsa_key")
+      mode = File.stat!(key_path).mode
+
+      # Mask off file type bits — only the perms matter.
+      assert Bitwise.band(mode, 0o777) == 0o600
+    end
+  end
+
+  describe "resolve_host_key_opts/2" do
+    test "is a no-op when :auto_host_key is absent or false" do
+      opts = [mod: SampleApp, system_dir: ~c"/etc/ssh"]
+      assert Daemon.resolve_host_key_opts(opts, SampleApp) == opts
+
+      opts = [mod: SampleApp, auto_host_key: false]
+      assert Daemon.resolve_host_key_opts(opts, SampleApp) == [mod: SampleApp]
+    end
+
+    test "raises when both :auto_host_key and :system_dir are passed" do
+      opts = [auto_host_key: true, system_dir: ~c"/etc/ssh"]
+
+      assert_raise ArgumentError, ~r/cannot pass both :auto_host_key and :system_dir/, fn ->
+        Daemon.resolve_host_key_opts(opts, SampleApp)
+      end
+    end
+
+    test "raises with a helpful message for non-boolean :auto_host_key values" do
+      assert_raise ArgumentError, ~r/:auto_host_key must be a boolean/, fn ->
+        Daemon.resolve_host_key_opts([auto_host_key: "yes"], SampleApp)
+      end
+    end
+
+    test "raises when the OTP application can't be resolved" do
+      # Pass a module name that isn't part of any loaded OTP application
+      # so `Application.get_application/1` returns `nil`. The atom doesn't
+      # need to point at a real module — `get_application` only consults
+      # the app controller's manifest.
+      assert_raise ArgumentError, ~r/could not resolve OTP application/, fn ->
+        Daemon.resolve_host_key_opts(
+          [auto_host_key: true],
+          ExRatatui.SSH.DaemonTest.NotARealApp
+        )
+      end
+    end
+  end
+
+  describe "ensure_app_host_key!/1 + resolve_host_key_opts/2 happy path" do
+    @describetag capture_log: true
+
+    setup do
+      # `:code.priv_dir/1` returns `_build/<env>/lib/ex_ratatui/priv`
+      # under mix test, which is gitignored — we can scribble there
+      # safely. Clean up after each test so the next run starts fresh.
+      ssh_dir = :ex_ratatui |> :code.priv_dir() |> to_string() |> Path.join("ssh")
+      File.rm_rf!(ssh_dir)
+      on_exit(fn -> File.rm_rf!(ssh_dir) end)
+
+      {:ok, ssh_dir: ssh_dir}
+    end
+
+    test "ensure_app_host_key!/1 resolves OTP app and generates a key under its priv/ssh",
+         %{ssh_dir: ssh_dir} do
+      # `ExRatatui` is a real loaded module belonging to the :ex_ratatui
+      # application, so `Application.get_application/1` returns the app
+      # and the helper writes to its priv dir.
+      result = Daemon.ensure_app_host_key!(ExRatatui)
+
+      assert is_list(result)
+      assert to_string(result) == ssh_dir
+      assert File.exists?(Path.join(ssh_dir, "ssh_host_rsa_key"))
+    end
+
+    test "resolve_host_key_opts/2 injects :system_dir when :auto_host_key is true",
+         %{ssh_dir: ssh_dir} do
+      result = Daemon.resolve_host_key_opts([auto_host_key: true], ExRatatui)
+
+      assert result[:system_dir] == String.to_charlist(ssh_dir)
+      refute Keyword.has_key?(result, :auto_host_key)
+    end
+  end
+
+  describe "auto_host_key end-to-end" do
+    @describetag :tmp_dir
+    @describetag capture_log: true
+
+    test "init/1 generates a host key, sets system_dir, and starts the daemon", %{
+      tmp_dir: tmp_dir
+    } do
+      # Stub the priv-dir resolution by passing a pre-prepared system_dir
+      # via the lower-level helper, then exercising the full init path
+      # with that path baked in. We can't easily fake :code.priv_dir/1
+      # for SampleApp, so this test asserts the integration through
+      # ensure_host_key!/1 and verifies the GenServer is happy when the
+      # daemon_opts include the resolved system_dir.
+      dir = Path.join(tmp_dir, "auto-ssh")
+      system_dir = Daemon.ensure_host_key!(dir)
+
+      {:ok, pid} =
+        Daemon.start_link(
+          mod: SampleApp,
+          name: nil,
+          port: 0,
+          system_dir: system_dir,
+          daemon_starter: fake_starter(self()),
+          daemon_stopper: fake_stopper(self())
+        )
+
+      assert_receive {:fake_started, 0, daemon_opts}, 1000
+      assert daemon_opts[:system_dir] == system_dir
+      assert File.exists?(Path.join(dir, "ssh_host_rsa_key"))
+
+      GenServer.stop(pid)
+    end
   end
 end

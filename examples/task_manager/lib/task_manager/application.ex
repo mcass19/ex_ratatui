@@ -47,8 +47,6 @@ defmodule TaskManager.Application do
     user = System.get_env("TASK_MANAGER_SSH_USER", @default_user)
     password = System.get_env("TASK_MANAGER_SSH_PASSWORD", @default_password)
 
-    system_dir = ensure_host_keys!()
-
     IO.puts("""
 
     \e[36mTask Manager over SSH\e[0m — listening on port #{port}
@@ -69,7 +67,7 @@ defmodule TaskManager.Application do
     {ExRatatui.SSH.Daemon,
      mod: TaskManager.TUI,
      port: port,
-     system_dir: system_dir,
+     system_dir: shared_host_key_dir(),
      auth_methods: ~c"password",
      user_passwords: [{String.to_charlist(user), String.to_charlist(password)}]}
   end
@@ -81,19 +79,15 @@ defmodule TaskManager.Application do
   # on purpose — switching from one example to another on the same
   # port would otherwise trip `~/.ssh/known_hosts` with a "remote host
   # identification has changed" warning on every swap.
-  defp ensure_host_keys! do
-    dir = Path.join([System.tmp_dir!(), "ex_ratatui_example_host_keys"])
-    File.mkdir_p!(dir)
-    key_path = Path.join(dir, "ssh_host_rsa_key")
-
-    unless File.exists?(key_path) do
-      key = :public_key.generate_key({:rsa, 2048, 65_537})
-      pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, key)
-      pem = :public_key.pem_encode([pem_entry])
-      File.write!(key_path, pem)
-      File.chmod!(key_path, 0o600)
-    end
-
-    String.to_charlist(dir)
+  #
+  # The actual key generation is delegated to
+  # `ExRatatui.SSH.Daemon.ensure_host_key!/1`. A real Phoenix app can
+  # skip this entire helper and pass `auto_host_key: true` to the
+  # daemon, which generates the key under the app's own `priv/ssh/`
+  # directory — see the `phoenix_ex_ratatui_example` repo.
+  defp shared_host_key_dir do
+    [System.tmp_dir!(), "ex_ratatui_example_host_keys"]
+    |> Path.join()
+    |> ExRatatui.SSH.Daemon.ensure_host_key!()
   end
 end

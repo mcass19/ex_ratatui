@@ -34,6 +34,9 @@ ex_ratatui-*.tar
 # Compiled NIF shared libraries
 /priv/native/
 
+# Auto-generated SSH host keys for examples that use auto_host_key: true
+/priv/ssh/
+
 # claude
 .claude/
 
