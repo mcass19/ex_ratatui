@@ -87,6 +87,9 @@ defmodule ExRatatui.App do
   """
 
   @type state :: term()
+  @type callback_opts :: keyword()
+
+  alias ExRatatui.SSH.Daemon
 
   @doc """
   Called once on startup with the options passed to `start_link/1`.
@@ -94,6 +97,14 @@ defmodule ExRatatui.App do
   Return `{:ok, initial_state}` to proceed or `{:error, reason}` to abort.
   """
   @callback mount(opts :: keyword()) :: {:ok, state()} | {:error, reason :: term()}
+
+  @doc """
+  Reducer runtime entrypoint.
+
+  Only used when the module does `use ExRatatui.App, runtime: :reducer`.
+  """
+  @callback init(opts :: keyword()) ::
+              {:ok, state()} | {:ok, state(), callback_opts()} | {:error, reason :: term()}
 
   @doc """
   Called after every state change to produce the UI.
@@ -125,6 +136,23 @@ defmodule ExRatatui.App do
   @callback handle_info(msg :: term(), state()) :: {:noreply, state()} | {:stop, state()}
 
   @doc """
+  Reducer runtime message handler.
+
+  Only used when the module does `use ExRatatui.App, runtime: :reducer`.
+  Messages are wrapped as `{:event, event}` and `{:info, msg}`.
+  """
+  @callback update(msg :: term(), state()) ::
+              {:noreply, state()}
+              | {:noreply, state(), callback_opts()}
+              | {:stop, state()}
+              | {:stop, state(), callback_opts()}
+
+  @doc """
+  Returns the subscriptions desired for the current state.
+  """
+  @callback subscriptions(state()) :: [ExRatatui.Subscription.t()]
+
+  @doc """
   Called when the TUI is shutting down.
 
   Receives the exit reason and the final state. Optional — the default
@@ -132,36 +160,95 @@ defmodule ExRatatui.App do
   """
   @callback terminate(reason :: term(), state()) :: term()
 
-  @optional_callbacks [handle_info: 2, terminate: 2]
+  @optional_callbacks [handle_info: 2, terminate: 2, init: 1, update: 2, subscriptions: 1]
 
-  defmacro __using__(_opts) do
-    quote do
-      @behaviour ExRatatui.App
+  defmacro __using__(opts) do
+    runtime = Keyword.get(opts, :runtime, :callbacks)
 
-      @doc false
-      def handle_info(_msg, state), do: {:noreply, state}
+    case runtime do
+      :callbacks ->
+        quote do
+          @behaviour ExRatatui.App
 
-      @doc false
-      def terminate(_reason, _state), do: :ok
+          @doc false
+          def handle_info(_msg, state), do: {:noreply, state}
 
-      defoverridable handle_info: 2, terminate: 2
+          @doc false
+          def subscriptions(_state), do: []
 
-      @doc false
-      def child_spec(opts) do
-        %{
-          id: __MODULE__,
-          start: {__MODULE__, :start_link, [opts]},
-          type: :worker,
-          restart: :transient
-        }
-      end
+          @doc false
+          def terminate(_reason, _state), do: :ok
 
-      @doc false
-      def start_link(opts \\ []) when is_list(opts) do
-        opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
-      end
+          defoverridable handle_info: 2, subscriptions: 1, terminate: 2
+
+          @doc false
+          def child_spec(opts) do
+            %{
+              id: __MODULE__,
+              start: {__MODULE__, :start_link, [opts]},
+              type: :worker,
+              restart: :transient
+            }
+          end
+
+          @doc false
+          def start_link(opts \\ []) when is_list(opts) do
+            opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
+          end
+        end
+
+      :reducer ->
+        quote do
+          @behaviour ExRatatui.App
+
+          @doc false
+          def mount(opts), do: ExRatatui.App.reducer_mount(__MODULE__, opts)
+
+          @doc false
+          def handle_event(event, state),
+            do: ExRatatui.App.reducer_handle_event(__MODULE__, event, state)
+
+          @doc false
+          def handle_info(msg, state),
+            do: ExRatatui.App.reducer_handle_info(__MODULE__, msg, state)
+
+          @doc false
+          def subscriptions(_state), do: []
+
+          @doc false
+          def terminate(_reason, _state), do: :ok
+
+          defoverridable subscriptions: 1, terminate: 2
+
+          @doc false
+          def child_spec(opts) do
+            %{
+              id: __MODULE__,
+              start: {__MODULE__, :start_link, [opts]},
+              type: :worker,
+              restart: :transient
+            }
+          end
+
+          @doc false
+          def start_link(opts \\ []) when is_list(opts) do
+            opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
+          end
+        end
+
+      other ->
+        raise ArgumentError, "unsupported ExRatatui.App runtime: #{inspect(other)}"
     end
   end
+
+  @doc false
+  def reducer_mount(mod, opts), do: mod.init(opts)
+
+  @doc false
+  def reducer_handle_event(mod, event, state), do: mod.update({:event, event}, state)
+
+  @doc false
+  def reducer_handle_info(mod, msg, state), do: mod.update({:info, msg}, state)
 
   @doc false
   # Routes a `use ExRatatui.App` start_link call to the right transport
@@ -173,10 +260,7 @@ defmodule ExRatatui.App do
         ExRatatui.Server.start_link(opts)
 
       :ssh ->
-        # apply/3 (instead of a direct call) defers module resolution to
-        # runtime so this file compiles cleanly under --warnings-as-errors
-        # before ExRatatui.SSH.Daemon lands in the SSH-transport task.
-        apply(ExRatatui.SSH.Daemon, :start_link, [opts])
+        Daemon.start_link(opts)
     end
   end
 end

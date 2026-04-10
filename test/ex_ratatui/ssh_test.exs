@@ -3,8 +3,8 @@ defmodule ExRatatui.SSHTest do
 
   doctest ExRatatui.SSH, import: false
 
-  alias ExRatatui.SSH
   alias ExRatatui.Session
+  alias ExRatatui.SSH
 
   @enter_screen "\e[?1049h\e[?25l"
   @leave_screen "\e[?1049l\e[?25h\e[0m"

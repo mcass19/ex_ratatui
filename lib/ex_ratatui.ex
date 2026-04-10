@@ -54,8 +54,8 @@ defmodule ExRatatui do
   require Logger
 
   alias ExRatatui.Event
-  alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Native
   alias ExRatatui.Style
 
   alias ExRatatui.Widgets.{
@@ -67,10 +67,10 @@ defmodule ExRatatui do
     List,
     Markdown,
     Paragraph,
+    Popup,
     Scrollbar,
     Table,
     Tabs,
-    Popup,
     Textarea,
     TextInput,
     Throbber,
@@ -118,11 +118,9 @@ defmodule ExRatatui do
 
   @doc false
   def execute_with_terminal(terminal_ref, fun) do
-    try do
-      fun.(terminal_ref)
-    after
-      safe_restore_terminal(terminal_ref)
-    end
+    fun.(terminal_ref)
+  after
+    safe_restore_terminal(terminal_ref)
   end
 
   @doc false

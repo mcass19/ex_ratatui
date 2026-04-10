@@ -1,8 +1,8 @@
 defmodule ExRatatui.TestBackendTest do
   use ExUnit.Case, async: true
 
-  alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Native
   alias ExRatatui.Widgets.{Block, Gauge, List, Paragraph, Table}
 
   setup do
