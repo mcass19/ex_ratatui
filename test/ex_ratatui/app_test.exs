@@ -14,6 +14,19 @@ defmodule ExRatatui.AppTest do
     def handle_event(_event, state), do: {:noreply, state}
   end
 
+  defmodule ReducerSampleApp do
+    use ExRatatui.App, runtime: :reducer
+
+    @impl true
+    def init(opts), do: {:ok, %{opts: opts}}
+
+    @impl true
+    def render(_state, _frame), do: []
+
+    @impl true
+    def update(msg, state), do: {:noreply, {msg, state}}
+  end
+
   test "using ExRatatui.App defines the behaviour" do
     assert function_exported?(SampleApp, :mount, 1)
     assert function_exported?(SampleApp, :render, 2)
@@ -23,6 +36,24 @@ defmodule ExRatatui.AppTest do
 
   test "default handle_info/2 returns {:noreply, state}" do
     assert {:noreply, :my_state} = SampleApp.handle_info(:unknown_msg, :my_state)
+  end
+
+  test "reducer_handle_event/3 wraps events before delegating to update/2" do
+    assert {:noreply, {{:event, :ping}, :state}} =
+             ExRatatui.App.reducer_handle_event(ReducerSampleApp, :ping, :state)
+  end
+
+  test "using ExRatatui.App rejects unsupported runtimes" do
+    quoted =
+      quote do
+        defmodule ExRatatui.AppTest.InvalidRuntimeApp do
+          use ExRatatui.App, runtime: :invalid
+        end
+      end
+
+    assert_raise ArgumentError, "unsupported ExRatatui.App runtime: :invalid", fn ->
+      Code.eval_quoted(quoted)
+    end
   end
 
   test "mount returns initial state" do

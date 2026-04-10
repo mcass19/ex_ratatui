@@ -511,7 +511,7 @@ defmodule ExRatatui.Server do
 
   defp put_subscription(state, id, subscription) do
     token = make_ref()
-    timer_ref = arm_subscription(subscription, token)
+    {timer_ref, token} = arm_subscription(subscription, token)
 
     entry = %{
       subscription: subscription,
