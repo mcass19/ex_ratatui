@@ -93,7 +93,7 @@ defmodule ExRatatui.Session do
   """
   @spec draw(t(), [{ExRatatui.widget(), Rect.t()}]) :: :ok | {:error, term()}
   def draw(%__MODULE__{ref: ref}, widgets) when is_list(widgets) do
-    commands = Enum.map(widgets, &ExRatatui.encode_command/1)
+    commands = ExRatatui.Bridge.encode_commands!(widgets)
     Native.session_draw(ref, commands)
   end
 

@@ -1,3 +1,4 @@
+mod decode;
 mod events;
 mod layout;
 mod rendering;

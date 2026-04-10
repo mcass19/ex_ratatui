@@ -1,7 +1,10 @@
 use ratatui::layout::{Alignment, Rect};
 use rustler::{Atom, Error, ResourceArc, Term};
-use std::collections::HashMap;
 
+use crate::decode::{
+    decode_map, decode_optional, decode_required, error_message, invalid_field, optional_term,
+    TermMap,
+};
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
@@ -40,15 +43,14 @@ pub enum WidgetData {
     Clear,
 }
 
-struct RenderCommand {
-    widget: WidgetData,
-    area: Rect,
+pub(crate) struct RenderCommand {
+    pub(crate) widget: WidgetData,
+    pub(crate) area: Rect,
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
 fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result<Atom, Error> {
-    let command_list: Vec<(Term, Term)> = commands.decode()?;
-    let render_commands = decode_commands(&command_list)?;
+    let render_commands = decode_render_commands(commands)?;
 
     with_terminal_draw(&resource, |frame| {
         for cmd in &render_commands {
@@ -57,26 +59,25 @@ fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result
     })
 }
 
-fn decode_commands(commands: &[(Term, Term)]) -> Result<Vec<RenderCommand>, Error> {
-    commands
-        .iter()
+pub(crate) fn decode_render_commands(commands: Term<'_>) -> Result<Vec<RenderCommand>, Error> {
+    let entries: Vec<(Term<'_>, Term<'_>)> = commands.decode()?;
+
+    entries
+        .into_iter()
         .map(|(widget_term, rect_term)| {
-            let widget_map: HashMap<String, Term> = widget_term.decode()?;
+            let widget_map = decode_map(widget_term, "render_command.widget")?;
             let widget = decode_widget_from_map(&widget_map)?;
 
             Ok(RenderCommand {
                 widget,
-                area: decode_rect(*rect_term)?,
+                area: decode_rect(rect_term)?,
             })
         })
         .collect()
 }
 
-pub fn decode_widget_from_map(widget_map: &HashMap<String, Term>) -> Result<WidgetData, Error> {
-    let widget_type: String = widget_map
-        .get("type")
-        .ok_or_else(|| Error::Term(Box::new("widget missing 'type' key")))?
-        .decode()?;
+pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Error> {
+    let widget_type: String = decode_required(widget_map, "type", "widget")?;
 
     match widget_type.as_str() {
         "paragraph" => Ok(WidgetData::Paragraph(decode_paragraph(widget_map)?)),
@@ -95,26 +96,20 @@ pub fn decode_widget_from_map(widget_map: &HashMap<String, Term>) -> Result<Widg
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
         "clear" => Ok(WidgetData::Clear),
-        other => Err(Error::Term(Box::new(format!(
-            "unknown widget type: {other}"
-        )))),
+        other => Err(error_message(format!("widget.type: unsupported widget type '{other}'"))),
     }
 }
 
-fn decode_paragraph(map: &HashMap<String, Term>) -> Result<ParagraphData, Error> {
-    let text: String = map
-        .get("text")
-        .ok_or_else(|| Error::Term(Box::new("paragraph missing 'text'")))?
-        .decode()?;
+fn decode_paragraph(map: &TermMap<'_>) -> Result<ParagraphData, Error> {
+    let text: String = decode_required(map, "text", "paragraph")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let alignment = match map.get("alignment") {
-        Some(term) => {
-            let s: String = term.decode()?;
+    let alignment = match decode_optional::<String>(map, "alignment", "paragraph")? {
+        Some(s) => {
             match s.as_str() {
                 "center" => Alignment::Center,
                 "right" => Alignment::Right,
@@ -124,19 +119,9 @@ fn decode_paragraph(map: &HashMap<String, Term>) -> Result<ParagraphData, Error>
         None => Alignment::Left,
     };
 
-    let wrap: bool = match map.get("wrap") {
-        Some(term) => term.decode()?,
-        None => false,
-    };
-
-    let scroll_y: u16 = match map.get("scroll_y") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
-    let scroll_x: u16 = match map.get("scroll_x") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
+    let wrap: bool = decode_optional(map, "wrap", "paragraph")?.unwrap_or(false);
+    let scroll_y: u16 = decode_optional(map, "scroll_y", "paragraph")?.unwrap_or(0);
+    let scroll_x: u16 = decode_optional(map, "scroll_x", "paragraph")?.unwrap_or(0);
 
     let block = decode_optional_block(map)?;
 
@@ -150,31 +135,21 @@ fn decode_paragraph(map: &HashMap<String, Term>) -> Result<ParagraphData, Error>
     })
 }
 
-fn decode_list(map: &HashMap<String, Term>) -> Result<ListData, Error> {
-    let items: Vec<String> = map
-        .get("items")
-        .ok_or_else(|| Error::Term(Box::new("list missing 'items'")))?
-        .decode()?;
+fn decode_list(map: &TermMap<'_>) -> Result<ListData, Error> {
+    let items: Vec<String> = decode_required(map, "items", "list")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let highlight_style = match map.get("highlight_style") {
-        Some(term) => decode_style(*term)?,
+    let highlight_style = match optional_term(map, "highlight_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let highlight_symbol: Option<String> = match map.get("highlight_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let selected: Option<usize> = match map.get("selected") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let highlight_symbol: Option<String> = decode_optional(map, "highlight_symbol", "list")?;
+    let selected: Option<usize> = decode_optional(map, "selected", "list")?;
 
     let block = decode_optional_block(map)?;
 
@@ -188,20 +163,15 @@ fn decode_list(map: &HashMap<String, Term>) -> Result<ListData, Error> {
     })
 }
 
-fn decode_table(map: &HashMap<String, Term>) -> Result<TableData, Error> {
-    let rows: Vec<Vec<String>> = map
-        .get("rows")
-        .ok_or_else(|| Error::Term(Box::new("table missing 'rows'")))?
-        .decode()?;
+fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
+    let rows: Vec<Vec<String>> = decode_required(map, "rows", "table")?;
+    let header: Option<Vec<String>> = decode_optional(map, "header", "table")?;
 
-    let header: Option<Vec<String>> = match map.get("header") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let widths = match map.get("widths") {
+    let widths = match optional_term(map, "widths") {
         Some(term) => {
-            let width_terms: Vec<Term> = term.decode()?;
+            let width_terms: Vec<Term<'_>> = term
+                .decode()
+                .map_err(|_| invalid_field("table", "widths", "unexpected value"))?;
             width_terms
                 .iter()
                 .map(|t| decode_constraint(*t))
@@ -210,30 +180,19 @@ fn decode_table(map: &HashMap<String, Term>) -> Result<TableData, Error> {
         None => Vec::new(),
     };
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let highlight_style = match map.get("highlight_style") {
-        Some(term) => decode_style(*term)?,
+    let highlight_style = match optional_term(map, "highlight_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let highlight_symbol: Option<String> = match map.get("highlight_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let selected: Option<usize> = match map.get("selected") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let column_spacing: u16 = match map.get("column_spacing") {
-        Some(term) => term.decode()?,
-        None => 1,
-    };
+    let highlight_symbol: Option<String> = decode_optional(map, "highlight_symbol", "table")?;
+    let selected: Option<usize> = decode_optional(map, "selected", "table")?;
+    let column_spacing: u16 = decode_optional(map, "column_spacing", "table")?.unwrap_or(1);
 
     let block = decode_optional_block(map)?;
 
@@ -250,28 +209,22 @@ fn decode_table(map: &HashMap<String, Term>) -> Result<TableData, Error> {
     })
 }
 
-fn decode_gauge(map: &HashMap<String, Term>) -> Result<GaugeData, Error> {
-    let ratio: f64 = map
-        .get("ratio")
-        .ok_or_else(|| Error::Term(Box::new("gauge missing 'ratio'")))?
-        .decode()?;
+fn decode_gauge(map: &TermMap<'_>) -> Result<GaugeData, Error> {
+    let ratio: f64 = decode_required(map, "ratio", "gauge")?;
 
     if !ratio.is_finite() {
-        return Err(Error::Term(Box::new("gauge ratio must be a finite number")));
+        return Err(invalid_field("gauge", "ratio", "must be a finite number"));
     }
 
-    let label: Option<String> = match map.get("label") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let label: Option<String> = decode_optional(map, "label", "gauge")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let gauge_style = match map.get("gauge_style") {
-        Some(term) => decode_style(*term)?,
+    let gauge_style = match optional_term(map, "gauge_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
@@ -286,41 +239,23 @@ fn decode_gauge(map: &HashMap<String, Term>) -> Result<GaugeData, Error> {
     })
 }
 
-fn decode_tabs(map: &HashMap<String, Term>) -> Result<TabsData, Error> {
-    let titles: Vec<String> = map
-        .get("titles")
-        .ok_or_else(|| Error::Term(Box::new("tabs missing 'titles'")))?
-        .decode()?;
+fn decode_tabs(map: &TermMap<'_>) -> Result<TabsData, Error> {
+    let titles: Vec<String> = decode_required(map, "titles", "tabs")?;
+    let selected: Option<usize> = decode_optional(map, "selected", "tabs")?;
 
-    let selected: Option<usize> = match map.get("selected") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let highlight_style = match map.get("highlight_style") {
-        Some(term) => decode_style(*term)?,
+    let highlight_style = match optional_term(map, "highlight_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let divider: Option<String> = match map.get("divider") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let padding_left: u16 = match map.get("padding_left") {
-        Some(term) => term.decode()?,
-        None => 1,
-    };
-
-    let padding_right: u16 = match map.get("padding_right") {
-        Some(term) => term.decode()?,
-        None => 1,
-    };
+    let divider: Option<String> = decode_optional(map, "divider", "tabs")?;
+    let padding_left: u16 = decode_optional(map, "padding_left", "tabs")?.unwrap_or(1);
+    let padding_right: u16 = decode_optional(map, "padding_right", "tabs")?.unwrap_or(1);
 
     let block = decode_optional_block(map)?;
 
@@ -336,57 +271,29 @@ fn decode_tabs(map: &HashMap<String, Term>) -> Result<TabsData, Error> {
     })
 }
 
-fn decode_scrollbar(map: &HashMap<String, Term>) -> Result<ScrollbarData, Error> {
-    let orientation_str: String = match map.get("orientation") {
-        Some(term) => term.decode()?,
-        None => "vertical_right".to_string(),
-    };
+fn decode_scrollbar(map: &TermMap<'_>) -> Result<ScrollbarData, Error> {
+    let orientation_str: String =
+        decode_optional(map, "orientation", "scrollbar")?.unwrap_or("vertical_right".to_string());
     let orientation = scrollbar::parse_orientation(&orientation_str)?;
 
-    let thumb_style = match map.get("thumb_style") {
-        Some(term) => decode_style(*term)?,
+    let thumb_style = match optional_term(map, "thumb_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let track_style = match map.get("track_style") {
-        Some(term) => decode_style(*term)?,
+    let track_style = match optional_term(map, "track_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let begin_symbol: Option<String> = match map.get("begin_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let end_symbol: Option<String> = match map.get("end_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let thumb_symbol: Option<String> = match map.get("thumb_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let track_symbol: Option<String> = match map.get("track_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let content_length: usize = map
-        .get("content_length")
-        .ok_or_else(|| Error::Term(Box::new("scrollbar missing 'content_length'")))?
-        .decode()?;
-
-    let position: usize = match map.get("position") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
-
-    let viewport_content_length: Option<usize> = match map.get("viewport_content_length") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let begin_symbol: Option<String> = decode_optional(map, "begin_symbol", "scrollbar")?;
+    let end_symbol: Option<String> = decode_optional(map, "end_symbol", "scrollbar")?;
+    let thumb_symbol: Option<String> = decode_optional(map, "thumb_symbol", "scrollbar")?;
+    let track_symbol: Option<String> = decode_optional(map, "track_symbol", "scrollbar")?;
+    let content_length: usize = decode_required(map, "content_length", "scrollbar")?;
+    let position: usize = decode_optional(map, "position", "scrollbar")?.unwrap_or(0);
+    let viewport_content_length: Option<usize> =
+        decode_optional(map, "viewport_content_length", "scrollbar")?;
 
     Ok(ScrollbarData {
         orientation,
@@ -402,35 +309,31 @@ fn decode_scrollbar(map: &HashMap<String, Term>) -> Result<ScrollbarData, Error>
     })
 }
 
-fn decode_line_gauge(map: &HashMap<String, Term>) -> Result<LineGaugeData, Error> {
-    let ratio: f64 = map
-        .get("ratio")
-        .ok_or_else(|| Error::Term(Box::new("line_gauge missing 'ratio'")))?
-        .decode()?;
+fn decode_line_gauge(map: &TermMap<'_>) -> Result<LineGaugeData, Error> {
+    let ratio: f64 = decode_required(map, "ratio", "line_gauge")?;
 
     if !ratio.is_finite() {
-        return Err(Error::Term(Box::new(
-            "line_gauge ratio must be a finite number",
-        )));
+        return Err(invalid_field(
+            "line_gauge",
+            "ratio",
+            "must be a finite number",
+        ));
     }
 
-    let label: Option<String> = match map.get("label") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let label: Option<String> = decode_optional(map, "label", "line_gauge")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let filled_style = match map.get("filled_style") {
-        Some(term) => decode_style(*term)?,
+    let filled_style = match optional_term(map, "filled_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let unfilled_style = match map.get("unfilled_style") {
-        Some(term) => decode_style(*term)?,
+    let unfilled_style = match optional_term(map, "unfilled_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
@@ -446,36 +349,23 @@ fn decode_line_gauge(map: &HashMap<String, Term>) -> Result<LineGaugeData, Error
     })
 }
 
-fn decode_checkbox(map: &HashMap<String, Term>) -> Result<CheckboxData, Error> {
-    let label: String = map
-        .get("label")
-        .ok_or_else(|| Error::Term(Box::new("checkbox missing 'label'")))?
-        .decode()?;
+fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
+    let label: String = decode_required(map, "label", "checkbox")?;
+    let checked: bool = decode_required(map, "checked", "checkbox")?;
 
-    let checked: bool = map
-        .get("checked")
-        .ok_or_else(|| Error::Term(Box::new("checkbox missing 'checked'")))?
-        .decode()?;
-
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let checked_style = match map.get("checked_style") {
-        Some(term) => decode_style(*term)?,
+    let checked_style = match optional_term(map, "checked_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let checked_symbol: Option<String> = match map.get("checked_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let unchecked_symbol: Option<String> = match map.get("unchecked_symbol") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let checked_symbol: Option<String> = decode_optional(map, "checked_symbol", "checkbox")?;
+    let unchecked_symbol: Option<String> =
+        decode_optional(map, "unchecked_symbol", "checkbox")?;
 
     let block = decode_optional_block(map)?;
 
@@ -490,29 +380,23 @@ fn decode_checkbox(map: &HashMap<String, Term>) -> Result<CheckboxData, Error> {
     })
 }
 
-fn decode_text_input(map: &HashMap<String, Term>) -> Result<TextInputRenderData, Error> {
-    let resource: ResourceArc<TextInputResource> = map
-        .get("state")
-        .ok_or_else(|| Error::Term(Box::new("text_input missing 'state'")))?
-        .decode()?;
+fn decode_text_input(map: &TermMap<'_>) -> Result<TextInputRenderData, Error> {
+    let resource: ResourceArc<TextInputResource> = decode_required(map, "state", "text_input")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let cursor_style = match map.get("cursor_style") {
-        Some(term) => decode_style(*term)?,
+    let cursor_style = match optional_term(map, "cursor_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let placeholder: Option<String> = match map.get("placeholder") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let placeholder: Option<String> = decode_optional(map, "placeholder", "text_input")?;
 
-    let placeholder_style = match map.get("placeholder_style") {
-        Some(term) => decode_style(*term)?,
+    let placeholder_style = match optional_term(map, "placeholder_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
@@ -528,10 +412,12 @@ fn decode_text_input(map: &HashMap<String, Term>) -> Result<TextInputRenderData,
     })
 }
 
-fn decode_throbber(map: &HashMap<String, Term>) -> Result<ThrobberData, Error> {
-    let label: Option<String> = match map.get("label") {
+fn decode_throbber(map: &TermMap<'_>) -> Result<ThrobberData, Error> {
+    let label: Option<String> = match optional_term(map, "label") {
         Some(term) => {
-            let s: String = term.decode()?;
+            let s: String = term
+                .decode()
+                .map_err(|_| invalid_field("throbber", "label", "unexpected value"))?;
             if s.is_empty() {
                 None
             } else {
@@ -541,25 +427,25 @@ fn decode_throbber(map: &HashMap<String, Term>) -> Result<ThrobberData, Error> {
         None => None,
     };
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let throbber_style = match map.get("throbber_style") {
-        Some(term) => decode_style(*term)?,
+    let throbber_style = match optional_term(map, "throbber_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let throbber_set_name: String = match map.get("throbber_set") {
-        Some(term) => term.decode()?,
-        None => "braille".to_string(),
-    };
+    let throbber_set_name: String =
+        decode_optional(map, "throbber_set", "throbber")?.unwrap_or("braille".to_string());
     let throbber_set = throbber::parse_throbber_set(&throbber_set_name);
 
-    let step: i8 = match map.get("step") {
+    let step: i8 = match optional_term(map, "step") {
         Some(term) => {
-            let val: i64 = term.decode()?;
+            let val: i64 = term
+                .decode()
+                .map_err(|_| invalid_field("throbber", "step", "unexpected value"))?;
             (val % 128) as i8
         }
         None => 0,
@@ -577,30 +463,17 @@ fn decode_throbber(map: &HashMap<String, Term>) -> Result<ThrobberData, Error> {
     })
 }
 
-fn decode_markdown(map: &HashMap<String, Term>) -> Result<MarkdownData, Error> {
-    let content: String = map
-        .get("content")
-        .ok_or_else(|| Error::Term(Box::new("markdown missing 'content'")))?
-        .decode()?;
+fn decode_markdown(map: &TermMap<'_>) -> Result<MarkdownData, Error> {
+    let content: String = decode_required(map, "content", "markdown")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let wrap: bool = match map.get("wrap") {
-        Some(term) => term.decode()?,
-        None => true,
-    };
-
-    let scroll_y: u16 = match map.get("scroll_y") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
-    let scroll_x: u16 = match map.get("scroll_x") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
+    let wrap: bool = decode_optional(map, "wrap", "markdown")?.unwrap_or(true);
+    let scroll_y: u16 = decode_optional(map, "scroll_y", "markdown")?.unwrap_or(0);
+    let scroll_x: u16 = decode_optional(map, "scroll_x", "markdown")?.unwrap_or(0);
 
     let block = decode_optional_block(map)?;
 
@@ -613,39 +486,33 @@ fn decode_markdown(map: &HashMap<String, Term>) -> Result<MarkdownData, Error> {
     })
 }
 
-fn decode_textarea(map: &HashMap<String, Term>) -> Result<TextareaRenderData, Error> {
-    let resource: ResourceArc<TextareaResource> = map
-        .get("state")
-        .ok_or_else(|| Error::Term(Box::new("textarea missing 'state'")))?
-        .decode()?;
+fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
+    let resource: ResourceArc<TextareaResource> = decode_required(map, "state", "textarea")?;
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let cursor_style = match map.get("cursor_style") {
-        Some(term) => decode_style(*term)?,
+    let cursor_style = match optional_term(map, "cursor_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let cursor_line_style = match map.get("cursor_line_style") {
-        Some(term) => decode_style(*term)?,
+    let cursor_line_style = match optional_term(map, "cursor_line_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let placeholder: Option<String> = match map.get("placeholder") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let placeholder: Option<String> = decode_optional(map, "placeholder", "textarea")?;
 
-    let placeholder_style = match map.get("placeholder_style") {
-        Some(term) => decode_style(*term)?,
+    let placeholder_style = match optional_term(map, "placeholder_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let line_number_style: Option<ratatui::style::Style> = match map.get("line_number_style") {
-        Some(term) => Some(decode_style(*term)?),
+    let line_number_style: Option<ratatui::style::Style> = match optional_term(map, "line_number_style") {
+        Some(term) => Some(decode_style(term)?),
         None => None,
     };
 
@@ -663,32 +530,17 @@ fn decode_textarea(map: &HashMap<String, Term>) -> Result<TextareaRenderData, Er
     })
 }
 
-fn decode_popup(map: &HashMap<String, Term>) -> Result<PopupData, Error> {
-    let content_map: HashMap<String, Term> = map
-        .get("content")
-        .ok_or_else(|| Error::Term(Box::new("popup missing 'content'")))?
-        .decode()?;
+fn decode_popup(map: &TermMap<'_>) -> Result<PopupData, Error> {
+    let content_map = decode_map(
+        decode_required(map, "content", "popup")?,
+        "popup.content",
+    )?;
     let content = Box::new(decode_widget_from_map(&content_map)?);
 
-    let percent_width: u16 = match map.get("percent_width") {
-        Some(term) => term.decode()?,
-        None => 60,
-    };
-
-    let percent_height: u16 = match map.get("percent_height") {
-        Some(term) => term.decode()?,
-        None => 60,
-    };
-
-    let fixed_width: Option<u16> = match map.get("fixed_width") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
-
-    let fixed_height: Option<u16> = match map.get("fixed_height") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let percent_width: u16 = decode_optional(map, "percent_width", "popup")?.unwrap_or(60);
+    let percent_height: u16 = decode_optional(map, "percent_height", "popup")?.unwrap_or(60);
+    let fixed_width: Option<u16> = decode_optional(map, "fixed_width", "popup")?;
+    let fixed_height: Option<u16> = decode_optional(map, "fixed_height", "popup")?;
 
     let block = decode_optional_block(map)?;
 
@@ -702,37 +554,30 @@ fn decode_popup(map: &HashMap<String, Term>) -> Result<PopupData, Error> {
     })
 }
 
-fn decode_widget_list(map: &HashMap<String, Term>) -> Result<WidgetListData, Error> {
-    let items_terms: Vec<(Term, Term)> = map
-        .get("items")
-        .ok_or_else(|| Error::Term(Box::new("widget_list missing 'items'")))?
-        .decode()?;
+fn decode_widget_list(map: &TermMap<'_>) -> Result<WidgetListData, Error> {
+    let items_terms: Vec<(Term<'_>, Term<'_>)> = decode_required(map, "items", "widget_list")?;
 
     let mut items = Vec::with_capacity(items_terms.len());
     for (widget_term, height_term) in &items_terms {
-        let widget_map: HashMap<String, Term> = widget_term.decode()?;
+        let widget_map = decode_map(*widget_term, "widget_list.item")?;
         let widget = decode_widget_from_map(&widget_map)?;
-        let height: u16 = height_term.decode()?;
+        let height: u16 = height_term
+            .decode()
+            .map_err(|_| invalid_field("widget_list", "items", "unexpected item height"))?;
         items.push(WidgetListItem { widget, height });
     }
 
-    let selected: Option<usize> = match map.get("selected") {
-        Some(term) => Some(term.decode()?),
-        None => None,
-    };
+    let selected: Option<usize> = decode_optional(map, "selected", "widget_list")?;
 
-    let highlight_style = match map.get("highlight_style") {
-        Some(term) => decode_style(*term)?,
+    let highlight_style = match optional_term(map, "highlight_style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
-    let scroll_offset: usize = match map.get("scroll_offset") {
-        Some(term) => term.decode()?,
-        None => 0,
-    };
+    let scroll_offset: usize = decode_optional(map, "scroll_offset", "widget_list")?.unwrap_or(0);
 
-    let style = match map.get("style") {
-        Some(term) => decode_style(*term)?,
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
     };
 
@@ -748,32 +593,20 @@ fn decode_widget_list(map: &HashMap<String, Term>) -> Result<WidgetListData, Err
     })
 }
 
-fn decode_optional_block(map: &HashMap<String, Term>) -> Result<Option<BlockData>, Error> {
-    match map.get("block") {
-        Some(term) => Ok(Some(block::decode_block(*term)?)),
+fn decode_optional_block(map: &TermMap<'_>) -> Result<Option<BlockData>, Error> {
+    match optional_term(map, "block") {
+        Some(term) => Ok(Some(block::decode_block(term)?)),
         None => Ok(None),
     }
 }
 
 pub fn decode_rect(term: Term) -> Result<Rect, Error> {
-    let map: HashMap<String, Term> = term.decode()?;
+    let map = decode_map(term, "rect")?;
     Ok(Rect {
-        x: map
-            .get("x")
-            .ok_or_else(|| Error::Term(Box::new("rect missing 'x'")))?
-            .decode()?,
-        y: map
-            .get("y")
-            .ok_or_else(|| Error::Term(Box::new("rect missing 'y'")))?
-            .decode()?,
-        width: map
-            .get("width")
-            .ok_or_else(|| Error::Term(Box::new("rect missing 'width'")))?
-            .decode()?,
-        height: map
-            .get("height")
-            .ok_or_else(|| Error::Term(Box::new("rect missing 'height'")))?
-            .decode()?,
+        x: decode_required(&map, "x", "rect")?,
+        y: decode_required(&map, "y", "rect")?,
+        width: decode_required(&map, "width", "rect")?,
+        height: decode_required(&map, "height", "rect")?,
     })
 }
 

@@ -185,8 +185,8 @@ pub fn render(frame: &mut Frame, data: &TextareaRenderData, area: Rect) {
     let line_number_style = data.line_number_style;
 
     let mut textarea = match data.resource.state.lock() {
-        Ok(t) => t,
-        Err(_) => return,
+        Ok(textarea) => textarea,
+        Err(poisoned) => poisoned.into_inner(),
     };
 
     textarea.set_style(style);
