@@ -108,6 +108,11 @@ defmodule ExRatatui.MixProject do
         Application: [
           ExRatatui.App
         ],
+        "Reducer Runtime": [
+          ExRatatui.Command,
+          ExRatatui.Subscription,
+          ExRatatui.Runtime
+        ],
         "SSH Transport": [
           ExRatatui.Session,
           ExRatatui.SSH,

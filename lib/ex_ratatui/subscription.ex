@@ -5,6 +5,13 @@ defmodule ExRatatui.Subscription do
   The server reconciles subscriptions after each state transition, diffing by
   stable `id` so applications can declare timers without manually managing
   `Process.send_after/3` references.
+
+  Available subscription constructors:
+
+    * `interval/3` — repeated self-message at a fixed interval
+    * `once/3` — one-shot self-message delivered once after a delay
+
+  Reducer apps declare subscriptions by implementing `subscriptions/1`.
   """
 
   @enforce_keys [:id, :kind, :interval_ms, :message]

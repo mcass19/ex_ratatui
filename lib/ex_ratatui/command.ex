@@ -4,6 +4,17 @@ defmodule ExRatatui.Command do
 
   They are produced from reducer updates and executed by the ExRatatui server runtime
   after the new state has been committed and rendered.
+
+  Available command constructors:
+
+    * `message/1` — send an immediate self-message to the app process
+    * `send_after/2` — schedule a delayed self-message
+    * `async/2` — run a zero-arity function in the background and map the result
+      back into an app message
+    * `batch/1` — group multiple commands into one return value
+
+  Reducer callbacks can return commands from `init/1` or `update/2` via
+  `commands: [...]`.
   """
 
   @enforce_keys [:kind]
