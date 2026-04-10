@@ -159,8 +159,8 @@ pub struct TextInputRenderData {
 
 pub fn render(buf: &mut Buffer, data: &TextInputRenderData, area: Rect) {
     let mut state = match data.resource.state.lock() {
-        Ok(s) => s,
-        Err(_) => return,
+        Ok(state) => state,
+        Err(poisoned) => poisoned.into_inner(),
     };
 
     let opts = RenderOpts {

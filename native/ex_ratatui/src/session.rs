@@ -14,7 +14,6 @@
 //! SSH, the client already did it). This is what makes it safe to run many
 //! concurrent sessions in one BEAM node without global state collisions.
 
-use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
@@ -22,10 +21,10 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use rustler::{Atom, Binary, Env, Error, NifResult, OwnedBinary, Resource, ResourceArc, Term};
+use rustler::{Atom, Binary, Env, Error, OwnedBinary, Resource, ResourceArc, Term};
 
 use crate::events::NifEvent;
-use crate::rendering::{decode_rect, decode_widget_from_map, render_widget_data, WidgetData};
+use crate::rendering::{decode_render_commands, render_widget_data, RenderCommand};
 use crate::session_input::InputParser;
 
 mod atoms {
@@ -159,7 +158,7 @@ impl SessionResource {
     /// terminal. Bytes land in the `SharedWriter` and stay there until the
     /// transport drains them via [`SessionResource::take_output`]. Returns
     /// an error if the session has been closed.
-    pub fn draw(&self, commands: Vec<(WidgetData, Rect)>) -> Result<(), String> {
+    pub fn draw(&self, commands: Vec<RenderCommand>) -> Result<(), String> {
         let mut guard = self
             .terminal
             .lock()
@@ -170,8 +169,8 @@ impl SessionResource {
 
         terminal
             .draw(|frame| {
-                for (widget, area) in &commands {
-                    render_widget_data(frame.buffer_mut(), widget, *area);
+                for command in &commands {
+                    render_widget_data(frame.buffer_mut(), &command.widget, command.area);
                 }
             })
             .map_err(|e| format!("session draw: {e}"))?;
@@ -254,23 +253,6 @@ impl SessionResource {
 /// BEAM-friendly binary. Keeps the NIF signatures tidy.
 fn nif_error(message: String) -> Error {
     Error::Term(Box::new(message))
-}
-
-/// Decodes a `[{widget_map, rect_map}]` list term into a vector of
-/// `(WidgetData, Rect)` ready for [`SessionResource::draw`]. Mirrors the
-/// shape `draw_frame` (the local-transport NIF) consumes — the Elixir side
-/// builds the same render-command list for both transports.
-fn decode_render_commands(commands: Term<'_>) -> NifResult<Vec<(WidgetData, Rect)>> {
-    let entries: Vec<(Term<'_>, Term<'_>)> = commands.decode()?;
-    entries
-        .into_iter()
-        .map(|(widget_term, rect_term)| {
-            let widget_map: HashMap<String, Term<'_>> = widget_term.decode()?;
-            let widget = decode_widget_from_map(&widget_map)?;
-            let area = decode_rect(rect_term)?;
-            Ok((widget, area))
-        })
-        .collect()
 }
 
 #[rustler::nif]
