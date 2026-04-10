@@ -192,7 +192,14 @@ See the [task_manager example](https://github.com/mcass19/ex_ratatui/tree/main/e
 
 ## Reducer Runtime
 
-For larger TUIs, `ExRatatui` now supports a reducer-style runtime with first-class commands, subscriptions, and runtime inspection.
+For larger TUIs, `ExRatatui` also supports a reducer-style runtime with first-class commands, subscriptions, and runtime inspection.
+
+Reducer apps implement:
+
+- `init/1` for startup
+- `render/2` for UI output
+- `update/2` for both terminal events and mailbox messages
+- optional `subscriptions/1` for timer-style self-messages
 
 ```elixir
 defmodule MyApp.TUI do
@@ -261,6 +268,12 @@ Available building blocks:
 - `ExRatatui.Subscription.once/3`
 
 `Command.async/2` passes the async function's return value directly to the mapper on success. If the function raises or exits, the mapper receives `{:error, reason}`.
+
+Reducer callbacks can also return runtime options from `init/1` and `update/2`:
+
+- `commands: [...]` runs side effects after the new state has been committed
+- `render?: false` skips the immediate render for that transition
+- `trace?: true | false` enables or disables in-memory runtime tracing on the server
 
 Runtime inspection is available through `ExRatatui.Runtime`:
 

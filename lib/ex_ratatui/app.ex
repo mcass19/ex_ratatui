@@ -40,6 +40,23 @@ defmodule ExRatatui.App do
       children = [{MyTUI, []}]
       Supervisor.start_link(children, strategy: :one_for_one)
 
+  ## Runtimes
+
+  `ExRatatui.App` supports two runtime styles:
+
+    * Callback runtime (default) — implement `mount/1`, `render/2`,
+      `handle_event/2`, and optionally `handle_info/2`
+    * Reducer runtime — `use ExRatatui.App, runtime: :reducer` and
+      implement `init/1`, `render/2`, `update/2`, and optionally
+      `subscriptions/1`
+
+  Reducer apps receive all terminal input as `{:event, event}` and all
+  mailbox messages as `{:info, msg}` through `update/2`. They can return:
+
+    * `commands: [...]` to schedule side effects after the state transition
+    * `render?: false` to skip the immediate render
+    * `trace?: true | false` to toggle runtime trace collection
+
   ## Options
 
   Options are passed through `start_link/1` and forwarded to `mount/1`:
@@ -74,6 +91,8 @@ defmodule ExRatatui.App do
 
     * `mount/1` — Called once on startup with options. Return `{:ok, initial_state}`
       or `{:error, reason}` to abort startup.
+    * `init/1` — Reducer runtime startup callback. Return `{:ok, initial_state}`
+      or `{:ok, initial_state, runtime_opts}`.
     * `render/2` — Called after every state change. Receives state and a
       `%ExRatatui.Frame{}` with terminal dimensions. Return a list of
       `{widget, rect}` tuples.
@@ -81,6 +100,11 @@ defmodule ExRatatui.App do
       `{:noreply, new_state}` or `{:stop, state}`.
     * `handle_info/2` — Called for non-terminal messages (e.g., PubSub).
       Optional; default implementation returns `{:noreply, state}`.
+    * `update/2` — Reducer runtime message handler. Receives `{:event, event}`
+      and `{:info, msg}` and returns `{:noreply, state}`, `{:stop, state}`,
+      or either form with reducer runtime opts.
+    * `subscriptions/1` — Reducer runtime subscription declaration.
+      Optional; default implementation returns `[]`.
     * `terminate/2` — Called when the TUI is shutting down. Receives the
       exit reason and final state. Optional; default is a no-op.
       Use this to stop the VM with `System.stop(0)` in standalone apps.

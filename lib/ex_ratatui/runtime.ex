@@ -1,6 +1,15 @@
 defmodule ExRatatui.Runtime do
   @moduledoc """
   Runtime inspection and trace controls for supervised ExRatatui applications.
+
+  `snapshot/1` returns runtime metadata including:
+
+    * runtime mode and transport
+    * current dimensions
+    * render counts and last render time
+    * active subscriptions
+    * active async command count
+    * recent trace events when tracing is enabled
   """
 
   @spec snapshot(GenServer.server()) :: map()
