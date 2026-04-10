@@ -28,8 +28,8 @@ defmodule ExRatatui.SSH.IntegrationTest do
     @moduledoc false
     use ExRatatui.App
 
-    alias ExRatatui.Widgets.Paragraph
     alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
 
     @impl true
     def mount(opts) do

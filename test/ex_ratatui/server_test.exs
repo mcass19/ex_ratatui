@@ -65,8 +65,8 @@ defmodule ExRatatui.ServerTest do
   defmodule RenderingApp do
     use ExRatatui.App
 
-    alias ExRatatui.Widgets.Paragraph
     alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
 
     @impl true
     def mount(opts) do
@@ -111,8 +111,8 @@ defmodule ExRatatui.ServerTest do
   defmodule DrawErrorApp do
     use ExRatatui.App
 
-    alias ExRatatui.Widgets.Paragraph
     alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
 
     @impl true
     def mount(opts) do
@@ -514,9 +514,9 @@ defmodule ExRatatui.ServerTest do
   end
 
   describe "SSH transport" do
+    alias ExRatatui.Layout.Rect
     alias ExRatatui.Session
     alias ExRatatui.Widgets.Paragraph
-    alias ExRatatui.Layout.Rect
 
     defmodule SshApp do
       use ExRatatui.App

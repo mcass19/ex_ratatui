@@ -2,9 +2,9 @@ defmodule ExRatatui.SlashCommandsTest do
   use ExUnit.Case, async: true
 
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Widgets.Popup
   alias ExRatatui.Widgets.SlashCommands
   alias ExRatatui.Widgets.SlashCommands.Command
-  alias ExRatatui.Widgets.Popup
 
   @commands [
     %Command{name: "help", description: "Show help", aliases: ["?"]},

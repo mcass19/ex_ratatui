@@ -1,8 +1,8 @@
 defmodule ExRatatui.RenderingTest do
   use ExUnit.Case, async: true
 
-  alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Native
   alias ExRatatui.Style
   alias ExRatatui.Widgets.Paragraph
 

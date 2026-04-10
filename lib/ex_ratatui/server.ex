@@ -5,9 +5,11 @@ defmodule ExRatatui.Server do
 
   require Logger
 
+  alias ExRatatui.Command
   alias ExRatatui.Frame
   alias ExRatatui.Native
   alias ExRatatui.Session
+  alias ExRatatui.Subscription
 
   defstruct [
     :mod,
@@ -19,10 +21,22 @@ defmodule ExRatatui.Server do
     :client_pid,
     :width,
     :height,
+    pending_commands: [],
+    subscriptions: %{},
+    trace_enabled?: false,
+    trace_limit: 200,
+    trace_events: [],
+    render_count: 0,
+    last_rendered_at: nil,
+    runtime_mode: :callbacks,
+    active_async_commands: 0,
     transport: :local,
     poll_interval: 16,
     terminal_initialized: false
   ]
+
+  @subscription_message :__ex_ratatui_subscription_tick__
+  @async_message :__ex_ratatui_async_result__
 
   @doc false
   def start_link(opts) do
@@ -63,18 +77,26 @@ defmodule ExRatatui.Server do
     poll_interval = Keyword.get(opts, :poll_interval, 16)
     test_mode = Keyword.get(opts, :test_mode)
 
-    case mod.mount(opts) do
-      {:ok, user_state} ->
+    case normalize_mount_result(mod.mount(opts)) do
+      {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
           user_state: user_state,
           poll_interval: poll_interval,
           test_mode: test_mode,
           terminal_ref: terminal_ref,
-          terminal_initialized: true
+          terminal_initialized: true,
+          runtime_mode: runtime_mode(mod)
         }
 
-        state = do_render(state)
+        state =
+          state
+          |> maybe_set_trace(runtime_opts)
+          |> reconcile_subscriptions()
+          |> queue_commands(runtime_opts)
+          |> do_render_if(runtime_opts)
+
+        state = flush_pending_commands(state)
         send(self(), :poll)
 
         {:ok, state}
@@ -95,8 +117,8 @@ defmodule ExRatatui.Server do
     {w, h} = Session.size(session)
     augmented_opts = augment_ssh_mount_opts(opts, w, h)
 
-    case mod.mount(augmented_opts) do
-      {:ok, user_state} ->
+    case normalize_mount_result(mod.mount(augmented_opts)) do
+      {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
           user_state: user_state,
@@ -105,10 +127,18 @@ defmodule ExRatatui.Server do
           writer_fn: writer_fn,
           width: w,
           height: h,
-          terminal_initialized: true
+          terminal_initialized: true,
+          runtime_mode: runtime_mode(mod)
         }
 
-        state = do_render(state)
+        state =
+          state
+          |> maybe_set_trace(runtime_opts)
+          |> reconcile_subscriptions()
+          |> queue_commands(runtime_opts)
+          |> do_render_if(runtime_opts)
+
+        state = flush_pending_commands(state)
         {:ok, state}
 
       {:error, reason} ->
@@ -126,8 +156,8 @@ defmodule ExRatatui.Server do
     Process.monitor(client_pid)
     augmented_opts = augment_distributed_mount_opts(opts, width, height)
 
-    case mod.mount(augmented_opts) do
-      {:ok, user_state} ->
+    case normalize_mount_result(mod.mount(augmented_opts)) do
+      {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
           user_state: user_state,
@@ -135,10 +165,18 @@ defmodule ExRatatui.Server do
           client_pid: client_pid,
           width: width,
           height: height,
-          terminal_initialized: true
+          terminal_initialized: true,
+          runtime_mode: runtime_mode(mod)
         }
 
-        state = do_render(state)
+        state =
+          state
+          |> maybe_set_trace(runtime_opts)
+          |> reconcile_subscriptions()
+          |> queue_commands(runtime_opts)
+          |> do_render_if(runtime_opts)
+
+        state = flush_pending_commands(state)
         {:ok, state}
 
       {:error, reason} ->
@@ -175,6 +213,16 @@ defmodule ExRatatui.Server do
   # never reach the user module's handle_info/2.
   def handle_info(:poll, state), do: {:noreply, state}
 
+  def handle_info({@subscription_message, id, token}, state) do
+    dispatch_subscription_tick(id, token, state)
+  end
+
+  def handle_info({@async_message, message}, state) do
+    state
+    |> decrement_async_commands()
+    |> dispatch_info_message(message)
+  end
+
   def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: transport} = state)
       when transport in [:ssh, :distributed_server] do
     state
@@ -196,15 +244,22 @@ defmodule ExRatatui.Server do
 
   @impl true
   def handle_info(msg, state) do
-    case state.mod.handle_info(msg, state.user_state) do
-      {:noreply, new_user_state} ->
-        state = %{state | user_state: new_user_state}
-        state = do_render(state)
-        {:noreply, state}
+    dispatch_info_message(state, msg)
+  end
 
-      {:stop, new_user_state} ->
-        {:stop, :normal, %{state | user_state: new_user_state}}
-    end
+  @impl true
+  def handle_call(:ex_ratatui_runtime_snapshot, _from, state) do
+    {:reply, runtime_snapshot(state), state}
+  end
+
+  def handle_call({:ex_ratatui_runtime_trace, enabled?, limit}, _from, state) do
+    next_state =
+      state
+      |> Map.put(:trace_enabled?, enabled?)
+      |> Map.put(:trace_limit, if(enabled?, do: max(limit, 1), else: state.trace_limit))
+      |> maybe_clear_trace_events(enabled?)
+
+    {:reply, :ok, next_state}
   end
 
   @impl true
@@ -240,13 +295,11 @@ defmodule ExRatatui.Server do
 
   @doc false
   def dispatch_event(state, event) do
-    case state.mod.handle_event(event, state.user_state) do
-      {:noreply, new_user_state} ->
-        {:continue, %{state | user_state: new_user_state}, true}
+    state = trace(state, :message, %{source: :event, payload: event})
 
-      {:stop, new_user_state} ->
-        {:stop, %{state | user_state: new_user_state}}
-    end
+    state.mod.handle_event(event, state.user_state)
+    |> normalize_transition_result()
+    |> apply_transition(state)
   end
 
   @doc false
@@ -254,6 +307,7 @@ defmodule ExRatatui.Server do
 
   def process_poll_result({:continue, state, render?}) do
     state = if render?, do: do_render(state), else: state
+    state = flush_pending_commands(state)
     send(self(), :poll)
     {:noreply, state}
   end
@@ -265,6 +319,7 @@ defmodule ExRatatui.Server do
 
   def process_event_result({:continue, state, render?}) do
     state = if render?, do: do_render(state), else: state
+    state = flush_pending_commands(state)
     {:noreply, state}
   end
 
@@ -299,7 +354,11 @@ defmodule ExRatatui.Server do
 
     widgets = state.mod.render(state.user_state, frame)
     draw_widgets(state, widgets)
+
     state
+    |> Map.update!(:render_count, &(&1 + 1))
+    |> Map.put(:last_rendered_at, System.system_time(:millisecond))
+    |> trace(:render, %{frame: frame, widget_count: length(widgets)})
   rescue
     e ->
       Logger.error(
@@ -340,5 +399,331 @@ defmodule ExRatatui.Server do
   defp draw_widgets(%__MODULE__{transport: :distributed_server, client_pid: pid}, widgets) do
     send(pid, {:ex_ratatui_draw, widgets})
     :ok
+  end
+
+  defp runtime_mode(mod) do
+    mod.__runtime__()
+  end
+
+  defp normalize_mount_result({:ok, user_state}), do: {:ok, user_state, default_runtime_opts()}
+  defp normalize_mount_result({:error, reason}), do: {:error, reason}
+
+  defp normalize_mount_result({:ok, user_state, runtime_opts}) do
+    {:ok, user_state, normalize_runtime_opts(runtime_opts)}
+  end
+
+  defp normalize_mount_result(other) do
+    raise ArgumentError, "invalid ExRatatui mount result: #{inspect(other)}"
+  end
+
+  defp normalize_transition_result({:noreply, user_state}) do
+    {:continue, user_state, default_runtime_opts()}
+  end
+
+  defp normalize_transition_result({:noreply, user_state, runtime_opts}) do
+    {:continue, user_state, normalize_runtime_opts(runtime_opts)}
+  end
+
+  defp normalize_transition_result({:stop, user_state}) do
+    {:stop, user_state, default_runtime_opts()}
+  end
+
+  defp normalize_transition_result({:stop, user_state, runtime_opts}) do
+    {:stop, user_state, normalize_runtime_opts(runtime_opts)}
+  end
+
+  defp normalize_transition_result(other) do
+    raise ArgumentError, "invalid ExRatatui callback result: #{inspect(other)}"
+  end
+
+  defp default_runtime_opts do
+    %{commands: [], render?: true, trace?: nil}
+  end
+
+  defp normalize_runtime_opts(runtime_opts) when is_list(runtime_opts) do
+    runtime_opts
+    |> Enum.into(%{})
+    |> normalize_runtime_opts()
+  end
+
+  defp normalize_runtime_opts(runtime_opts) when is_map(runtime_opts) do
+    %{
+      commands:
+        Command.normalize(Map.get(runtime_opts, :commands) || Map.get(runtime_opts, "commands")),
+      render?: Map.get(runtime_opts, :render?, Map.get(runtime_opts, "render?", true)),
+      trace?: Map.get(runtime_opts, :trace?, Map.get(runtime_opts, "trace?"))
+    }
+  end
+
+  defp normalize_runtime_opts(other) do
+    raise ArgumentError, "invalid runtime opts: #{inspect(other)}"
+  end
+
+  defp apply_transition({:continue, user_state, runtime_opts}, state) do
+    next_state =
+      state
+      |> Map.put(:user_state, user_state)
+      |> maybe_set_trace(runtime_opts)
+      |> reconcile_subscriptions()
+      |> queue_commands(runtime_opts)
+
+    {:continue, next_state, runtime_opts.render?}
+  end
+
+  defp apply_transition({:stop, user_state, runtime_opts}, state) do
+    next_state =
+      state
+      |> Map.put(:user_state, user_state)
+      |> maybe_set_trace(runtime_opts)
+      |> reconcile_subscriptions()
+      |> queue_commands(runtime_opts)
+
+    {:stop, next_state}
+  end
+
+  defp do_render_if(state, %{render?: false}), do: state
+  defp do_render_if(state, _runtime_opts), do: do_render(state)
+
+  defp queue_commands(state, %{commands: commands}) do
+    %{state | pending_commands: commands}
+  end
+
+  defp flush_pending_commands(%__MODULE__{pending_commands: []} = state), do: state
+
+  defp flush_pending_commands(%__MODULE__{pending_commands: commands} = state) do
+    state = %{state | pending_commands: []}
+    Enum.reduce(commands, state, &run_command/2)
+  end
+
+  defp run_command(%Command{kind: :message, message: message}, state) do
+    send(self(), message)
+    trace(state, :command, %{kind: :message, message: message})
+  end
+
+  defp run_command(%Command{kind: :after, delay_ms: delay_ms, message: message}, state) do
+    Process.send_after(self(), message, delay_ms)
+    trace(state, :command, %{kind: :after, delay_ms: delay_ms, message: message})
+  end
+
+  defp run_command(%Command{kind: :async, fun: fun, mapper: mapper}, state) do
+    parent = self()
+
+    Task.start(fn ->
+      result = safe_async_result(fun)
+      message = safe_async_mapper_result(mapper, result)
+      send(parent, {@async_message, message})
+    end)
+
+    state
+    |> Map.update!(:active_async_commands, &(&1 + 1))
+    |> trace(:command, %{kind: :async})
+  end
+
+  defp run_command(%Command{kind: :batch, commands: commands}, state) do
+    Enum.reduce(commands, state, &run_command/2)
+  end
+
+  defp decrement_async_commands(state) do
+    Map.update!(state, :active_async_commands, &max(&1 - 1, 0))
+  end
+
+  defp reconcile_subscriptions(%__MODULE__{} = state) do
+    desired =
+      state.mod.subscriptions(state.user_state)
+      |> Subscription.normalize()
+      |> Map.new(&{&1.id, &1})
+
+    state =
+      Enum.reduce(state.subscriptions, state, fn {id, entry}, acc ->
+        reconcile_subscription_entry(acc, id, entry, desired)
+      end)
+
+    Enum.reduce(desired, state, fn {id, subscription}, acc ->
+      if Map.has_key?(acc.subscriptions, id),
+        do: acc,
+        else: put_subscription(acc, id, subscription)
+    end)
+  end
+
+  defp reconcile_subscription_entry(state, id, entry, desired) do
+    case Map.get(desired, id) do
+      nil ->
+        cancel_subscription(state, id, entry)
+
+      subscription ->
+        reconcile_desired_subscription(state, id, entry, subscription)
+    end
+  end
+
+  defp reconcile_desired_subscription(state, id, entry, subscription) do
+    if subscriptions_equal?(entry.subscription, subscription) do
+      maybe_rearm_subscription(state, id, entry)
+    else
+      state
+      |> cancel_subscription(id, entry)
+      |> put_subscription(id, subscription)
+    end
+  end
+
+  defp maybe_rearm_subscription(state, id, %{subscription: %{kind: :interval}} = entry) do
+    if entry.timer_ref do
+      state
+    else
+      put_timer_ref(state, id, arm_subscription(entry.subscription))
+    end
+  end
+
+  defp maybe_rearm_subscription(state, id, %{subscription: %{kind: :once}, fired?: false} = entry) do
+    if entry.timer_ref do
+      state
+    else
+      put_timer_ref(state, id, arm_subscription(entry.subscription))
+    end
+  end
+
+  defp maybe_rearm_subscription(state, _id, _entry), do: state
+
+  defp put_subscription(state, id, subscription) do
+    token = make_ref()
+    timer_ref = arm_subscription(subscription, token)
+
+    entry = %{
+      subscription: subscription,
+      timer_ref: timer_ref,
+      token: token,
+      fired?: false
+    }
+
+    state
+    |> put_in([Access.key(:subscriptions), id], entry)
+    |> trace(:subscription, %{action: :start, id: id, kind: subscription.kind})
+  end
+
+  defp cancel_subscription(state, id, entry) do
+    if entry.timer_ref, do: Process.cancel_timer(entry.timer_ref)
+
+    state
+    |> update_in([Access.key(:subscriptions)], &Map.delete(&1, id))
+    |> trace(:subscription, %{action: :cancel, id: id, kind: entry.subscription.kind})
+  end
+
+  defp put_timer_ref(state, id, {timer_ref, token}) do
+    update_in(state.subscriptions[id], fn entry ->
+      %{entry | timer_ref: timer_ref, token: token}
+    end)
+  end
+
+  defp arm_subscription(subscription), do: arm_subscription(subscription, make_ref())
+
+  defp arm_subscription(subscription, token) do
+    timer_ref =
+      Process.send_after(
+        self(),
+        {@subscription_message, subscription.id, token},
+        subscription.interval_ms
+      )
+
+    {timer_ref, token}
+  end
+
+  defp dispatch_subscription_tick(id, token, state) do
+    case Map.get(state.subscriptions, id) do
+      %{token: ^token, subscription: subscription} = entry ->
+        next_state =
+          put_in(state.subscriptions[id], %{
+            entry
+            | timer_ref: nil,
+              fired?: subscription.kind == :once or entry.fired?
+          })
+
+        next_state
+        |> trace(:subscription, %{action: :fire, id: id, kind: subscription.kind})
+        |> dispatch_info_message(subscription.message)
+
+      _other ->
+        {:noreply, state}
+    end
+  end
+
+  defp dispatch_info_message(state, msg) do
+    state = trace(state, :message, %{source: :info, payload: msg})
+
+    state.mod.handle_info(msg, state.user_state)
+    |> normalize_transition_result()
+    |> apply_transition(state)
+    |> process_event_result()
+  end
+
+  defp subscriptions_equal?(left, right) do
+    left.id == right.id and left.kind == right.kind and left.interval_ms == right.interval_ms and
+      left.message == right.message
+  end
+
+  defp safe_async_result(fun) when is_function(fun, 0) do
+    fun.()
+  rescue
+    exception ->
+      {:error, {:exception, Exception.message(exception)}}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp safe_async_mapper_result(mapper, result) when is_function(mapper, 1) do
+    mapper.(result)
+  rescue
+    exception ->
+      {:error, {:mapper_exception, Exception.message(exception)}}
+  catch
+    :exit, reason -> {:error, {:mapper_exit, reason}}
+    kind, reason -> {:error, {:mapper_catch, {kind, reason}}}
+  end
+
+  defp maybe_set_trace(state, %{trace?: nil}), do: state
+  defp maybe_set_trace(state, %{trace?: enabled?}), do: Map.put(state, :trace_enabled?, enabled?)
+
+  defp maybe_clear_trace_events(state, true), do: state
+  defp maybe_clear_trace_events(state, false), do: %{state | trace_events: []}
+
+  defp runtime_snapshot(state) do
+    %{
+      mode: state.runtime_mode,
+      mod: state.mod,
+      transport: state.transport,
+      dimensions: current_size(state),
+      render_count: state.render_count,
+      last_rendered_at: state.last_rendered_at,
+      trace_enabled?: state.trace_enabled?,
+      trace_limit: state.trace_limit,
+      trace_events: Enum.reverse(state.trace_events),
+      subscription_count: map_size(state.subscriptions),
+      subscriptions:
+        Enum.map(state.subscriptions, fn {id, entry} ->
+          %{
+            id: id,
+            kind: entry.subscription.kind,
+            interval_ms: entry.subscription.interval_ms,
+            fired?: entry.fired?,
+            active?: not is_nil(entry.timer_ref)
+          }
+        end),
+      active_async_commands: state.active_async_commands
+    }
+  end
+
+  defp trace(%__MODULE__{trace_enabled?: false} = state, _kind, _details), do: state
+
+  defp trace(%__MODULE__{} = state, kind, details) do
+    event = %{
+      kind: kind,
+      at_ms: System.system_time(:millisecond),
+      details: details
+    }
+
+    trace_events =
+      [event | state.trace_events]
+      |> Enum.take(state.trace_limit)
+
+    %{state | trace_events: trace_events}
   end
 end

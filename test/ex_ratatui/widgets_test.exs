@@ -1,8 +1,8 @@
 defmodule ExRatatui.WidgetsTest do
   use ExUnit.Case, async: true
 
-  alias ExRatatui.Native
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Native
   alias ExRatatui.Style
 
   alias ExRatatui.Widgets.{
@@ -12,14 +12,14 @@ defmodule ExRatatui.WidgetsTest do
     Gauge,
     LineGauge,
     List,
+    Markdown,
     Paragraph,
+    Popup,
     Scrollbar,
     Table,
     Tabs,
-    TextInput,
-    Markdown,
-    Popup,
     Textarea,
+    TextInput,
     Throbber,
     WidgetList
   }

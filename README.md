@@ -17,6 +17,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
+- **Reducer runtime** for command/subscription driven apps via `use ExRatatui.App, runtime: :reducer`
 - **Built-in SSH transport** — serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
 - **Erlang distribution transport** — attach to a remote TUI over Erlang distribution with zero NIF on the app node
 - Full color support: named, RGB, and 256-color indexed
@@ -32,6 +33,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `hello_world.exs` | `mix run examples/hello_world.exs` | Minimal paragraph display |
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
+| `reducer_counter_app.exs` | `mix run examples/reducer_counter_app.exs` | Counter using the reducer runtime with subscriptions |
 | `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH and Erlang distribution** — see below. |
 | `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with tabs, table, scrollbar, line gauge, and more |
@@ -203,6 +205,92 @@ Supervisor.start_link(children, strategy: :one_for_one)
 | `terminate/2` | Called on shutdown with reason and final state. Optional — default is a no-op |
 
 See the [task_manager example](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) for a full Ecto-backed app using this behaviour.
+
+## Reducer Runtime
+
+For larger TUIs, `ExRatatui` now supports a reducer-style runtime with first-class commands, subscriptions, and runtime inspection.
+
+```elixir
+defmodule MyApp.TUI do
+  use ExRatatui.App, runtime: :reducer
+
+  alias ExRatatui.{Command, Event, Subscription}
+
+  @impl true
+  def init(_opts) do
+    {:ok, %{count: 0}, commands: [Command.message(:boot)]}
+  end
+
+  @impl true
+  def render(state, frame) do
+    alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
+
+    [{%Paragraph{text: "Count: #{state.count}"}, %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}]
+  end
+
+  @impl true
+  def update({:event, %Event.Key{code: "q"}}, state), do: {:stop, state}
+
+  def update({:event, %Event.Key{code: "up"}}, state) do
+    {:noreply, %{state | count: state.count + 1}}
+  end
+
+  def update({:info, :boot}, state) do
+    {:noreply, %{state | count: 1}}
+  end
+
+  def update({:info, :fetch_answer}, state) do
+    {:noreply, state,
+     commands: [
+       Command.async(fn -> 42 end, fn result -> {:answer_loaded, result} end)
+     ]}
+  end
+
+  def update({:info, {:answer_loaded, answer}}, state) do
+    {:noreply, %{state | count: answer}}
+  end
+
+  def update(_msg, state), do: {:noreply, state}
+
+  @impl true
+  def subscriptions(_state) do
+    [Subscription.interval(:heartbeat, 1_000, :tick)]
+  end
+end
+```
+
+Reducer apps use one message path:
+
+- terminal input arrives as `{:event, event}`
+- mailbox messages arrive as `{:info, message}`
+- side effects are returned as `commands: [...]`
+- repeating timers and watches are returned from `subscriptions/1`
+
+Available building blocks:
+
+- `ExRatatui.Command.message/1`
+- `ExRatatui.Command.send_after/2`
+- `ExRatatui.Command.async/2`
+- `ExRatatui.Command.batch/1`
+- `ExRatatui.Subscription.interval/3`
+- `ExRatatui.Subscription.once/3`
+
+`Command.async/2` passes the async function's return value directly to the mapper on success. If the function raises or exits, the mapper receives `{:error, reason}`.
+
+Runtime inspection is available through `ExRatatui.Runtime`:
+
+```elixir
+{:ok, pid} = MyApp.TUI.start_link(name: nil)
+
+snapshot = ExRatatui.Runtime.snapshot(pid)
+trace_events = ExRatatui.Runtime.trace_events(pid)
+
+:ok = ExRatatui.Runtime.enable_trace(pid, limit: 200)
+:ok = ExRatatui.Runtime.disable_trace(pid)
+```
+
+The runtime snapshot includes render counts, active subscriptions, active async commands, and recent trace events.
 
 ## Running Over SSH
 
