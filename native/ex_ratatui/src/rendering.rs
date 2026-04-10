@@ -97,7 +97,9 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
         "clear" => Ok(WidgetData::Clear),
-        other => Err(error_message(format!("widget.type: unsupported widget type '{other}'"))),
+        other => Err(error_message(format!(
+            "widget.type: unsupported widget type '{other}'"
+        ))),
     }
 }
 
@@ -110,13 +112,11 @@ fn decode_paragraph(map: &TermMap<'_>) -> Result<ParagraphData, Error> {
     };
 
     let alignment = match decode_optional::<String>(map, "alignment", "paragraph")? {
-        Some(s) => {
-            match s.as_str() {
-                "center" => Alignment::Center,
-                "right" => Alignment::Right,
-                _ => Alignment::Left,
-            }
-        }
+        Some(s) => match s.as_str() {
+            "center" => Alignment::Center,
+            "right" => Alignment::Right,
+            _ => Alignment::Left,
+        },
         None => Alignment::Left,
     };
 
@@ -365,8 +365,7 @@ fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     };
 
     let checked_symbol: Option<String> = decode_optional(map, "checked_symbol", "checkbox")?;
-    let unchecked_symbol: Option<String> =
-        decode_optional(map, "unchecked_symbol", "checkbox")?;
+    let unchecked_symbol: Option<String> = decode_optional(map, "unchecked_symbol", "checkbox")?;
 
     let block = decode_optional_block(map)?;
 
@@ -512,10 +511,11 @@ fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
         None => ratatui::style::Style::default(),
     };
 
-    let line_number_style: Option<ratatui::style::Style> = match optional_term(map, "line_number_style") {
-        Some(term) => Some(decode_style(term)?),
-        None => None,
-    };
+    let line_number_style: Option<ratatui::style::Style> =
+        match optional_term(map, "line_number_style") {
+            Some(term) => Some(decode_style(term)?),
+            None => None,
+        };
 
     let block = decode_optional_block(map)?;
 
@@ -532,10 +532,7 @@ fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
 }
 
 fn decode_popup(map: &TermMap<'_>) -> Result<PopupData, Error> {
-    let content_map = decode_map(
-        decode_required(map, "content", "popup")?,
-        "popup.content",
-    )?;
+    let content_map = decode_map(decode_required(map, "content", "popup")?, "popup.content")?;
     let content = Box::new(decode_widget_from_map(&content_map)?);
 
     let percent_width: u16 = decode_optional(map, "percent_width", "popup")?.unwrap_or(60);

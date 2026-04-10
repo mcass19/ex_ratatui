@@ -5,7 +5,7 @@ defmodule ExRatatui.BridgeTest do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Session
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Paragraph, Popup, TextInput, WidgetList}
+  alias ExRatatui.Widgets.{Block, Paragraph, Popup, Table, TextInput, Textarea, WidgetList}
 
   test "encode_command encodes nested widgets through the shared bridge" do
     command =
@@ -54,5 +54,81 @@ defmodule ExRatatui.BridgeTest do
                       %Rect{x: 0, y: 0, width: 20, height: 5}}
                    ])
                  end
+  end
+
+  test "ExRatatui.encode_command/1 delegates to the shared bridge" do
+    assert {
+             %{"type" => "paragraph", "text" => "delegated"},
+             %{"x" => 0, "y" => 0, "width" => 10, "height" => 2}
+           } =
+             ExRatatui.encode_command(
+               {%Paragraph{text: "delegated"}, %Rect{x: 0, y: 0, width: 10, height: 2}}
+             )
+  end
+
+  test "encode_command validates input shape and resource references" do
+    rect = %Rect{x: 0, y: 0, width: 10, height: 2}
+
+    assert_raise ArgumentError,
+                 "expected a render command in the form {widget, %ExRatatui.Layout.Rect{}}, got: :bad",
+                 fn ->
+                   Bridge.encode_command(:bad)
+                 end
+
+    assert_raise ArgumentError,
+                 "text_input.state is required and must be a reference, got: :bad",
+                 fn ->
+                   Bridge.encode_command({%TextInput{state: :bad}, rect})
+                 end
+
+    assert_raise ArgumentError, "textarea.state is required and must be a reference", fn ->
+      Bridge.encode_command({%Textarea{}, rect})
+    end
+
+    assert_raise ArgumentError,
+                 "textarea.state is required and must be a reference, got: :bad",
+                 fn ->
+                   Bridge.encode_command({%Textarea{state: :bad}, rect})
+                 end
+  end
+
+  test "encode_command validates widgets, blocks, styles, colors, and constraints" do
+    rect = %Rect{x: 0, y: 0, width: 10, height: 2}
+
+    assert_raise ArgumentError, "unsupported widget struct: :bad", fn ->
+      Bridge.encode_command({:bad, rect})
+    end
+
+    assert_raise ArgumentError,
+                 "paragraph.block expected %ExRatatui.Widgets.Block{}, got: :bad",
+                 fn ->
+                   Bridge.encode_command({%Paragraph{text: "x", block: :bad}, rect})
+                 end
+
+    assert_raise ArgumentError, "paragraph.style expected %ExRatatui.Style{}, got: :bad", fn ->
+      Bridge.encode_command({%Paragraph{text: "x", style: :bad}, rect})
+    end
+
+    assert_raise ArgumentError, "invalid color value: {:bad}", fn ->
+      Bridge.encode_command({%Paragraph{text: "x", style: %Style{fg: {:bad}}}, rect})
+    end
+
+    assert_raise ArgumentError, "invalid layout constraint: {:bogus, 1}", fn ->
+      Bridge.encode_command({%Table{rows: [["x"]], widths: [{:bogus, 1}]}, rect})
+    end
+  end
+
+  test "encode_command supports min, max, and ratio constraints" do
+    {widget, _rect} =
+      Bridge.encode_command(
+        {%Table{rows: [["x"]], widths: [{:min, 1}, {:max, 2}, {:ratio, 1, 3}]},
+         %Rect{x: 0, y: 0, width: 10, height: 2}}
+      )
+
+    assert widget["widths"] == [
+             %{"type" => "min", "value" => 1},
+             %{"type" => "max", "value" => 2},
+             %{"type" => "ratio", "num" => 1, "den" => 3}
+           ]
   end
 end
