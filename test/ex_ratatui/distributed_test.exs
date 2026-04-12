@@ -71,6 +71,17 @@ defmodule ExRatatui.DistributedTest do
     end
   end
 
+  describe "attach/3" do
+    test "returns error from ensure_connected when node is unreachable" do
+      # ensure_connected fails before start_local_client is called
+      result =
+        Distributed.attach(:nonexistent@nowhere, SomeApp, test_mode: {80, 24})
+
+      assert {:error, reason} = result
+      assert reason == :distribution_not_started or match?({:connect_failed, _}, reason)
+    end
+  end
+
   describe "Listener.start_session/4 error handling" do
     test "returns error when mount fails" do
       # Simulate an RPC that returns {:error, reason} by calling directly

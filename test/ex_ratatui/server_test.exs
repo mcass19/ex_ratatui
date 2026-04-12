@@ -467,7 +467,7 @@ defmodule ExRatatui.ServerTest do
         )
 
       # Server should still be alive despite render crashing
-      Process.sleep(50)
+      _ = :sys.get_state(pid)
       assert Process.alive?(pid)
 
       GenServer.stop(pid)
@@ -495,7 +495,7 @@ defmodule ExRatatui.ServerTest do
       assert_receive :rendered, 1000
 
       # Server should still be alive (draw error is logged, not fatal)
-      Process.sleep(50)
+      _ = :sys.get_state(pid)
       assert Process.alive?(pid)
 
       # Clean up — stop will try to restore already-restored terminal

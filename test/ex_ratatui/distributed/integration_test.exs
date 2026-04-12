@@ -215,6 +215,22 @@ defmodule ExRatatui.Distributed.IntegrationTest do
     end
   end
 
+  describe "Distributed.attach/3 error path" do
+    test "returns error and cleans up client when listener is not running", %{
+      peer_node: peer_node
+    } do
+      # No listener started on the peer — start_remote_session will fail.
+      # attach/3 must stop the already-started Client and return the error.
+      result =
+        Distributed.attach(peer_node, @peer_app,
+          listener: :nonexistent_listener,
+          test_mode: {80, 24}
+        )
+
+      assert {:error, {:rpc_failed, _}} = result
+    end
+  end
+
   describe "handle_info forwarding" do
     test "custom messages reach the app's handle_info on the remote node", %{
       peer_node: peer_node

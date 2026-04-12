@@ -65,7 +65,11 @@ defmodule ExRatatui.Distributed.Listener do
 
     # Stash config keyed by this listener's pid so start_session can
     # look it up. persistent_term is node-local and survives across
-    # RPC calls from other nodes.
+    # RPC calls from other nodes. The entry is small (~100 bytes) and
+    # keyed by pid, so it becomes unreachable once the Listener exits.
+    # Supervisor does not call terminate/2 on its callback module, so
+    # we accept the orphaned entry — Listeners are long-lived
+    # supervisors that rarely restart.
     :persistent_term.put({__MODULE__, self()}, %{mod: mod, app_opts: app_opts})
 
     children = [

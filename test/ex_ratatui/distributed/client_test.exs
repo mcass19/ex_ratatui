@@ -261,8 +261,8 @@ defmodule ExRatatui.Distributed.ClientTest do
 
       send(pid, {:ex_ratatui_draw, widgets})
 
-      # Give it time to process — should not crash
-      Process.sleep(20)
+      # Synchronize — should not crash
+      _ = :sys.get_state(pid)
       assert Process.alive?(pid)
 
       GenServer.stop(pid)

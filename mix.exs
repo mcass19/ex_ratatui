@@ -24,8 +24,12 @@ defmodule ExRatatui.MixProject do
       test_coverage: [
         summary: [threshold: 100],
         ignore_modules: [
+          # Rust NIF bridge — no meaningful Elixir to cover
           ExRatatui.Native,
+          # attach/3 blocks the caller and requires Erlang distribution;
+          # exercise with: elixir --sname test -S mix test --include distributed
           ExRatatui.Distributed,
+          # test-only modules loaded on :peer nodes for integration tests
           ExRatatui.Test.PeerApp,
           ExRatatui.Test.PeerHelper
         ]

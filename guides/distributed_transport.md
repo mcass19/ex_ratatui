@@ -227,6 +227,6 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
 
   * `ExRatatui.Distributed` — main API module with `attach/3`
   * `ExRatatui.Distributed.Listener` — supervisor for per-attach sessions
-  * Distributed.Client — local rendering proxy (internal, not public API)
+  * `Distributed.Client` — local rendering proxy (internal, not public API)
   * `ExRatatui.App` — transport-aware app behaviour
   * [Running TUIs over SSH](ssh_transport.md) — alternative remote transport
