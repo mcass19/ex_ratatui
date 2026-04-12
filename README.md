@@ -18,6 +18,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
 - **Built-in SSH transport** — serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
+- **Erlang distribution transport** — attach to a remote TUI over Erlang distribution with zero NIF on the app node
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - Headless test backend for CI-friendly rendering verification
@@ -31,7 +32,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `hello_world.exs` | `mix run examples/hello_world.exs` | Minimal paragraph display |
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
-| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH** — see below. |
+| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH and Erlang distribution** — see below. |
 | `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with tabs, table, scrollbar, line gauge, and more |
 | `chat_interface.exs` | `mix run examples/chat_interface.exs` | AI chat interface — markdown, textarea, throbber, popup, slash commands |
@@ -60,6 +61,21 @@ ssh demo@localhost -p 2222      # password: demo
 ```
 
 Every SSH client for `task_manager` gets its own isolated TUI session but they all read and write the same SQLite database — add a task in one window, see it appear in the others. See the [SSH transport guide](guides/ssh_transport.md) for how this all works.
+
+### Try an example over Erlang Distribution
+
+The `system_monitor.exs` example also supports a `--distributed` flag to serve the TUI over Erlang distribution — useful when the app node has no terminal (Nerves, containers, daemon releases).
+
+```sh
+# Terminal 1 — start the app node
+elixir --sname app --cookie demo -S mix run --no-halt examples/system_monitor.exs --distributed
+
+# Terminal 2 — attach from another node
+iex --sname laptop --cookie demo
+iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
+```
+
+See the [distribution transport guide](guides/distributed_transport.md) for how this all works.
 
 
 ## Built with ExRatatui
@@ -241,6 +257,42 @@ ssh -t nerves.local -s Elixir.MyApp.TUI
 ```
 
 See [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example) for a complete Nerves firmware that wires two TUIs (a system monitor and an LED control app) into a `nerves_ssh` daemon and runs them on a Raspberry Pi.
+
+## Running over Erlang Distribution
+
+Any `ExRatatui.App` module can also be driven from a remote BEAM node over Erlang distribution. The app node runs all callbacks and sends widget lists as plain BEAM terms — no Rust NIF is needed on the app node. See the [Running TUIs over Erlang Distribution](guides/distributed_transport.md) guide for full details.
+
+On the app node, add the Listener to your supervision tree:
+
+```elixir
+children = [
+  {MyApp.TUI, transport: :distributed}
+]
+```
+
+From your laptop, connect and attach:
+
+```sh
+iex --sname laptop --cookie mycookie
+```
+
+```elixir
+iex> ExRatatui.Distributed.attach(:"app@hostname", MyApp.TUI)
+```
+
+The TUI takes over your terminal. Press the app's quit key to disconnect. Each attaching node gets its own isolated session — multiple laptops can attach concurrently.
+
+### Running All Three Transports
+
+The same app module can serve local, SSH, and distributed clients simultaneously:
+
+```elixir
+children = [
+  {MyApp.TUI, []},                                    # local TTY
+  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
+  {MyApp.TUI, transport: :distributed}                 # remote over distribution
+]
+```
 
 ## How It Works
 

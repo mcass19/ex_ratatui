@@ -28,13 +28,12 @@ defmodule ExRatatui.Distributed do
   ## How it works
 
   1. `attach/2` connects to the remote node if not already connected.
-  2. An RPC call spawns a `Server` in `:distributed_server` mode on
+  2. An RPC call spawns a Server in `:distributed_server` mode on
      the remote node — this process runs the app module and sends
      `{:ex_ratatui_draw, widgets}` messages over distribution.
-  3. A local `Distributed.Client` process takes over the laptop's
-     terminal, polls input events, and forwards them to the remote
-     server as `{:ex_ratatui_event, event}` / `{:ex_ratatui_resize,
-     w, h}`.
+  3. A local Client process takes over the laptop's terminal, polls
+     input events, and forwards them to the remote server as
+     `{:ex_ratatui_event, event}` / `{:ex_ratatui_resize, w, h}`.
   4. When either side disconnects, monitors fire, both processes
      clean up, and the terminal is restored.
 

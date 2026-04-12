@@ -92,6 +92,7 @@ defmodule ExRatatui.MixProject do
       extras: [
         "README.md": [title: "Overview"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
+        "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
       ],
@@ -106,6 +107,10 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Session,
           ExRatatui.SSH,
           ExRatatui.SSH.Daemon
+        ],
+        "Distribution Transport": [
+          ExRatatui.Distributed,
+          ExRatatui.Distributed.Listener
         ],
         Layout: [
           ExRatatui.Frame,

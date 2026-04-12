@@ -4,9 +4,9 @@ defmodule ExRatatui.Distributed.Listener do
 
   When an `ExRatatui.App` is started with `transport: :distributed`,
   `dispatch_start/1` starts this supervisor instead of the usual
-  `ExRatatui.Server`. The Listener sits idle until a remote node calls
+  Server process. The Listener sits idle until a remote node calls
   `ExRatatui.Distributed.attach/2`, which triggers `start_session/4`
-  to spawn a `Server` in `:distributed_server` mode under the
+  to spawn a Server in `:distributed_server` mode under the
   Listener's `DynamicSupervisor`.
 
   ## Usage
