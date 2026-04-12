@@ -2,8 +2,8 @@ defmodule ExRatatui.Distributed.ListenerTest do
   use ExUnit.Case, async: true
 
   alias ExRatatui.Distributed.Listener
-  alias ExRatatui.Widgets.Paragraph
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Widgets.Paragraph
 
   defmodule ListenerApp do
     use ExRatatui.App

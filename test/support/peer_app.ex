@@ -14,8 +14,8 @@ defmodule ExRatatui.Test.PeerApp do
 
   @impl true
   def render(state, frame) do
-    alias ExRatatui.Widgets.Paragraph
     alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
 
     widget = %Paragraph{text: "count: #{state.count}"}
     rect = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}

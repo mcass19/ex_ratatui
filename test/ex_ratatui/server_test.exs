@@ -805,8 +805,8 @@ defmodule ExRatatui.ServerTest do
   end
 
   describe "Distributed server transport" do
-    alias ExRatatui.Widgets.Paragraph
     alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
 
     defmodule DistApp do
       use ExRatatui.App

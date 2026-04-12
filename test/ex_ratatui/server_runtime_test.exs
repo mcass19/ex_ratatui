@@ -96,8 +96,38 @@ defmodule ExRatatui.ServerRuntimeTest do
       {:noreply, state, commands: [Command.async(fn -> throw(:boom) end, &{:async_result, &1})]}
     end
 
+    def update({:info, :start_async_mapper_raise}, state) do
+      {:noreply, state,
+       commands: [Command.async(fn -> :ok end, fn _result -> raise "mapper boom" end)]}
+    end
+
+    def update({:info, :start_async_mapper_exit}, state) do
+      {:noreply, state,
+       commands: [Command.async(fn -> :ok end, fn _result -> exit(:mapper_boom) end)]}
+    end
+
+    def update({:info, :start_async_mapper_throw}, state) do
+      {:noreply, state,
+       commands: [Command.async(fn -> :ok end, fn _result -> throw(:mapper_boom) end)]}
+    end
+
     def update({:info, {:async_result, result}}, state) do
       send(state.test_pid, {:async_result, result})
+      {:noreply, state}
+    end
+
+    def update({:info, {:error, {:mapper_exception, reason}}}, state) do
+      send(state.test_pid, {:async_mapper_error, reason})
+      {:noreply, state}
+    end
+
+    def update({:info, {:error, {:mapper_exit, reason}}}, state) do
+      send(state.test_pid, {:async_mapper_exit, reason})
+      {:noreply, state}
+    end
+
+    def update({:info, {:error, {:mapper_catch, {kind, reason}}}}, state) do
+      send(state.test_pid, {:async_mapper_catch, kind, reason})
       {:noreply, state}
     end
 
@@ -394,6 +424,31 @@ defmodule ExRatatui.ServerRuntimeTest do
     GenServer.stop(pid)
   end
 
+  test "async mapper failures are normalized and active_async_commands decrements" do
+    {:ok, pid} =
+      ReducerControlApp.start_link(
+        name: nil,
+        scenario: :default,
+        test_pid: self(),
+        test_mode: {40, 10}
+      )
+
+    assert_receive {:rendered, :default, _frame}, 1000
+
+    send(pid, :start_async_mapper_raise)
+    assert_receive {:async_mapper_error, "mapper boom"}, 1000
+
+    send(pid, :start_async_mapper_exit)
+    assert_receive {:async_mapper_exit, :mapper_boom}, 1000
+
+    send(pid, :start_async_mapper_throw)
+    assert_receive {:async_mapper_catch, :throw, :mapper_boom}, 1000
+
+    assert Runtime.snapshot(pid).active_async_commands == 0
+
+    GenServer.stop(pid)
+  end
+
   defp build_server_state(mod, user_state, attrs \\ []) do
     struct(
       Server,
@@ -401,7 +456,7 @@ defmodule ExRatatui.ServerRuntimeTest do
         [
           mod: mod,
           user_state: user_state,
-          runtime_mode: if(function_exported?(mod, :update, 2), do: :reducer, else: :callbacks),
+          runtime_mode: mod.__runtime__(),
           test_mode: {40, 10},
           terminal_ref: make_ref(),
           terminal_initialized: true

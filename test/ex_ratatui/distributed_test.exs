@@ -1,7 +1,7 @@
 defmodule ExRatatui.DistributedTest do
   use ExUnit.Case, async: true
 
-  alias ExRatatui.Distributed
+  alias ExRatatui.{Distributed, Distributed.Listener}
 
   describe "ensure_connected/1" do
     test "returns error when trying to attach to self" do
@@ -42,7 +42,7 @@ defmodule ExRatatui.DistributedTest do
       assert {:error, {:rpc_failed, _reason}} =
                Distributed.start_remote_session(
                  :nonexistent@nowhere,
-                 ExRatatui.Distributed.Listener,
+                 Listener,
                  self(),
                  80,
                  24
@@ -87,13 +87,13 @@ defmodule ExRatatui.DistributedTest do
       # Simulate an RPC that returns {:error, reason} by calling directly
       # on a Listener with a failing mount app
       {:ok, listener} =
-        ExRatatui.Distributed.Listener.start_link(
+        Listener.start_link(
           mod: FailingMountApp,
           name: nil
         )
 
       result =
-        ExRatatui.Distributed.Listener.start_session(self(), 80, 24, listener)
+        Listener.start_session(self(), 80, 24, listener)
 
       assert {:error, _reason} = result
 

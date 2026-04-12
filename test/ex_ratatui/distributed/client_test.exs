@@ -3,8 +3,8 @@ defmodule ExRatatui.Distributed.ClientTest do
 
   alias ExRatatui.Distributed.Client
   alias ExRatatui.Event
-  alias ExRatatui.Widgets.Paragraph
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Widgets.Paragraph
 
   describe "start_link/1" do
     test "starts and polls for events" do

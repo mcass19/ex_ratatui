@@ -5,8 +5,8 @@ defmodule ExRatatui.Distributed.IntegrationTest do
 
   alias ExRatatui.Distributed
   alias ExRatatui.Distributed.Listener
-  alias ExRatatui.Widgets.Paragraph
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Widgets.Paragraph
 
   @peer_app ExRatatui.Test.PeerApp
 

@@ -119,6 +119,7 @@ defmodule ExRatatui.App do
   @type state :: term()
   @type callback_opts :: keyword()
 
+  alias ExRatatui.Distributed.Listener
   alias ExRatatui.SSH.Daemon
 
   @doc """
@@ -300,7 +301,7 @@ defmodule ExRatatui.App do
         Daemon.start_link(opts)
 
       :distributed ->
-        ExRatatui.Distributed.Listener.start_link(opts)
+        Listener.start_link(opts)
     end
   end
 end
