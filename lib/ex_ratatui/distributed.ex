@@ -28,13 +28,15 @@ defmodule ExRatatui.Distributed do
   ## How it works
 
   1. `attach/2` connects to the remote node if not already connected.
-  2. An RPC call spawns a Server in `:distributed_server` mode on
-     the remote node — this process runs the app module and sends
-     `{:ex_ratatui_draw, widgets}` messages over distribution.
-  3. A local Client process takes over the laptop's terminal, polls
-     input events, and forwards them to the remote server as
-     `{:ex_ratatui_event, event}` / `{:ex_ratatui_resize, w, h}`.
-  4. When either side disconnects, monitors fire, both processes
+  2. A local Client process initializes the terminal.
+  3. An RPC call spawns a Server in `:distributed_server` mode on
+     the remote node, pointing at the Client's pid — this process
+     runs the app module and sends `{:ex_ratatui_draw, widgets}`
+     messages directly to the Client over distribution.
+  4. The Client starts monitoring the remote Server and polling
+     input events, forwarding them as `{:ex_ratatui_event, event}`
+     / `{:ex_ratatui_resize, w, h}`.
+  5. When either side disconnects, monitors fire, both processes
      clean up, and the terminal is restored.
 
   ## Authentication
@@ -69,12 +71,21 @@ defmodule ExRatatui.Distributed do
 
     with :ok <- ensure_connected(node),
          {:ok, width, height} <- resolve_local_size(opts),
-         {:ok, remote_pid} <- start_remote_session(node, listener, width, height),
-         {:ok, client_pid} <- start_local_client(remote_pid, opts) do
-      ref = Process.monitor(client_pid)
+         {:ok, client_pid} <- start_local_client(opts) do
+      # Start the remote session pointing at the Client GenServer
+      # (not self()), so draws go directly to the rendering process.
+      case start_remote_session(node, listener, client_pid, width, height) do
+        {:ok, remote_pid} ->
+          Client.connect_remote(client_pid, remote_pid)
+          ref = Process.monitor(client_pid)
 
-      receive do
-        {:DOWN, ^ref, :process, ^client_pid, _reason} -> :ok
+          receive do
+            {:DOWN, ^ref, :process, ^client_pid, _reason} -> :ok
+          end
+
+        {:error, reason} ->
+          GenServer.stop(client_pid)
+          {:error, reason}
       end
     end
   end
@@ -107,8 +118,8 @@ defmodule ExRatatui.Distributed do
   end
 
   @doc false
-  def start_remote_session(node, listener, width, height) do
-    case :rpc.call(node, Listener, :start_session, [self(), width, height, listener]) do
+  def start_remote_session(node, listener, client_pid, width, height) do
+    case :rpc.call(node, Listener, :start_session, [client_pid, width, height, listener]) do
       {:ok, pid} -> {:ok, pid}
       {:error, reason} -> {:error, {:remote_session_failed, reason}}
       {:badrpc, reason} -> {:error, {:rpc_failed, reason}}
@@ -116,11 +127,8 @@ defmodule ExRatatui.Distributed do
   end
 
   @doc false
-  def start_local_client(remote_pid, opts) do
-    client_opts =
-      [remote_pid: remote_pid]
-      |> Keyword.merge(Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal]))
-
+  def start_local_client(opts) do
+    client_opts = Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal])
     Client.start_link(client_opts)
   end
 end

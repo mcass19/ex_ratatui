@@ -147,12 +147,12 @@ defmodule ExRatatui.Distributed.IntegrationTest do
     end
   end
 
-  describe "Distributed.start_remote_session/4" do
+  describe "Distributed.start_remote_session/5" do
     test "starts a remote session via RPC", %{peer_node: peer_node} do
       {:ok, listener} = start_peer_listener(peer_node, app_opts: [test_pid: self()])
 
       {:ok, remote_pid} =
-        Distributed.start_remote_session(peer_node, listener, 80, 24)
+        Distributed.start_remote_session(peer_node, listener, self(), 80, 24)
 
       assert is_pid(remote_pid)
       assert node(remote_pid) == peer_node
@@ -165,7 +165,13 @@ defmodule ExRatatui.Distributed.IntegrationTest do
 
     test "returns error when listener is not running", %{peer_node: peer_node} do
       assert {:error, {:rpc_failed, _}} =
-               Distributed.start_remote_session(peer_node, :nonexistent_listener, 80, 24)
+               Distributed.start_remote_session(
+                 peer_node,
+                 :nonexistent_listener,
+                 self(),
+                 80,
+                 24
+               )
     end
   end
 

@@ -22,18 +22,49 @@ defmodule ExRatatui.Distributed.ClientTest do
       Process.exit(remote, :kill)
     end
 
+    test "starts without remote_pid and defers polling" do
+      {:ok, pid} = Client.start_link(test_mode: {80, 24})
+
+      assert Process.alive?(pid)
+      state = :sys.get_state(pid)
+      assert state.remote_pid == nil
+
+      GenServer.stop(pid)
+    end
+
     test "stops when terminal init fails" do
       Process.flag(:trap_exit, true)
 
+      assert {:error, {:terminal_init_failed, :no_tty}} =
+               Client.start_link(init_terminal: fn _test_mode -> {:error, :no_tty} end)
+    end
+  end
+
+  describe "connect_remote/2" do
+    test "sets remote pid and starts polling" do
       remote = spawn(fn -> Process.sleep(:infinity) end)
 
-      assert {:error, {:terminal_init_failed, :no_tty}} =
-               Client.start_link(
-                 remote_pid: remote,
-                 init_terminal: fn _test_mode -> {:error, :no_tty} end
-               )
+      {:ok, pid} = Client.start_link(test_mode: {80, 24})
 
+      assert :ok = Client.connect_remote(pid, remote)
+
+      state = :sys.get_state(pid)
+      assert state.remote_pid == remote
+
+      GenServer.stop(pid)
       Process.exit(remote, :kill)
+    end
+
+    test "monitors the remote process after connect" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+
+      {:ok, pid} = Client.start_link(test_mode: {80, 24})
+      Client.connect_remote(pid, remote)
+
+      ref = Process.monitor(pid)
+      Process.exit(remote, :kill)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
     end
   end
 

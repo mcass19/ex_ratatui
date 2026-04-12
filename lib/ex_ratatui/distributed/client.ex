@@ -12,6 +12,14 @@ defmodule ExRatatui.Distributed.Client do
   # This is NOT an ExRatatui.App — it has no mount/render/handle_event
   # callbacks. It is a dedicated proxy process that bridges the local
   # terminal to a remote distributed_server.
+  #
+  # Startup is two-phase:
+  #   1. start_link/1 initializes the terminal (no remote pid yet).
+  #   2. connect_remote/2 sets the remote pid, starts monitoring it,
+  #      and begins polling for input events.
+  #
+  # This split lets attach/3 pass the Client's pid to the remote
+  # Server so draws go directly to the rendering process.
 
   use GenServer
 
@@ -33,17 +41,20 @@ defmodule ExRatatui.Distributed.Client do
     GenServer.start_link(__MODULE__, opts)
   end
 
+  @doc false
+  def connect_remote(client, remote_pid) do
+    GenServer.call(client, {:connect_remote, remote_pid})
+  end
+
   ## GenServer callbacks
 
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
 
-    remote_pid = Keyword.fetch!(opts, :remote_pid)
+    remote_pid = Keyword.get(opts, :remote_pid)
     poll_interval = Keyword.get(opts, :poll_interval, 16)
     test_mode = Keyword.get(opts, :test_mode)
-
-    Process.monitor(remote_pid)
 
     init_fn = Keyword.get(opts, :init_terminal, &default_init_terminal/1)
 
@@ -60,9 +71,20 @@ defmodule ExRatatui.Distributed.Client do
           terminal_initialized: true
         }
 
-        send(self(), :poll)
+        if remote_pid do
+          Process.monitor(remote_pid)
+          send(self(), :poll)
+        end
+
         {:ok, state}
     end
+  end
+
+  @impl true
+  def handle_call({:connect_remote, remote_pid}, _from, state) do
+    Process.monitor(remote_pid)
+    send(self(), :poll)
+    {:reply, :ok, %{state | remote_pid: remote_pid}}
   end
 
   @impl true

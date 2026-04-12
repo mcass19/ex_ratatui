@@ -37,42 +37,37 @@ defmodule ExRatatui.DistributedTest do
     end
   end
 
-  describe "start_remote_session/4" do
+  describe "start_remote_session/5" do
     test "returns rpc_failed for unreachable node" do
       assert {:error, {:rpc_failed, _reason}} =
                Distributed.start_remote_session(
                  :nonexistent@nowhere,
                  ExRatatui.Distributed.Listener,
+                 self(),
                  80,
                  24
                )
     end
   end
 
-  describe "start_local_client/2" do
-    test "starts a Client process with the given remote_pid" do
-      remote = spawn(fn -> Process.sleep(:infinity) end)
-
+  describe "start_local_client/1" do
+    test "starts a Client process" do
       {:ok, pid} =
-        Distributed.start_local_client(remote, test_mode: {80, 24})
+        Distributed.start_local_client(test_mode: {80, 24})
 
       assert Process.alive?(pid)
 
       GenServer.stop(pid)
-      Process.exit(remote, :kill)
     end
 
     test "forwards poll_interval option" do
-      remote = spawn(fn -> Process.sleep(:infinity) end)
-
       {:ok, pid} =
-        Distributed.start_local_client(remote, test_mode: {80, 24}, poll_interval: 32)
+        Distributed.start_local_client(test_mode: {80, 24}, poll_interval: 32)
 
       state = :sys.get_state(pid)
       assert state.poll_interval == 32
 
       GenServer.stop(pid)
-      Process.exit(remote, :kill)
     end
   end
 
