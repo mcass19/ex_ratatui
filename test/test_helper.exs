@@ -1,1 +1,1 @@
-ExUnit.start(exclude: [:distributed])
+ExUnit.start(exclude: [:distributed, :slow])

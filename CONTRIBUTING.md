@@ -44,6 +44,18 @@ mix test --cover
 cargo test --manifest-path native/ex_ratatui/Cargo.toml
 ```
 
+The default `mix test` run excludes tests tagged `:distributed` and `:slow`.
+The `:slow` tag is reserved for heavyweight regression tests such as isolated
+parallel cold-compile checks that would otherwise dominate local test time.
+
+```sh
+# Run only slow tests
+mix test --only slow
+
+# Include slow tests alongside the default suite
+mix test --include slow
+```
+
 ### Distribution integration tests
 
 Full cross-node integration tests for the Erlang distribution transport are tagged `:distributed` and **excluded by default** (they require the test node to be distributed). To run them:

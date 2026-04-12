@@ -455,9 +455,18 @@ defmodule ExRatatui.ServerTest do
       assert {80, 24} = ExRatatui.Server.resolve_terminal_size({80, 24})
     end
 
-    test "resolves when nil (falls back to terminal_size or default)" do
+    test "uses the default resolver when dimensions are not explicit" do
       {w, h} = ExRatatui.Server.resolve_terminal_size(nil)
       assert is_integer(w) and is_integer(h)
+    end
+
+    test "uses the injected resolver when dimensions are not explicit" do
+      assert {145, 30} = ExRatatui.Server.resolve_terminal_size(nil, fn -> {145, 30} end)
+    end
+
+    test "falls back to 80x24 when the injected resolver errors" do
+      assert {80, 24} =
+               ExRatatui.Server.resolve_terminal_size(nil, fn -> {:error, "no tty"} end)
     end
   end
 
@@ -482,7 +491,8 @@ defmodule ExRatatui.ServerTest do
                ExRatatui.Server.continue_init(make_ref(),
                  mod: TestApp,
                  name: nil,
-                 test_pid: self()
+                 test_pid: self(),
+                 terminal_size_fn: fn -> {80, 24} end
                )
 
       assert state.polling_enabled?
@@ -599,6 +609,7 @@ defmodule ExRatatui.ServerTest do
           user_state: user_state,
           test_mode: {80, 24},
           terminal_ref: make_ref(),
+          terminal_size_fn: fn -> {80, 24} end,
           terminal_initialized: true
         ],
         attrs

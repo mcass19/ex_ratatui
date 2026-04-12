@@ -16,6 +16,7 @@ defmodule ExRatatui.Server do
     :user_state,
     :test_mode,
     :terminal_ref,
+    :terminal_size_fn,
     :session,
     :writer_fn,
     :client_pid,
@@ -77,6 +78,9 @@ defmodule ExRatatui.Server do
     mod = Keyword.fetch!(opts, :mod)
     poll_interval = Keyword.get(opts, :poll_interval, 16)
     test_mode = Keyword.get(opts, :test_mode)
+    # Internal test seam for deterministic live-mode renders without
+    # changing production terminal-size behavior.
+    terminal_size_fn = Keyword.get(opts, :terminal_size_fn, &ExRatatui.terminal_size/0)
 
     case normalize_mount_result(mod.mount(opts)) do
       {:ok, user_state, runtime_opts} ->
@@ -87,6 +91,7 @@ defmodule ExRatatui.Server do
           polling_enabled?: local_polling_enabled?(test_mode),
           test_mode: test_mode,
           terminal_ref: terminal_ref,
+          terminal_size_fn: terminal_size_fn,
           terminal_initialized: true,
           runtime_mode: runtime_mode(mod)
         }
@@ -352,10 +357,12 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
-  def resolve_terminal_size({w, h}), do: {w, h}
+  def resolve_terminal_size(test_mode, terminal_size_fn \\ &ExRatatui.terminal_size/0)
 
-  def resolve_terminal_size(nil) do
-    ExRatatui.terminal_size() |> normalize_size_result()
+  def resolve_terminal_size({w, h}, _terminal_size_fn), do: {w, h}
+
+  def resolve_terminal_size(nil, terminal_size_fn) when is_function(terminal_size_fn, 0) do
+    terminal_size_fn.() |> normalize_size_result()
   end
 
   @doc false
@@ -401,7 +408,10 @@ defmodule ExRatatui.Server do
 
   defp current_size(%__MODULE__{transport: :ssh, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :distributed_server, width: w, height: h}), do: {w, h}
-  defp current_size(%__MODULE__{transport: :local, test_mode: tm}), do: resolve_terminal_size(tm)
+
+  defp current_size(%__MODULE__{transport: :local, test_mode: tm, terminal_size_fn: size_fn}) do
+    resolve_terminal_size(tm, size_fn || (&ExRatatui.terminal_size/0))
+  end
 
   defp draw_widgets(_state, []), do: :ok
 

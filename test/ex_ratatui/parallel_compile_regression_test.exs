@@ -1,6 +1,7 @@
 defmodule ExRatatui.ParallelCompileRegressionTest do
   use ExUnit.Case, async: false
 
+  @tag :slow
   @tag timeout: 300_000
   test "isolated cold compiles do not crash compiler VMs in parallel" do
     repo_root = Path.expand("../..", __DIR__)

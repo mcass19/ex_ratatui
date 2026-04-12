@@ -276,6 +276,7 @@ defmodule ExRatatui.SSH.Daemon do
   end
 
   defp generate_rsa_host_key!(path) do
+    File.mkdir_p!(Path.dirname(path))
     private_key = :public_key.generate_key({:rsa, 2048, 65_537})
     pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, private_key)
     pem = :public_key.pem_encode([pem_entry])

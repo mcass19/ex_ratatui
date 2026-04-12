@@ -30,6 +30,42 @@ defmodule ExRatatui.SSH.DaemonTest do
     end
   end
 
+  defp temp_otp_app_fixture(tmp_dir) do
+    unique = System.unique_integer([:positive])
+    app = String.to_atom("ex_ratatui_daemon_test_app_#{unique}")
+    mod = String.to_atom("Elixir.ExRatatui.SSH.DaemonTest.TempApp#{unique}")
+    root = Path.join(tmp_dir, Atom.to_string(app))
+    ebin = Path.join(root, "ebin")
+    ssh_dir = Path.join(root, "priv/ssh")
+
+    File.mkdir_p!(ebin)
+
+    app_spec = {:application, app, [vsn: ~c"0.1.0", modules: [mod]]}
+    app_file = Path.join(ebin, "#{app}.app")
+    app_contents = :io_lib.format(~c"~tp.~n", [app_spec]) |> IO.iodata_to_binary()
+    File.write!(app_file, app_contents)
+
+    true = :code.add_pathz(String.to_charlist(ebin))
+
+    Module.create(
+      mod,
+      quote do
+        def ping, do: :pong
+      end,
+      Macro.Env.location(__ENV__)
+    )
+
+    :ok = Application.load(app)
+
+    %{
+      app: app,
+      mod: mod,
+      ebin: ebin,
+      root: root,
+      ssh_dir: ssh_dir
+    }
+  end
+
   describe "start_link/1" do
     test "starts the GenServer and invokes daemon_starter" do
       {:ok, pid} =
@@ -358,25 +394,23 @@ defmodule ExRatatui.SSH.DaemonTest do
   end
 
   describe "ensure_app_host_key!/1 + resolve_host_key_opts/2 happy path" do
+    @describetag :tmp_dir
     @describetag capture_log: true
 
-    setup do
-      # `:code.priv_dir/1` returns `_build/<env>/lib/ex_ratatui/priv`
-      # under mix test, which is gitignored — we can scribble there
-      # safely. Clean up after each test so the next run starts fresh.
-      ssh_dir = :ex_ratatui |> :code.priv_dir() |> to_string() |> Path.join("ssh")
-      File.rm_rf!(ssh_dir)
-      on_exit(fn -> File.rm_rf!(ssh_dir) end)
+    setup %{tmp_dir: tmp_dir} do
+      fixture = temp_otp_app_fixture(tmp_dir)
 
-      {:ok, ssh_dir: ssh_dir}
+      on_exit(fn ->
+        _ = Application.unload(fixture.app)
+        _ = :code.del_path(String.to_charlist(fixture.ebin))
+      end)
+
+      {:ok, mod: fixture.mod, ssh_dir: fixture.ssh_dir}
     end
 
     test "ensure_app_host_key!/1 resolves OTP app and generates a key under its priv/ssh",
-         %{ssh_dir: ssh_dir} do
-      # `ExRatatui` is a real loaded module belonging to the :ex_ratatui
-      # application, so `Application.get_application/1` returns the app
-      # and the helper writes to its priv dir.
-      result = Daemon.ensure_app_host_key!(ExRatatui)
+         %{mod: mod, ssh_dir: ssh_dir} do
+      result = Daemon.ensure_app_host_key!(mod)
 
       assert is_list(result)
       assert to_string(result) == ssh_dir
@@ -384,8 +418,8 @@ defmodule ExRatatui.SSH.DaemonTest do
     end
 
     test "resolve_host_key_opts/2 injects :system_dir when :auto_host_key is true",
-         %{ssh_dir: ssh_dir} do
-      result = Daemon.resolve_host_key_opts([auto_host_key: true], ExRatatui)
+         %{mod: mod, ssh_dir: ssh_dir} do
+      result = Daemon.resolve_host_key_opts([auto_host_key: true], mod)
 
       assert result[:system_dir] == String.to_charlist(ssh_dir)
       refute Keyword.has_key?(result, :auto_host_key)
@@ -399,28 +433,26 @@ defmodule ExRatatui.SSH.DaemonTest do
     test "init/1 generates a host key, sets system_dir, and starts the daemon", %{
       tmp_dir: tmp_dir
     } do
-      # Stub the priv-dir resolution by passing a pre-prepared system_dir
-      # via the lower-level helper, then exercising the full init path
-      # with that path baked in. We can't easily fake :code.priv_dir/1
-      # for SampleApp, so this test asserts the integration through
-      # ensure_host_key!/1 and verifies the GenServer is happy when the
-      # daemon_opts include the resolved system_dir.
-      dir = Path.join(tmp_dir, "auto-ssh")
-      system_dir = Daemon.ensure_host_key!(dir)
+      fixture = temp_otp_app_fixture(tmp_dir)
+
+      on_exit(fn ->
+        _ = Application.unload(fixture.app)
+        _ = :code.del_path(String.to_charlist(fixture.ebin))
+      end)
 
       {:ok, pid} =
         Daemon.start_link(
-          mod: SampleApp,
+          mod: fixture.mod,
           name: nil,
           port: 0,
-          system_dir: system_dir,
+          auto_host_key: true,
           daemon_starter: fake_starter(self()),
           daemon_stopper: fake_stopper(self())
         )
 
       assert_receive {:fake_started, 0, daemon_opts}, 1000
-      assert daemon_opts[:system_dir] == system_dir
-      assert File.exists?(Path.join(dir, "ssh_host_rsa_key"))
+      assert daemon_opts[:system_dir] == String.to_charlist(fixture.ssh_dir)
+      assert File.exists?(Path.join(fixture.ssh_dir, "ssh_host_rsa_key"))
 
       GenServer.stop(pid)
     end
