@@ -4,7 +4,7 @@ ExRatatui ships with a distribution-attach transport that lets any `ExRatatui.Ap
 
 This is the mode you want when:
 
-  * You're running on a BEAM node that has no terminal (Nerves, a container, a release running as a daemon) and want to drive a TUI from your laptop.
+  * You're running on a BEAM node that has no terminal (Nerves, a container, a release running as a daemon) and want to drive a TUI from your local.
   * You already have Erlang distribution set up (cookies, `epmd`, `--sname`) and don't want to manage SSH keys or ports.
   * You want zero Rust NIF involvement on the app node — widget structs travel as BEAM terms and the client renders them with its own local NIF.
 
@@ -12,10 +12,10 @@ This is the mode you want when:
 
 ```
        ┌──────────────┐                  ┌────────────────────────────┐
-       │  laptop      │   Erlang dist    │  app node                  │
+       │  local node  │   Erlang dist    │  app node                  │
        │              │ ◀═══════════════▶│                            │
        │  Client      │  {:ex_ratatui_   │  Listener                  │
-       │  ├─ terminal  │   draw, widgets} │   └─ DynamicSupervisor     │
+       │  ├─ terminal │   draw, widgets} │   └─ DynamicSupervisor     │
        │  └─ poll     │                  │       └─ Server            │
        │     events   │ {:ex_ratatui_    │           └─ your App mod  │
        │              │  event, event}   │                            │
@@ -53,10 +53,10 @@ children = [
 iex --sname app --cookie mycookie -S mix
 ```
 
-### 3. Attach from your laptop
+### 3. Attach from your local
 
 ```sh
-iex --sname laptop --cookie mycookie
+iex --sname mynode --cookie mycookie -S mix
 ```
 
 ```elixir
@@ -72,7 +72,7 @@ The TUI takes over your terminal. Press the app's quit key (or Ctrl-C twice) to 
 elixir --sname app --cookie demo -S mix run --no-halt examples/system_monitor.exs --distributed
 
 # Terminal 2 — attach from another node
-iex --sname laptop --cookie demo
+iex --sname mynode --cookie demo -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
@@ -80,7 +80,7 @@ iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 
 1. `attach/2` calls `Node.connect/1` to reach the app node (if not already connected).
 2. An RPC call spawns a `Server` in `:distributed_server` mode on the app node. This process runs your app module and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
-3. A local `Distributed.Client` process takes over the laptop's terminal, polls input events, and forwards them to the remote server.
+3. A local `Distributed.Client` process takes over the node's terminal, polls input events, and forwards them to the remote server.
 4. When either side disconnects, monitors fire, both processes clean up, and the terminal is restored.
 
 ### Wire Protocol
@@ -197,12 +197,12 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
   * **No incremental updates.** Every render sends the complete widget list. For complex UIs with many widgets, this is more data than the SSH transport (which sends only changed terminal cells). In practice, BEAM term serialization is fast and this is rarely a bottleneck over a local network.
   * **No reconnect.** If the connection drops, the session is gone. There's no server-side state preservation or reattach (like the SSH transport, this is `tmux`-style, not `screen`-style).
   * **Cookie-only auth.** There's no per-user authentication layer — anyone who can `Node.connect/1` can attach. If you need user-level access control, use the SSH transport instead.
-  * **Single-node rendering.** The Client must have the ExRatatui NIF loaded to render widgets. Cross-architecture distribution (e.g. x86 laptop attaching to an ARM Nerves device) works because only the client node needs the NIF compiled for its architecture.
+  * **Single-node rendering.** The Client must have the ExRatatui NIF loaded to render widgets. Cross-architecture distribution (e.g. x86 pc attaching to an ARM Nerves device) works because only the client node needs the NIF compiled for its architecture.
 
 ## Troubleshooting
 
 **"distribution_not_started"**
-: The attaching node isn't distributed. Start it with `--sname` or `--name`: `iex --sname laptop -S mix`.
+: The attaching node isn't distributed. Start it with `--sname` or `--name`: `iex --sname mynode -S mix`.
 
 **"connect_failed"**
 : `Node.connect/1` returned `false`. Check that:

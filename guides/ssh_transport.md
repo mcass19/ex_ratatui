@@ -4,7 +4,7 @@ ExRatatui ships with a built-in SSH transport that lets any `ExRatatui.App` modu
 
 This is the mode you want when:
 
-  * You're running on a headless box (Nerves device, container, remote host) and want to drive a TUI from your laptop.
+  * You're running on a headless box (Nerves device, container, remote host) and want to drive a TUI from your local.
   * You want multiple people to attach to the same daemon, each with their own independent session.
   * You're wrapping an existing `nerves_ssh` daemon and just want one more subsystem for your TUI.
 
@@ -271,6 +271,36 @@ end
 
 This is how you share infrastructure (PubSub topics, Ecto repos, feature toggles) across every SSH-attached session without globals.
 
+## Running Multiple Transports
+
+The same app module can be supervised under multiple transports simultaneously:
+
+```elixir
+children = [
+  {MyApp.TUI, []},                                    # local TTY
+  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
+  {MyApp.TUI, transport: :distributed}                 # remote over distribution
+]
+```
+
+Each transport gets its own supervisor/process tree. `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic — the only difference is the `:transport` key in `mount/1` opts (`:local`, `:ssh`, or `:distributed`).
+
+## Testing
+
+### Unit Tests
+
+The SSH channel, daemon, and server's SSH mode are all unit-tested without standing up a real SSH daemon. Fakes replace `:ssh_connection` so the tests run with standard `mix test`:
+
+```sh
+mix test
+```
+
+### Integration Tests
+
+Full end-to-end integration tests stand up a live `:ssh.daemon/2`, connect to it with `:ssh.connect/3`, open a real PTY session channel, and assert the full roundtrip: mount, render bytes over the channel, keyboard input back to `handle_event/2`, and clean shutdown. These tests generate a throwaway host key per test into `tmp_dir` and listen on port 0, so they run in parallel with everything else and require no host-wide SSH config.
+
+The integration tests run as part of the default `mix test` — no special flags needed.
+
 ## Known Limitations
 
   * **One channel per session.** We don't support SSH port forwarding or multiple channels on a single connection. If you need that, run a second daemon instance on a different port.
@@ -302,3 +332,4 @@ This is how you share infrastructure (PubSub topics, Ecto repos, feature toggles
   * `ExRatatui.SSH.Daemon` — daemon GenServer
   * `ExRatatui.Session` — in-memory per-client terminal
   * `ExRatatui.App` — transport-aware app behaviour
+  * [Running TUIs over Erlang Distribution](distributed_transport.md) — alternative remote transport

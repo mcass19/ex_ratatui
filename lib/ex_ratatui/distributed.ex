@@ -2,7 +2,7 @@ defmodule ExRatatui.Distributed do
   @moduledoc """
   Distribution-attach transport for `ExRatatui.App`.
 
-  Lets a laptop (or any connected BEAM node) attach to a TUI running
+  Lets any connected BEAM node attach to a TUI running
   on a remote node. The remote node runs the app's `mount/render/
   handle_event` callbacks and sends widget lists as BEAM terms over
   Erlang distribution. The local node renders those widgets on its own
@@ -17,9 +17,9 @@ defmodule ExRatatui.Distributed do
         {MyApp.TUI, transport: :distributed}
       ]
 
-  On your laptop, connect and attach:
+  On your local, connect and attach:
 
-      iex --sname laptop --cookie mycookie
+      iex --sname mynode --cookie mycookie -S mix
       iex> ExRatatui.Distributed.attach(:"app@nerves.local", MyApp.TUI)
 
   The TUI takes over your terminal. Press the app's quit key (or

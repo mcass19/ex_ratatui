@@ -71,7 +71,7 @@ The `system_monitor.exs` example also supports a `--distributed` flag to serve t
 elixir --sname app --cookie demo -S mix run --no-halt examples/system_monitor.exs --distributed
 
 # Terminal 2 — attach from another node
-iex --sname laptop --cookie demo
+iex --sname local --cookie demo -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
@@ -270,17 +270,17 @@ children = [
 ]
 ```
 
-From your laptop, connect and attach:
+From your node, connect and attach:
 
 ```sh
-iex --sname laptop --cookie mycookie
+iex --sname mynode --cookie mycookie -S mix
 ```
 
 ```elixir
 iex> ExRatatui.Distributed.attach(:"app@hostname", MyApp.TUI)
 ```
 
-The TUI takes over your terminal. Press the app's quit key to disconnect. Each attaching node gets its own isolated session — multiple laptops can attach concurrently.
+The TUI takes over your terminal. Press the app's quit key to disconnect. Each attaching node gets its own isolated session — multiple nodes can attach concurrently.
 
 ### Running All Three Transports
 
