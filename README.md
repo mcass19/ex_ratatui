@@ -279,10 +279,12 @@ Reducer apps use one message path:
 
 Available building blocks:
 
+- `ExRatatui.Command.none/0`
 - `ExRatatui.Command.message/1`
 - `ExRatatui.Command.send_after/2`
 - `ExRatatui.Command.async/2`
 - `ExRatatui.Command.batch/1`
+- `ExRatatui.Subscription.none/0`
 - `ExRatatui.Subscription.interval/3`
 - `ExRatatui.Subscription.once/3`
 
@@ -306,7 +308,16 @@ trace_events = ExRatatui.Runtime.trace_events(pid)
 :ok = ExRatatui.Runtime.disable_trace(pid)
 ```
 
-The runtime snapshot includes render counts, active subscriptions, active async commands, and recent trace events.
+The runtime snapshot includes:
+
+- `mode`, `mod`, and `transport`
+- `dimensions` and `polling_enabled?` (`false` under `test_mode`)
+- `render_count` and `last_rendered_at`
+- `subscription_count` and `subscriptions`
+- `active_async_commands`
+- `trace_enabled?`, `trace_limit`, and `trace_events`
+
+`ExRatatui.Runtime.trace_events/1` is shorthand for `snapshot(pid).trace_events`.
 
 ## Running Over SSH
 
@@ -743,8 +754,16 @@ test "renders a paragraph" do
 end
 ```
 
-For supervised apps, use `ExRatatui.Runtime.inject_event/2` to drive input
-deterministically under `test_mode`.
+For supervised apps started under `test_mode`, use
+`ExRatatui.Runtime.inject_event/2` to drive input deterministically:
+
+```elixir
+{:ok, pid} = MyApp.TUI.start_link(name: nil, test_mode: {40, 10})
+
+event = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
+
+:ok = ExRatatui.Runtime.inject_event(pid, event)
+```
 
 ## Contributing
 

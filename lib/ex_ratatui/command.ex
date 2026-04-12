@@ -29,22 +29,46 @@ defmodule ExRatatui.Command do
           | %__MODULE__{kind: :async, fun: async_fun(), mapper: async_mapper()}
           | %__MODULE__{kind: :batch, commands: [t()]}
 
+  @doc """
+  Returns an empty command list.
+
+  Useful when reducer helpers want to return an explicit "no commands" value.
+  """
   @spec none() :: []
   def none, do: []
 
+  @doc """
+  Schedules an immediate self-message for the app process.
+  """
   @spec message(term()) :: t()
   def message(message), do: %__MODULE__{kind: :message, message: message}
 
+  @doc """
+  Schedules a delayed self-message for the app process.
+
+  `delay_ms` may be `0` to enqueue the message on the next turn without waiting.
+  """
   @spec send_after(non_neg_integer(), term()) :: t()
   def send_after(delay_ms, message) when is_integer(delay_ms) and delay_ms >= 0 do
     %__MODULE__{kind: :after, delay_ms: delay_ms, message: message}
   end
 
+  @doc """
+  Runs `fun` in the background and maps its result back into an app message.
+
+  On success, the mapper receives the function's return value directly. If the
+  function raises or exits, the mapper receives `{:error, reason}`.
+  """
   @spec async(async_fun(), async_mapper()) :: t()
   def async(fun, mapper) when is_function(fun, 0) and is_function(mapper, 1) do
     %__MODULE__{kind: :async, fun: fun, mapper: mapper}
   end
 
+  @doc """
+  Groups multiple commands into a single return value.
+
+  Nested batches are flattened by the runtime before execution.
+  """
   @spec batch([t()]) :: t()
   def batch(commands) when is_list(commands), do: %__MODULE__{kind: :batch, commands: commands}
 

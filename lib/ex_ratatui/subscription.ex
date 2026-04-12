@@ -26,15 +26,33 @@ defmodule ExRatatui.Subscription do
           message: term()
         }
 
+  @doc """
+  Returns an empty subscription list.
+
+  Useful when `subscriptions/1` or helper functions want to return an explicit
+  "no subscriptions" value.
+  """
   @spec none() :: []
   def none, do: []
 
+  @doc """
+  Declares a repeating self-message subscription.
+
+  `id` should be stable across renders for the same logical subscription so the
+  runtime can keep it armed instead of cancelling and recreating it.
+  """
   @spec interval(term(), pos_integer(), term()) :: t()
   def interval(id, interval_ms, message)
       when is_integer(interval_ms) and interval_ms > 0 do
     %__MODULE__{id: id, kind: :interval, interval_ms: interval_ms, message: message}
   end
 
+  @doc """
+  Declares a one-shot self-message subscription.
+
+  Like `interval/3`, `id` is used for reconciliation. Once the message fires,
+  the subscription stays inactive until your app returns it again.
+  """
   @spec once(term(), pos_integer(), term()) :: t()
   def once(id, interval_ms, message)
       when is_integer(interval_ms) and interval_ms > 0 do
