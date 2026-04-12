@@ -27,8 +27,6 @@ defmodule ExRatatui.Distributed.Listener do
 
   use Supervisor
 
-  @config_table __MODULE__.Config
-
   @doc """
   Starts the Listener supervisor.
 
@@ -56,12 +54,8 @@ defmodule ExRatatui.Distributed.Listener do
   """
   @spec session_sup(Supervisor.supervisor()) :: pid()
   def session_sup(listener \\ __MODULE__) do
-    listener
-    |> Supervisor.which_children()
-    |> Enum.find_value(fn
-      {_id, pid, :supervisor, _} -> pid
-      _ -> nil
-    end)
+    [{_id, pid, :supervisor, _}] = Supervisor.which_children(listener)
+    pid
   end
 
   @impl true
@@ -69,11 +63,10 @@ defmodule ExRatatui.Distributed.Listener do
     mod = Keyword.fetch!(opts, :mod)
     app_opts = Keyword.get(opts, :app_opts, [])
 
-    # ETS table stores {listener_pid, mod, app_opts} so start_session
-    # can look up the config for this specific Listener instance.
-    # Multiple Listeners in tests each get their own row.
-    ensure_config_table()
-    :ets.insert(@config_table, {self(), mod, app_opts})
+    # Stash config keyed by this listener's pid so start_session can
+    # look it up. persistent_term is node-local and survives across
+    # RPC calls from other nodes.
+    :persistent_term.put({__MODULE__, self()}, %{mod: mod, app_opts: app_opts})
 
     children = [
       {DynamicSupervisor, strategy: :one_for_one}
@@ -89,7 +82,7 @@ defmodule ExRatatui.Distributed.Listener do
           {:ok, pid()} | {:error, term()}
   def start_session(client_pid, width, height, listener \\ __MODULE__) do
     listener_pid = resolve_pid(listener)
-    [{^listener_pid, mod, app_opts}] = :ets.lookup(@config_table, listener_pid)
+    %{mod: mod, app_opts: app_opts} = :persistent_term.get({__MODULE__, listener_pid})
     sup = session_sup(listener)
 
     child_spec =
@@ -108,16 +101,6 @@ defmodule ExRatatui.Distributed.Listener do
       }
 
     DynamicSupervisor.start_child(sup, child_spec)
-  end
-
-  defp ensure_config_table do
-    if :ets.whereis(@config_table) == :undefined do
-      :ets.new(@config_table, [:named_table, :public, :set])
-    end
-  rescue
-    # Race condition: another process created the table between our
-    # check and our create — that's fine.
-    ArgumentError -> :ok
   end
 
   defp resolve_pid(pid) when is_pid(pid), do: pid

@@ -12,6 +12,7 @@ defmodule ExRatatui.MixProject do
       description: @description,
       version: @version,
       elixir: "~> 1.17",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -22,7 +23,12 @@ defmodule ExRatatui.MixProject do
       docs: docs(),
       test_coverage: [
         summary: [threshold: 100],
-        ignore_modules: [ExRatatui.Native]
+        ignore_modules: [
+          ExRatatui.Native,
+          ExRatatui.Distributed,
+          ExRatatui.Test.PeerApp,
+          ExRatatui.Test.PeerHelper
+        ]
       ],
       dialyzer: [
         plt_local_path: "plts",
@@ -37,6 +43,9 @@ defmodule ExRatatui.MixProject do
       extra_applications: [:logger, :ssh]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp aliases do
     [

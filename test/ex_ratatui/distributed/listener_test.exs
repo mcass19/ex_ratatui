@@ -139,6 +139,43 @@ defmodule ExRatatui.Distributed.ListenerTest do
     end
   end
 
+  describe "session_sup/0 with default name" do
+    test "uses ExRatatui.Distributed.Listener as default" do
+      {:ok, _pid} =
+        Listener.start_link(
+          mod: ListenerApp,
+          name: Listener
+        )
+
+      sup = Listener.session_sup()
+      assert is_pid(sup)
+      assert Process.alive?(sup)
+
+      Supervisor.stop(Listener)
+    end
+  end
+
+  describe "start_session/3 with default name" do
+    test "uses ExRatatui.Distributed.Listener as default" do
+      {:ok, _pid} =
+        Listener.start_link(
+          mod: ListenerApp,
+          name: Listener,
+          app_opts: [test_pid: self()]
+        )
+
+      {:ok, server_pid} = Listener.start_session(self(), 50, 15)
+      assert is_pid(server_pid)
+
+      assert_receive {:mounted, ^server_pid, opts}, 1000
+      assert opts[:width] == 50
+      assert opts[:height] == 15
+
+      GenServer.stop(server_pid)
+      Supervisor.stop(Listener)
+    end
+  end
+
   describe "session_sup/1 with registered name" do
     test "resolves via registered name" do
       name = :"listener_named_#{System.unique_integer([:positive])}"
