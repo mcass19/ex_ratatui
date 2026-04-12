@@ -68,6 +68,11 @@ defmodule ExRatatui.App do
         its own isolated session and `user_state`. Requires the `:port`
         option (and usually `:authorized_keys` / `:system_dir`); see
         `ExRatatui.SSH.Daemon` for the full option list.
+      * `:distributed` — starts a listener that waits for remote BEAM
+        nodes to attach via `ExRatatui.Distributed.attach/2`. Each
+        attaching node gets its own isolated session. No Rust NIF is
+        loaded on the app node — widget lists travel as BEAM terms and
+        the client renders them locally. See `ExRatatui.Distributed`.
     * `:name` - process registration name (defaults to the module name,
       pass `nil` to skip registration)
     * `:poll_interval` - event polling interval in milliseconds (default: `16`,
@@ -84,7 +89,8 @@ defmodule ExRatatui.App do
 
       children = [
         {MyApp.TUI, []},                                      # local TTY
-        {MyApp.TUI, transport: :ssh, port: 2222, ...}         # remote over SSH
+        {MyApp.TUI, transport: :ssh, port: 2222, ...},        # remote over SSH
+        {MyApp.TUI, transport: :distributed}                   # remote over distribution
       ]
 
   ## Callbacks
@@ -113,6 +119,7 @@ defmodule ExRatatui.App do
   @type state :: term()
   @type callback_opts :: keyword()
 
+  alias ExRatatui.Distributed.Listener
   alias ExRatatui.SSH.Daemon
 
   @doc """
@@ -120,7 +127,8 @@ defmodule ExRatatui.App do
 
   Return `{:ok, initial_state}` to proceed or `{:error, reason}` to abort.
   """
-  @callback mount(opts :: keyword()) :: {:ok, state()} | {:error, reason :: term()}
+  @callback mount(opts :: keyword()) ::
+              {:ok, state()} | {:ok, state(), callback_opts()} | {:error, reason :: term()}
 
   @doc """
   Reducer runtime entrypoint.
@@ -195,6 +203,9 @@ defmodule ExRatatui.App do
           @behaviour ExRatatui.App
 
           @doc false
+          def __runtime__, do: :callbacks
+
+          @doc false
           def handle_info(_msg, state), do: {:noreply, state}
 
           @doc false
@@ -203,7 +214,7 @@ defmodule ExRatatui.App do
           @doc false
           def terminate(_reason, _state), do: :ok
 
-          defoverridable handle_info: 2, subscriptions: 1, terminate: 2
+          defoverridable handle_info: 2, subscriptions: 1, terminate: 2, __runtime__: 0
 
           @doc false
           def child_spec(opts) do
@@ -226,6 +237,9 @@ defmodule ExRatatui.App do
           @behaviour ExRatatui.App
 
           @doc false
+          def __runtime__, do: :reducer
+
+          @doc false
           def mount(opts), do: ExRatatui.App.reducer_mount(__MODULE__, opts)
 
           @doc false
@@ -242,7 +256,7 @@ defmodule ExRatatui.App do
           @doc false
           def terminate(_reason, _state), do: :ok
 
-          defoverridable subscriptions: 1, terminate: 2
+          defoverridable subscriptions: 1, terminate: 2, __runtime__: 0
 
           @doc false
           def child_spec(opts) do
@@ -285,6 +299,9 @@ defmodule ExRatatui.App do
 
       :ssh ->
         Daemon.start_link(opts)
+
+      :distributed ->
+        Listener.start_link(opts)
     end
   end
 end

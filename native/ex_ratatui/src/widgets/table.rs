@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Cell, Row, Table, TableState};
-use ratatui::Frame;
+use ratatui::widgets::{Cell, Row, StatefulWidget, Table, TableState, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -17,7 +17,7 @@ pub struct TableData {
     pub column_spacing: u16,
 }
 
-pub fn render(frame: &mut Frame, data: &TableData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &TableData, area: Rect) {
     let rows: Vec<Row> = data
         .rows
         .iter()
@@ -51,9 +51,9 @@ pub fn render(frame: &mut Frame, data: &TableData, area: Rect) {
     if let Some(selected) = data.selected {
         let mut state = TableState::default();
         state.select(Some(selected));
-        frame.render_stateful_widget(table, area, &mut state);
+        StatefulWidget::render(table, area, buf, &mut state);
     } else {
-        frame.render_widget(table, area);
+        Widget::render(table, area, buf);
     }
 }
 
@@ -86,7 +86,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -116,7 +116,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
 
         let header_line = buffer_line(&terminal, 0, 30);
@@ -150,7 +150,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
             .unwrap();
 
         let selected_line = buffer_line(&terminal, 1, 30);

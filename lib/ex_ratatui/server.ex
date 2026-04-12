@@ -18,6 +18,7 @@ defmodule ExRatatui.Server do
     :terminal_ref,
     :session,
     :writer_fn,
+    :client_pid,
     :width,
     :height,
     pending_commands: [],
@@ -61,6 +62,10 @@ defmodule ExRatatui.Server do
 
       {:ssh, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
         continue_init_ssh(session, writer_fn, opts)
+
+      {:distributed_server, client_pid, width, height}
+      when is_pid(client_pid) and is_integer(width) and is_integer(height) ->
+        continue_init_distributed_server(client_pid, width, height, opts)
     end
   end
 
@@ -143,6 +148,51 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
+  # Distribution-attach server init: the remote client rendered locally,
+  # so no Rust resource is needed here. We send widget lists as BEAM
+  # terms and the client draws them with its own TerminalResource.
+  def continue_init_distributed_server(client_pid, width, height, opts) do
+    mod = Keyword.fetch!(opts, :mod)
+    Process.monitor(client_pid)
+    augmented_opts = augment_distributed_mount_opts(opts, width, height)
+
+    case normalize_mount_result(mod.mount(augmented_opts)) do
+      {:ok, user_state, runtime_opts} ->
+        state = %__MODULE__{
+          mod: mod,
+          user_state: user_state,
+          transport: :distributed_server,
+          client_pid: client_pid,
+          width: width,
+          height: height,
+          terminal_initialized: true,
+          runtime_mode: runtime_mode(mod)
+        }
+
+        state =
+          state
+          |> maybe_set_trace(runtime_opts)
+          |> reconcile_subscriptions()
+          |> queue_commands(runtime_opts)
+          |> do_render_if(runtime_opts)
+
+        state = flush_pending_commands(state)
+        {:ok, state}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
+  end
+
+  @doc false
+  def augment_distributed_mount_opts(opts, width, height) do
+    opts
+    |> Keyword.put(:transport, :distributed)
+    |> Keyword.put(:width, width)
+    |> Keyword.put(:height, height)
+  end
+
+  @doc false
   def augment_ssh_mount_opts(opts, width, height) do
     opts
     |> Keyword.put(:transport, :ssh)
@@ -173,14 +223,23 @@ defmodule ExRatatui.Server do
     |> dispatch_info_message(message)
   end
 
-  def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: :ssh} = state) do
+  def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: transport} = state)
+      when transport in [:ssh, :distributed_server] do
     state
     |> dispatch_event(event)
     |> process_event_result()
   end
 
-  def handle_info({:ex_ratatui_resize, w, h}, %__MODULE__{transport: :ssh} = state) do
+  def handle_info({:ex_ratatui_resize, w, h}, %__MODULE__{transport: transport} = state)
+      when transport in [:ssh, :distributed_server] do
     {:noreply, do_render(%{state | width: w, height: h})}
+  end
+
+  def handle_info(
+        {:DOWN, _ref, :process, pid, _reason},
+        %__MODULE__{transport: :distributed_server, client_pid: pid} = state
+      ) do
+    {:stop, :normal, state}
   end
 
   @impl true
@@ -212,6 +271,14 @@ defmodule ExRatatui.Server do
 
   def terminate(reason, %__MODULE__{transport: :ssh, terminal_initialized: true} = state) do
     Session.close(state.session)
+    state.mod.terminate(reason, state.user_state)
+    :ok
+  end
+
+  def terminate(
+        reason,
+        %__MODULE__{transport: :distributed_server, terminal_initialized: true} = state
+      ) do
     state.mod.terminate(reason, state.user_state)
     :ok
   end
@@ -302,6 +369,7 @@ defmodule ExRatatui.Server do
   end
 
   defp current_size(%__MODULE__{transport: :ssh, width: w, height: h}), do: {w, h}
+  defp current_size(%__MODULE__{transport: :distributed_server, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :local, test_mode: tm}), do: resolve_terminal_size(tm)
 
   defp draw_widgets(_state, []), do: :ok
@@ -328,8 +396,13 @@ defmodule ExRatatui.Server do
     end
   end
 
+  defp draw_widgets(%__MODULE__{transport: :distributed_server, client_pid: pid}, widgets) do
+    send(pid, {:ex_ratatui_draw, widgets})
+    :ok
+  end
+
   defp runtime_mode(mod) do
-    if function_exported?(mod, :update, 2), do: :reducer, else: :callbacks
+    mod.__runtime__()
   end
 
   defp normalize_mount_result({:ok, user_state}), do: {:ok, user_state, default_runtime_opts()}
@@ -437,7 +510,8 @@ defmodule ExRatatui.Server do
 
     Task.start(fn ->
       result = safe_async_result(fun)
-      send(parent, {@async_message, mapper.(result)})
+      message = safe_async_mapper_result(mapper, result)
+      send(parent, {@async_message, message})
     end)
 
     state
@@ -593,6 +667,16 @@ defmodule ExRatatui.Server do
   catch
     :exit, reason -> {:error, {:exit, reason}}
     kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp safe_async_mapper_result(mapper, result) when is_function(mapper, 1) do
+    mapper.(result)
+  rescue
+    exception ->
+      {:error, {:mapper_exception, Exception.message(exception)}}
+  catch
+    :exit, reason -> {:error, {:mapper_exit, reason}}
+    kind, reason -> {:error, {:mapper_catch, {kind, reason}}}
   end
 
   defp maybe_set_trace(state, %{trace?: nil}), do: state

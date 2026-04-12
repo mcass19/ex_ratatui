@@ -4,7 +4,7 @@ defmodule ExRatatui.MixProject do
   @description "Elixir bindings for the Rust ratatui terminal UI library"
   @source_url "https://github.com/mcass19/ex_ratatui"
   @changelog_url @source_url <> "/blob/main/CHANGELOG.md"
-  @version "0.6.1"
+  @version "0.6.2"
 
   def project do
     [
@@ -12,6 +12,7 @@ defmodule ExRatatui.MixProject do
       description: @description,
       version: @version,
       elixir: "~> 1.17",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -22,7 +23,16 @@ defmodule ExRatatui.MixProject do
       docs: docs(),
       test_coverage: [
         summary: [threshold: 100],
-        ignore_modules: [ExRatatui.Native]
+        ignore_modules: [
+          # Rust NIF bridge — no meaningful Elixir to cover
+          ExRatatui.Native,
+          # attach/3 blocks the caller and requires Erlang distribution;
+          # exercise with: elixir --sname test -S mix test --include distributed
+          ExRatatui.Distributed,
+          # test-only modules loaded on :peer nodes for integration tests
+          ExRatatui.Test.PeerApp,
+          ExRatatui.Test.PeerHelper
+        ]
       ],
       dialyzer: [
         plt_local_path: "plts",
@@ -37,6 +47,9 @@ defmodule ExRatatui.MixProject do
       extra_applications: [:logger, :ssh]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp aliases do
     [
@@ -84,6 +97,7 @@ defmodule ExRatatui.MixProject do
       extras: [
         "README.md": [title: "Overview"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
+        "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
       ],
@@ -103,6 +117,10 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Session,
           ExRatatui.SSH,
           ExRatatui.SSH.Daemon
+        ],
+        "Distribution Transport": [
+          ExRatatui.Distributed,
+          ExRatatui.Distributed.Listener
         ],
         Layout: [
           ExRatatui.Frame,

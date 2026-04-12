@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Subscription` — reducer timer/subscription helpers for interval and one-shot self-messages reconciled by stable `id`
 - `ExRatatui.Runtime` — runtime inspection helpers exposing snapshots, trace events, and trace enable/disable controls for supervised TUI processes
 - Example: `examples/reducer_counter_app.exs` — simple reducer-driven counter showing `update/2` and `subscriptions/1`
+- **Distribution-attach transport** — serve any `ExRatatui.App` to remote BEAM nodes over Erlang distribution. New `transport: :distributed` option on `ExRatatui.App` and a standalone `ExRatatui.Distributed.Listener` for direct supervision-tree use. Each attaching node gets its own isolated TUI session; widget lists travel as plain BEAM terms with zero NIF on the app node
+- `ExRatatui.Distributed` — main API module with `attach/3` for connecting to a remote TUI
+- `ExRatatui.Distributed.Listener` — supervisor wrapping a `DynamicSupervisor` for per-attach sessions, with config stored in `:persistent_term`
+- Distributed.Client (internal) — local rendering proxy that takes over the terminal, polls events, and forwards them to the remote server
+- Server (internal) learns a `transport: {:distributed_server, client_pid, width, height}` init path that sends `{:ex_ratatui_draw, widgets}` over distribution instead of rendering locally
+- Guide: `guides/distributed_transport.md` — architecture, quick start, options reference, testing, troubleshooting
+- README "Running over Erlang Distribution" section
+- `examples/system_monitor.exs` now supports `--distributed` flag for running over Erlang distribution
+- `:peer`-based integration tests for the full cross-node roundtrip (tagged `:distributed`, run with `elixir --sname test -S mix test --only distributed`)
 
 ### Changed
 
@@ -21,12 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Server` now supports reducer runtime options for commands, render suppression, trace state, runtime snapshots, async command tracking, and subscription reconciliation
 - Render-command encoding moved into `ExRatatui.Bridge`, making `ExRatatui.draw/2` and `ExRatatui.Session.draw/2` share one validation and encoding path
 - Native render-command decoding was refactored into reusable helpers in `native/ex_ratatui/src/decode.rs` and shared between local terminal rendering and session rendering
+- ExRatatui.Server event and resize handlers are now shared between `:ssh` and `:distributed_server` transports
+- `ExRatatui.App` `dispatch_start/1` routes `:distributed` to `ExRatatui.Distributed.Listener.start_link/1`
+- **`WidgetList` `scroll_offset` is now row-based** — previously `scroll_offset` skipped whole items by index; it now skips rows of content. To scroll to a specific item, sum the heights of all preceding items. Items partially above the viewport are clipped at the row level, enabling smooth pixel-row scrolling for chat histories and similar variable-height lists. This is a **breaking change** for callers that relied on the item-index interpretation
 
 ### Fixed
 
 - New subscriptions now store their timer reference correctly instead of keeping the `{timer_ref, token}` tuple in the `timer_ref` field, which broke timer cancellation/rearming paths in the reducer runtime
 - Invalid reducer/runtime payloads and malformed render commands now fail earlier with clearer Elixir-side or Rust-side validation errors
-
+- **`WidgetList` partial-item clipping** — items straddling the top edge of the viewport are now correctly rendered via an off-screen buffer blit instead of being skipped entirely
 ### Docs
 
 - README now documents the reducer runtime, reducer example app, command/subscription helpers, and runtime inspection API
@@ -38,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added reducer runtime coverage for commands, subscriptions, tracing, render suppression, async failure handling, and invalid runtime return values
 - Added coverage for public `Command`, `Subscription`, `Runtime`, `App`, and shared bridge validation paths
 - Elixir test coverage remains at 100%
+
+## [0.6.2] - 2026-04-12
 
 ## [0.6.1] - 2026-04-09
 
@@ -237,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/mcass19/ex_ratatui/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/mcass19/ex_ratatui/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/mcass19/ex_ratatui/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mcass19/ex_ratatui/compare/v0.5.0...v0.5.1

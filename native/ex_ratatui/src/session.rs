@@ -170,7 +170,7 @@ impl SessionResource {
         terminal
             .draw(|frame| {
                 for command in &commands {
-                    render_widget_data(frame, &command.widget, command.area);
+                    render_widget_data(frame.buffer_mut(), &command.widget, command.area);
                 }
             })
             .map_err(|e| format!("session draw: {e}"))?;

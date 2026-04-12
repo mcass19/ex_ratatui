@@ -1,9 +1,10 @@
 use std::sync::Mutex;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::Frame;
+use ratatui::widgets::Widget;
 use ratatui_textarea::TextArea;
 
 use rustler::{Atom, Error, Resource, ResourceArc};
@@ -165,12 +166,12 @@ pub struct TextareaRenderData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &TextareaRenderData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &TextareaRenderData, area: Rect) {
     // Render block manually to avoid lifetime issues with Mutex<TextArea<'static>>
     let inner_area = if let Some(ref block_data) = data.block {
         let block = block_data.to_block();
         let inner = block.inner(area);
-        frame.render_widget(block, area);
+        Widget::render(block, area, buf);
         inner
     } else {
         area
@@ -205,7 +206,7 @@ pub fn render(frame: &mut Frame, data: &TextareaRenderData, area: Rect) {
         textarea.remove_line_number();
     }
 
-    frame.render_widget(&*textarea, inner_area);
+    Widget::render(&*textarea, inner_area, buf);
 }
 
 #[cfg(test)]

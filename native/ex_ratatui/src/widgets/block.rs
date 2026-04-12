@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::{Block, BorderType, Borders, Padding};
-use ratatui::Frame;
+use ratatui::widgets::{Block, BorderType, Borders, Padding, Widget};
 use rustler::{Error, Term};
 use std::collections::HashMap;
 
@@ -34,8 +34,8 @@ impl BlockData {
     }
 }
 
-pub fn render(frame: &mut Frame, data: &BlockData, area: Rect) {
-    frame.render_widget(data.to_block(), area);
+pub fn render(buf: &mut Buffer, data: &BlockData, area: Rect) {
+    data.to_block().render(area, buf);
 }
 
 pub fn decode_block(term: Term) -> Result<BlockData, Error> {
@@ -152,7 +152,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 10, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 5)))
             .unwrap();
 
         let top = buffer_line(&terminal, 0, 10);
@@ -179,7 +179,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 5)))
             .unwrap();
 
         let top = buffer_line(&terminal, 0, 20);
@@ -201,7 +201,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 10, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 3)))
             .unwrap();
 
         let buf = terminal.backend().buffer();
@@ -226,7 +226,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 10, 3)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 10, 3)))
             .unwrap();
 
         let buf = terminal.backend().buffer();

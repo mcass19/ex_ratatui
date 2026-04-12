@@ -80,11 +80,31 @@ defmodule ExRatatui.SSH do
 
   ## Subsystem helper
 
-      # In a nerves_ssh subsystems list:
-      subsystems: [ExRatatui.SSH.subsystem(MyApp.TUI)]
-
   Returns a `{charlist, {module, init_args}}` tuple in exactly the shape
-  OTP `:ssh` expects for its `subsystems:` option.
+  OTP `:ssh` expects for its `subsystems:` option. Plug it into a
+  `nerves_ssh` subsystems list from `config/runtime.exs`:
+
+      # config/runtime.exs
+      import Config
+
+      if Application.spec(:nerves_ssh) do
+        config :nerves_ssh,
+          subsystems: [
+            :ssh_sftpd.subsystem_spec(cwd: ~c"/"),
+            ExRatatui.SSH.subsystem(MyApp.TUI)
+          ]
+      end
+
+  This **must** live in `runtime.exs`, not `target.exs`. On a fresh
+  `MIX_TARGET=rpi4 mix compile` Mix evaluates compile-time configs
+  before it builds deps for the target, so `ExRatatui.SSH` isn't on the
+  code path yet and the `subsystem/1` call would crash with `module
+  ExRatatui.SSH is not available`. `runtime.exs` runs at device boot
+  after every beam file is loaded but before the OTP application
+  controller starts `:nerves_ssh`, which is exactly the window we need.
+  The `Application.spec(:nerves_ssh)` guard keeps host builds (where
+  `:nerves_ssh` isn't a dep) silent. See `guides/ssh_transport.md` for
+  the full write-up.
 
   ## Dependency injection for tests
 

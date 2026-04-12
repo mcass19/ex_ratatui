@@ -5,7 +5,7 @@ defmodule ExRatatui.BridgeTest do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Session
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Paragraph, Popup, Table, TextInput, Textarea, WidgetList}
+  alias ExRatatui.Widgets.{Block, Paragraph, Popup, Table, Textarea, TextInput, WidgetList}
 
   test "encode_command encodes nested widgets through the shared bridge" do
     command =

@@ -19,6 +19,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks
 - **Reducer runtime** for command/subscription driven apps via `use ExRatatui.App, runtime: :reducer`
 - **Built-in SSH transport** — serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
+- **Erlang distribution transport** — attach to a remote TUI over Erlang distribution with zero NIF on the app node
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - Headless test backend for CI-friendly rendering verification
@@ -33,7 +34,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `counter.exs` | `mix run examples/counter.exs` | Interactive counter with key events |
 | `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 | `reducer_counter_app.exs` | `mix run examples/reducer_counter_app.exs` | Counter using the reducer runtime with subscriptions |
-| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH** — see below. |
+| `system_monitor.exs` | `mix run examples/system_monitor.exs` | Linux system dashboard — CPU, memory, disk, network, BEAM stats (Linux/Nerves only). **Also runs over SSH and Erlang distribution** — see below. |
 | `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with tabs, table, scrollbar, line gauge, and more |
 | `chat_interface.exs` | `mix run examples/chat_interface.exs` | AI chat interface — markdown, textarea, throbber, popup, slash commands |
@@ -62,6 +63,21 @@ ssh demo@localhost -p 2222      # password: demo
 ```
 
 Every SSH client for `task_manager` gets its own isolated TUI session but they all read and write the same SQLite database — add a task in one window, see it appear in the others. See the [SSH transport guide](guides/ssh_transport.md) for how this all works.
+
+### Try an example over Erlang Distribution
+
+The `system_monitor.exs` example also supports a `--distributed` flag to serve the TUI over Erlang distribution — useful when the app node has no terminal (Nerves, containers, daemon releases).
+
+```sh
+# Terminal 1 — start the app node
+elixir --sname app --cookie demo -S mix run --no-halt examples/system_monitor.exs --distributed
+
+# Terminal 2 — attach from another node
+iex --sname local --cookie demo -S mix
+iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
+```
+
+See the [distribution transport guide](guides/distributed_transport.md) for how this all works.
 
 
 ## Built with ExRatatui
@@ -320,23 +336,64 @@ See [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui
 
 ### Nerves + `nerves_ssh`
 
-If you're already running `nerves_ssh` on a Nerves device, register `ExRatatui.SSH` as a subsystem instead of standing up a second daemon:
+If you're already running `nerves_ssh` on a Nerves device, register `ExRatatui.SSH` as a subsystem instead of standing up a second daemon. Put this in `config/runtime.exs` — not `target.exs` — because `ExRatatui.SSH.subsystem/1` is a function call and `target.exs` is evaluated before deps are compiled for the target on a fresh build (see the [SSH transport guide](guides/ssh_transport.md#integrating-with-nerves_ssh) for the full story):
 
 ```elixir
-config :nerves_ssh,
-  subsystems: [
-    :ssh_sftpd.subsystem_spec(cwd: ~c"/"),
-    ExRatatui.SSH.subsystem(MyApp.TUI)
-  ]
+# config/runtime.exs
+import Config
+
+if Application.spec(:nerves_ssh) do
+  config :nerves_ssh,
+    subsystems: [
+      :ssh_sftpd.subsystem_spec(cwd: ~c"/"),
+      ExRatatui.SSH.subsystem(MyApp.TUI)
+    ]
+end
 ```
 
 Connect with:
 
 ```sh
-ssh nerves.local -s Elixir.MyApp.TUI
+ssh -t nerves.local -s Elixir.MyApp.TUI
 ```
 
 See [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example) for a complete Nerves firmware that wires two TUIs (a system monitor and an LED control app) into a `nerves_ssh` daemon and runs them on a Raspberry Pi.
+
+## Running over Erlang Distribution
+
+Any `ExRatatui.App` module can also be driven from a remote BEAM node over Erlang distribution. The app node runs all callbacks and sends widget lists as plain BEAM terms — no Rust NIF is needed on the app node. See the [Running TUIs over Erlang Distribution](guides/distributed_transport.md) guide for full details.
+
+On the app node, add the Listener to your supervision tree:
+
+```elixir
+children = [
+  {MyApp.TUI, transport: :distributed}
+]
+```
+
+From your node, connect and attach:
+
+```sh
+iex --sname mynode --cookie mycookie -S mix
+```
+
+```elixir
+iex> ExRatatui.Distributed.attach(:"app@hostname", MyApp.TUI)
+```
+
+The TUI takes over your terminal. Press the app's quit key to disconnect. Each attaching node gets its own isolated session — multiple nodes can attach concurrently.
+
+### Running All Three Transports
+
+The same app module can serve local, SSH, and distributed clients simultaneously:
+
+```elixir
+children = [
+  {MyApp.TUI, []},                                    # local TTY
+  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
+  {MyApp.TUI, transport: :distributed}                 # remote over distribution
+]
+```
 
 ## How It Works
 

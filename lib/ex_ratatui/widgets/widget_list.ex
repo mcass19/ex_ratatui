@@ -6,6 +6,10 @@ defmodule ExRatatui.Widgets.WidgetList do
   and `height` is the number of rows that item occupies. Items can have different
   heights, making this ideal for chat message histories.
 
+  `scroll_offset` is a **row offset** from the top of the content. To scroll to
+  a specific widget, sum the heights of all preceding items. Items partially above
+  the viewport are clipped at the row level.
+
   ## Examples
 
       iex> %ExRatatui.Widgets.WidgetList{}

@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::LineGauge;
-use ratatui::Frame;
+use ratatui::widgets::{LineGauge, Widget};
 
 use crate::widgets::block::BlockData;
 
@@ -14,7 +14,7 @@ pub struct LineGaugeData {
     pub block: Option<BlockData>,
 }
 
-pub fn render(frame: &mut Frame, data: &LineGaugeData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &LineGaugeData, area: Rect) {
     let mut line_gauge = LineGauge::default()
         .style(data.style)
         .filled_style(data.filled_style)
@@ -29,7 +29,7 @@ pub fn render(frame: &mut Frame, data: &LineGaugeData, area: Rect) {
         line_gauge = line_gauge.block(block_data.to_block());
     }
 
-    frame.render_widget(line_gauge, area);
+    line_gauge.render(area, buf);
 }
 
 #[cfg(test)]
@@ -55,7 +55,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 20);
@@ -77,7 +77,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 30, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 1)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -99,7 +99,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 20, 1)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
             .unwrap();
         // Should not panic
     }

@@ -1,7 +1,7 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
+use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use crate::widgets::block::BlockData;
 
@@ -13,7 +13,7 @@ pub struct MarkdownData {
     pub wrap: bool,
 }
 
-pub fn render(frame: &mut Frame, data: &MarkdownData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &MarkdownData, area: Rect) {
     let text = tui_markdown::from_str(&data.content);
 
     let mut widget = Paragraph::new(text).style(data.style);
@@ -30,7 +30,7 @@ pub fn render(frame: &mut Frame, data: &MarkdownData, area: Rect) {
         widget = widget.block(block_data.to_block());
     }
 
-    frame.render_widget(widget, area);
+    widget.render(area, buf);
 }
 
 #[cfg(test)]
@@ -57,7 +57,7 @@ mod tests {
         let data = make_data("Hello world");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -74,7 +74,7 @@ mod tests {
         let data = make_data("# Title");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -88,7 +88,7 @@ mod tests {
         let data = make_data("**bold text**");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -105,7 +105,7 @@ mod tests {
         let data = make_data("use `code` here");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -119,7 +119,7 @@ mod tests {
         let data = make_data("```\nfn main() {}\n```");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 10)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10)))
             .unwrap();
 
         let mut found = false;
@@ -140,7 +140,7 @@ mod tests {
         let data = make_data("- item1\n- item2");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 10)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10)))
             .unwrap();
 
         let mut found1 = false;
@@ -165,7 +165,7 @@ mod tests {
         let data = make_data("");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 5)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
             .unwrap();
         // Should not panic
     }
@@ -190,7 +190,7 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 40, 10)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10)))
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 40);
@@ -204,7 +204,7 @@ mod tests {
         let data = make_data("# Heading\n\nSome **bold** and *italic* text.\n\n- bullet1\n- bullet2\n\n`inline code`");
 
         terminal
-            .draw(|frame| render(frame, &data, Rect::new(0, 0, 60, 15)))
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 60, 15)))
             .unwrap();
 
         let mut found_heading = false;

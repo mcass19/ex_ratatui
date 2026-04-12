@@ -44,6 +44,18 @@ mix test --cover
 cargo test --manifest-path native/ex_ratatui/Cargo.toml
 ```
 
+### Distribution integration tests
+
+Full cross-node integration tests for the Erlang distribution transport are tagged `:distributed` and **excluded by default** (they require the test node to be distributed). To run them:
+
+```sh
+# Run only distribution integration tests
+elixir --sname test -S mix test --only distributed
+
+# Run all tests (unit + integration)
+elixir --sname test -S mix test --include distributed
+```
+
 > **Note:** CI enforces **100% test coverage** on the Elixir side (NIF modules are
 > excluded). If you add new public functions or branches, make sure to add
 > corresponding tests. Run `mix test --cover` locally to check before pushing.

@@ -17,6 +17,13 @@
 #         mix run --no-halt examples/system_monitor.exs --ssh
 #         mix run --no-halt examples/system_monitor.exs --ssh 2223
 #
+#  3) Over Erlang distribution — starts a Listener that waits for
+#     remote nodes to attach. From another node, call
+#     `ExRatatui.Distributed.attach(:"app@host", SystemMonitor)`.
+#
+#         elixir --sname app --cookie demo -S mix run --no-halt \
+#           examples/system_monitor.exs --distributed
+#
 # Controls: q = quit, r = refresh (auto-refreshes every 2 seconds).
 #
 # This example demonstrates a system monitor dashboard that reads
@@ -446,6 +453,7 @@ defmodule SystemMonitor.Runner do
   def main(argv) do
     case argv do
       ["--ssh" | rest] -> run_ssh(rest)
+      ["--distributed"] -> run_distributed()
       _ -> run_local()
     end
   end
@@ -486,6 +494,39 @@ defmodule SystemMonitor.Runner do
     """)
 
     wait_for(daemon)
+  end
+
+  defp run_distributed do
+    unless Node.alive?() do
+      IO.puts(:stderr, """
+
+      \e[31mError:\e[0m This node is not distributed.
+      Start it with --sname or --name:
+
+          elixir --sname app --cookie demo -S mix run --no-halt \\
+            examples/system_monitor.exs --distributed
+      """)
+
+      System.halt(1)
+    end
+
+    {:ok, pid} =
+      ExRatatui.Distributed.Listener.start_link(mod: SystemMonitor)
+
+    IO.puts("""
+
+    \e[36mSystem Monitor over Erlang Distribution\e[0m
+
+    This node: \e[1m#{Node.self()}\e[0m
+
+    From another node (same cookie), run:
+
+        ExRatatui.Distributed.attach(#{inspect(Node.self())}, SystemMonitor)
+
+    Ctrl-C twice to stop the listener.
+    """)
+
+    wait_for(pid)
   end
 
   # Persist a throwaway host key under the system tmp dir so every
