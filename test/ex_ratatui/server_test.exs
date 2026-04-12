@@ -803,4 +803,266 @@ defmodule ExRatatui.ServerTest do
       GenServer.stop(pid)
     end
   end
+
+  describe "Distributed server transport" do
+    alias ExRatatui.Widgets.Paragraph
+    alias ExRatatui.Layout.Rect
+
+    defmodule DistApp do
+      use ExRatatui.App
+
+      @impl true
+      def mount(opts) do
+        test_pid = Keyword.fetch!(opts, :test_pid)
+        send(test_pid, {:mounted, opts})
+        {:ok, %{test_pid: test_pid, count: 0}}
+      end
+
+      @impl true
+      def render(state, frame) do
+        send(state.test_pid, {:rendered, state.count, frame})
+
+        [
+          {%Paragraph{text: "count: #{state.count}"},
+           %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}
+        ]
+      end
+
+      @impl true
+      def handle_event(event, state) do
+        send(state.test_pid, {:event, event})
+        {:noreply, %{state | count: state.count + 1}}
+      end
+
+      @impl true
+      def handle_info(msg, state) do
+        send(state.test_pid, {:info, msg})
+        {:noreply, state}
+      end
+
+      @impl true
+      def terminate(reason, state) do
+        send(state.test_pid, {:terminated, reason})
+        :ok
+      end
+    end
+
+    defmodule DistStopApp do
+      use ExRatatui.App
+
+      @impl true
+      def mount(opts) do
+        {:ok, %{test_pid: Keyword.fetch!(opts, :test_pid)}}
+      end
+
+      @impl true
+      def render(_state, _frame), do: []
+
+      @impl true
+      def handle_event(_event, state), do: {:stop, state}
+    end
+
+    defmodule DistFailingMountApp do
+      use ExRatatui.App
+
+      @impl true
+      def mount(_opts), do: {:error, :dist_mount_failed}
+
+      @impl true
+      def render(_state, _frame), do: []
+
+      @impl true
+      def handle_event(_event, state), do: {:noreply, state}
+    end
+
+    test "start_link with {:distributed_server, ...} mounts and sends widgets to client" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 80, 24}
+        )
+
+      # mount sees augmented opts
+      assert_receive {:mounted, opts}, 1000
+      assert opts[:transport] == :distributed
+      assert opts[:width] == 80
+      assert opts[:height] == 24
+
+      # initial render sends widgets as BEAM terms to client_pid
+      assert_receive {:rendered, 0, %Frame{width: 80, height: 24}}, 1000
+      assert_receive {:ex_ratatui_draw, widgets}, 1000
+      assert [{%Paragraph{text: "count: 0"}, %Rect{}}] = widgets
+
+      GenServer.stop(pid)
+      assert_receive {:terminated, :normal}, 1000
+    end
+
+    test "{:ex_ratatui_event, event} drives handle_event and re-renders" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      assert_receive {:rendered, 0, _}, 1000
+      assert_receive {:ex_ratatui_draw, _initial}, 1000
+
+      event = %ExRatatui.Event.Key{code: "x", modifiers: [], kind: "press"}
+      send(pid, {:ex_ratatui_event, event})
+
+      assert_receive {:event, ^event}, 1000
+      assert_receive {:rendered, 1, _}, 1000
+
+      # Second draw contains updated widget text
+      assert_receive {:ex_ratatui_draw, widgets}, 1000
+      assert [{%Paragraph{text: "count: 1"}, %Rect{}}] = widgets
+
+      GenServer.stop(pid)
+    end
+
+    test "{:ex_ratatui_event, event} returning :stop shuts down cleanly" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistStopApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      ref = Process.monitor(pid)
+
+      send(
+        pid,
+        {:ex_ratatui_event, %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}}
+      )
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    end
+
+    test "{:ex_ratatui_resize, w, h} updates size and re-renders" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      assert_receive {:rendered, 0, %Frame{width: 40, height: 10}}, 1000
+      assert_receive {:ex_ratatui_draw, _}, 1000
+
+      send(pid, {:ex_ratatui_resize, 120, 40})
+      assert_receive {:rendered, 0, %Frame{width: 120, height: 40}}, 1000
+
+      GenServer.stop(pid)
+    end
+
+    test ":poll messages are silently absorbed" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      assert_receive {:rendered, 0, _}, 1000
+      assert_receive {:ex_ratatui_draw, _}, 1000
+
+      send(pid, :poll)
+      refute_receive {:rendered, _, _}, 50
+      refute_receive {:event, _}, 50
+
+      GenServer.stop(pid)
+    end
+
+    test "mount returning {:error, _} stops the server" do
+      Process.flag(:trap_exit, true)
+
+      assert {:error, :dist_mount_failed} =
+               ExRatatui.Server.start_link(
+                 mod: DistFailingMountApp,
+                 name: nil,
+                 transport: {:distributed_server, self(), 40, 10}
+               )
+    end
+
+    test "server stops when client process exits" do
+      # Spawn a fake client that we can kill
+      client = spawn(fn -> Process.sleep(:infinity) end)
+
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, client, 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      ref = Process.monitor(pid)
+
+      Process.exit(client, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+      assert_receive {:terminated, :normal}, 1000
+    end
+
+    test "terminate calls user terminate/2 callback" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      assert_receive {:rendered, 0, _}, 1000
+      assert_receive {:ex_ratatui_draw, _}, 1000
+
+      ref = Process.monitor(pid)
+      GenServer.stop(pid)
+
+      assert_receive {:terminated, :normal}, 1000
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    end
+
+    test "handle_info forwards non-transport messages to app module" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:mounted, _}, 1000
+      assert_receive {:rendered, 0, _}, 1000
+      assert_receive {:ex_ratatui_draw, _}, 1000
+
+      send(pid, {:custom, "hello"})
+      assert_receive {:info, {:custom, "hello"}}, 1000
+
+      GenServer.stop(pid)
+    end
+
+    test "augment_distributed_mount_opts adds transport/width/height" do
+      opts = [mod: DistApp, test_pid: self(), foo: :bar]
+      result = ExRatatui.Server.augment_distributed_mount_opts(opts, 100, 50)
+
+      assert result[:mod] == DistApp
+      assert result[:test_pid] == self()
+      assert result[:foo] == :bar
+      assert result[:transport] == :distributed
+      assert result[:width] == 100
+      assert result[:height] == 50
+    end
+  end
 end
