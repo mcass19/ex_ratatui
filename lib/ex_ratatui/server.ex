@@ -21,6 +21,7 @@ defmodule ExRatatui.Server do
     :client_pid,
     :width,
     :height,
+    polling_enabled?: false,
     pending_commands: [],
     subscriptions: %{},
     trace_enabled?: false,
@@ -83,6 +84,7 @@ defmodule ExRatatui.Server do
           mod: mod,
           user_state: user_state,
           poll_interval: poll_interval,
+          polling_enabled?: local_polling_enabled?(test_mode),
           test_mode: test_mode,
           terminal_ref: terminal_ref,
           terminal_initialized: true,
@@ -96,8 +98,10 @@ defmodule ExRatatui.Server do
           |> queue_commands(runtime_opts)
           |> do_render_if(runtime_opts)
 
-        state = flush_pending_commands(state)
-        send(self(), :poll)
+        state =
+          state
+          |> flush_pending_commands()
+          |> maybe_rearm_poll()
 
         {:ok, state}
 
@@ -201,6 +205,9 @@ defmodule ExRatatui.Server do
   end
 
   @impl true
+  def handle_info(:poll, %__MODULE__{transport: :local, polling_enabled?: false} = state),
+    do: {:noreply, state}
+
   def handle_info(:poll, %__MODULE__{transport: :local} = state) do
     state.poll_interval
     |> ExRatatui.poll_event()
@@ -250,6 +257,21 @@ defmodule ExRatatui.Server do
   @impl true
   def handle_call(:ex_ratatui_runtime_snapshot, _from, state) do
     {:reply, runtime_snapshot(state), state}
+  end
+
+  def handle_call({:ex_ratatui_runtime_inject_event, event}, _from, state) do
+    case dispatch_event(state, event) do
+      {:stop, next_state} ->
+        {:stop, :normal, :ok, next_state}
+
+      {:continue, next_state, render?} ->
+        next_state =
+          next_state
+          |> maybe_render(render?)
+          |> flush_pending_commands()
+
+        {:reply, :ok, next_state}
+    end
   end
 
   def handle_call({:ex_ratatui_runtime_trace, enabled?, limit}, _from, state) do
@@ -306,9 +328,12 @@ defmodule ExRatatui.Server do
   def process_poll_result({:stop, state}), do: {:stop, :normal, state}
 
   def process_poll_result({:continue, state, render?}) do
-    state = if render?, do: do_render(state), else: state
-    state = flush_pending_commands(state)
-    send(self(), :poll)
+    state =
+      state
+      |> maybe_render(render?)
+      |> flush_pending_commands()
+      |> maybe_rearm_poll()
+
     {:noreply, state}
   end
 
@@ -318,8 +343,11 @@ defmodule ExRatatui.Server do
   def process_event_result({:stop, state}), do: {:stop, :normal, state}
 
   def process_event_result({:continue, state, render?}) do
-    state = if render?, do: do_render(state), else: state
-    state = flush_pending_commands(state)
+    state =
+      state
+      |> maybe_render(render?)
+      |> flush_pending_commands()
+
     {:noreply, state}
   end
 
@@ -338,6 +366,9 @@ defmodule ExRatatui.Server do
 
   defp init_terminal(nil), do: Native.init_terminal()
   defp init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
+
+  defp local_polling_enabled?(nil), do: true
+  defp local_polling_enabled?({_width, _height}), do: false
 
   defp restore_terminal(terminal_ref) do
     Native.restore_terminal(terminal_ref)
@@ -483,6 +514,16 @@ defmodule ExRatatui.Server do
 
   defp do_render_if(state, %{render?: false}), do: state
   defp do_render_if(state, _runtime_opts), do: do_render(state)
+
+  defp maybe_render(state, true), do: do_render(state)
+  defp maybe_render(state, false), do: state
+
+  defp maybe_rearm_poll(%__MODULE__{transport: :local, polling_enabled?: true} = state) do
+    send(self(), :poll)
+    state
+  end
+
+  defp maybe_rearm_poll(state), do: state
 
   defp queue_commands(state, %{commands: commands}) do
     %{state | pending_commands: commands}
@@ -690,6 +731,7 @@ defmodule ExRatatui.Server do
       mode: state.runtime_mode,
       mod: state.mod,
       transport: state.transport,
+      polling_enabled?: state.polling_enabled?,
       dimensions: current_size(state),
       render_count: state.render_count,
       last_rendered_at: state.last_rendered_at,

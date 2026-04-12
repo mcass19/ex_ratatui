@@ -131,6 +131,11 @@ defmodule ExRatatui.ServerRuntimeTest do
       {:noreply, state}
     end
 
+    def update({:event, %ExRatatui.Event.Key{} = event}, state) do
+      send(state.test_pid, {:event_seen, event})
+      {:noreply, state}
+    end
+
     def update(_msg, state), do: {:noreply, state}
 
     @impl true
@@ -267,7 +272,7 @@ defmodule ExRatatui.ServerRuntimeTest do
     assert next_state.trace_enabled?
   end
 
-  test "render?: false skips the initial render" do
+  test "render?: false skips the initial render until a synthetic event is injected" do
     {:ok, pid} =
       ReducerControlApp.start_link(
         name: nil,
@@ -277,6 +282,13 @@ defmodule ExRatatui.ServerRuntimeTest do
       )
 
     refute_receive {:rendered, :no_render, _frame}, 50
+    assert Runtime.snapshot(pid).polling_enabled? == false
+
+    event = %ExRatatui.Event.Key{code: "a", modifiers: [], kind: "press"}
+    assert :ok = Runtime.inject_event(pid, event)
+
+    assert_receive {:event_seen, ^event}, 1000
+    assert_receive {:rendered, :no_render, %Frame{width: 40, height: 10}}, 1000
 
     GenServer.stop(pid)
   end

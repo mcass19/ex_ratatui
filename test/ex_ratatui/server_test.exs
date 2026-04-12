@@ -2,6 +2,7 @@ defmodule ExRatatui.ServerTest do
   use ExUnit.Case, async: true
 
   alias ExRatatui.Frame
+  alias ExRatatui.Runtime
 
   defmodule TestApp do
     use ExRatatui.App
@@ -392,10 +393,60 @@ defmodule ExRatatui.ServerTest do
     end
   end
 
+  describe "runtime event injection" do
+    test "inject_event/2 drives handle_event for local test servers" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: TestApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      assert_receive {:mounted, _opts}, 1000
+      assert_receive {:rendered, 0, %Frame{width: 80, height: 24}}, 1000
+
+      event = %ExRatatui.Event.Key{code: "a", modifiers: [], kind: "press"}
+
+      assert :ok = Runtime.inject_event(pid, event)
+      assert_receive {:event, ^event}, 1000
+      assert_receive {:rendered, 0, %Frame{width: 80, height: 24}}, 1000
+
+      GenServer.stop(pid)
+    end
+
+    test "inject_event/2 can stop the server cleanly" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: StopOnEventApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      ref = Process.monitor(pid)
+
+      assert :ok = Runtime.inject_event(pid, %{stop: true})
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    end
+  end
+
   describe "process_poll_result/1" do
     test "stop returns GenServer stop tuple" do
       state = build_server_state(TestApp, %{test_pid: self()})
       assert {:stop, :normal, ^state} = ExRatatui.Server.process_poll_result({:stop, state})
+    end
+
+    test "continue re-arms polling when live input is enabled" do
+      state =
+        build_server_state(TestApp, %{test_pid: self()},
+          test_mode: nil,
+          polling_enabled?: true,
+          poll_interval: 0
+        )
+
+      assert {:noreply, ^state} = ExRatatui.Server.process_poll_result({:continue, state, false})
+      assert_receive :poll, 1000
     end
   end
 
@@ -424,6 +475,42 @@ defmodule ExRatatui.ServerTest do
     test "returns stop when terminal init failed" do
       assert {:stop, {:terminal_init_failed, "no tty"}} =
                ExRatatui.Server.continue_init({:error, "no tty"}, [])
+    end
+
+    test "enables polling for live local servers" do
+      assert {:ok, state} =
+               ExRatatui.Server.continue_init(make_ref(),
+                 mod: TestApp,
+                 name: nil,
+                 test_pid: self()
+               )
+
+      assert state.polling_enabled?
+      assert_receive {:mounted, _opts}, 1000
+      assert_receive {:rendered, 0, %Frame{width: 80, height: 24}}, 1000
+      assert_receive :poll, 1000
+    end
+  end
+
+  describe "poll loop handling" do
+    test ":poll is ignored when headless polling is disabled" do
+      state = build_server_state(TestApp, %{test_pid: self()}, polling_enabled?: false)
+      assert {:noreply, ^state} = ExRatatui.Server.handle_info(:poll, state)
+    end
+
+    test ":poll re-arms when live polling is enabled" do
+      state =
+        build_server_state(TestApp, %{test_pid: self()},
+          test_mode: nil,
+          polling_enabled?: true,
+          poll_interval: 0
+        )
+
+      assert {:noreply, %ExRatatui.Server{} = next_state} =
+               ExRatatui.Server.handle_info(:poll, state)
+
+      assert next_state.polling_enabled?
+      assert_receive :poll, 1000
     end
   end
 
@@ -503,14 +590,20 @@ defmodule ExRatatui.ServerTest do
     end
   end
 
-  defp build_server_state(mod, user_state) do
-    %ExRatatui.Server{
-      mod: mod,
-      user_state: user_state,
-      test_mode: {80, 24},
-      terminal_ref: make_ref(),
-      terminal_initialized: true
-    }
+  defp build_server_state(mod, user_state, attrs \\ []) do
+    struct!(
+      ExRatatui.Server,
+      Keyword.merge(
+        [
+          mod: mod,
+          user_state: user_state,
+          test_mode: {80, 24},
+          terminal_ref: make_ref(),
+          terminal_initialized: true
+        ],
+        attrs
+      )
+    )
   end
 
   describe "SSH transport" do

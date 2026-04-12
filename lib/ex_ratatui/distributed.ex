@@ -61,7 +61,8 @@ defmodule ExRatatui.Distributed do
     * `:listener` — the registered name of the `Distributed.Listener`
       on the remote node (default: `ExRatatui.Distributed.Listener`).
     * `:poll_interval` — local event polling interval in ms (default: 16).
-    * `:test_mode` — `{width, height}` for headless test terminal.
+    * `:test_mode` — `{width, height}` for a headless test terminal. In this
+      mode the local client does not poll the live terminal for input.
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """

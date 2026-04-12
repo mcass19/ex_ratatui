@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExRatatui.Command` — reducer side-effect helpers for immediate messages, delayed messages, async work, and batched command execution
 - `ExRatatui.Subscription` — reducer timer/subscription helpers for interval and one-shot self-messages reconciled by stable `id`
 - `ExRatatui.Runtime` — runtime inspection helpers exposing snapshots, trace events, and trace enable/disable controls for supervised TUI processes
+- `ExRatatui.Runtime.inject_event/2` — deterministic synthetic event injection for supervised apps under `test_mode`
 - Example: `examples/reducer_counter_app.exs` — simple reducer-driven counter showing `update/2` and `subscriptions/1`
 - **Distribution-attach transport** — serve any `ExRatatui.App` to remote BEAM nodes over Erlang distribution. New `transport: :distributed` option on `ExRatatui.App` and a standalone `ExRatatui.Distributed.Listener` for direct supervision-tree use. Each attaching node gets its own isolated TUI session; widget lists travel as plain BEAM terms with zero NIF on the app node
 - `ExRatatui.Distributed` — main API module with `attach/3` for connecting to a remote TUI
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ExRatatui.App` now supports two runtime styles: the existing callback runtime and the new reducer runtime selected with `runtime: :reducer`
 - `ExRatatui.Server` now supports reducer runtime options for commands, render suppression, trace state, runtime snapshots, async command tracking, and subscription reconciliation
+- `test_mode` now means fully headless local runtime behaviour: it disables live terminal input polling on both `ExRatatui.Server` and `Distributed.Client`, and runtime snapshots expose whether polling is enabled
 - Render-command encoding moved into `ExRatatui.Bridge`, making `ExRatatui.draw/2` and `ExRatatui.Session.draw/2` share one validation and encoding path
 - Native render-command decoding was refactored into reusable helpers in `native/ex_ratatui/src/decode.rs` and shared between local terminal rendering and session rendering
 - ExRatatui.Server event and resize handlers are now shared between `:ssh` and `:distributed_server` transports
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Invalid reducer/runtime payloads and malformed render commands now fail earlier with clearer Elixir-side or Rust-side validation errors
 - **`WidgetList` partial-item clipping** — items straddling the top edge of the viewport are now correctly rendered via an off-screen buffer blit instead of being skipped entirely
 - **Parallel cold compile crash** — `ExRatatui.Native` no longer loads its NIF via `@on_load` during dependency compilation. Precompiled/source artifacts are still prepared at compile time, but the NIF now loads lazily on first use, which stops isolated compiler VMs from crashing under parallel cold compiles on this host
+- **`test_mode` input flake** — local supervised apps and distributed attach clients no longer poll the real terminal while running headless tests, which removes ambient crossterm events from async test runs and stops spurious renders like the `render?: false` reducer flake
 ### Docs
 
 - README now documents the reducer runtime, reducer example app, command/subscription helpers, and runtime inspection API

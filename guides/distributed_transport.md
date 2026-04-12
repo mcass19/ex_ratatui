@@ -113,7 +113,7 @@ The distributed transport is unique: the app node never loads the Rust NIF. Widg
 |--------|------|---------|-------------|
 | `:listener` | `atom()` | `ExRatatui.Distributed.Listener` | Registered name of the Listener on the remote node |
 | `:poll_interval` | `integer()` | `16` | Local event polling interval in ms (~60fps) |
-| `:test_mode` | `{w, h}` | `nil` | Headless test terminal dimensions |
+| `:test_mode` | `{w, h}` | `nil` | Headless test terminal dimensions; disables live local input polling |
 
 ## Forwarding `mount/1` Opts
 

@@ -22,12 +22,38 @@ defmodule ExRatatui.Distributed.ClientTest do
       Process.exit(remote, :kill)
     end
 
+    test "test_mode starts headless without live polling" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+
+      {:ok, pid} =
+        Client.start_link(
+          remote_pid: remote,
+          test_mode: {80, 24}
+        )
+
+      assert Process.alive?(pid)
+      state = :sys.get_state(pid)
+      assert state.polling_enabled? == false
+
+      GenServer.stop(pid)
+      Process.exit(remote, :kill)
+    end
+
     test "starts without remote_pid and defers polling" do
       {:ok, pid} = Client.start_link(test_mode: {80, 24})
 
       assert Process.alive?(pid)
       state = :sys.get_state(pid)
       assert state.remote_pid == nil
+
+      GenServer.stop(pid)
+    end
+
+    test "without test_mode live polling stays enabled" do
+      {:ok, pid} = Client.start_link(init_terminal: fn _test_mode -> make_ref() end)
+
+      state = :sys.get_state(pid)
+      assert state.polling_enabled?
 
       GenServer.stop(pid)
     end
@@ -163,6 +189,28 @@ defmodule ExRatatui.Distributed.ClientTest do
   end
 
   describe "handle_poll_result/2" do
+    test ":poll is ignored when headless polling is disabled" do
+      state = build_state(nil, polling_enabled?: false)
+      assert {:noreply, ^state} = Client.handle_info(:poll, state)
+    end
+
+    test ":poll re-arms when live polling is enabled" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+
+      state =
+        build_state(remote,
+          test_mode: nil,
+          polling_enabled?: true,
+          poll_interval: 0
+        )
+
+      assert {:noreply, %Client{} = next_state} = Client.handle_info(:poll, state)
+      assert next_state.polling_enabled?
+      assert_receive :poll, 1000
+
+      Process.exit(remote, :kill)
+    end
+
     test "nil event re-arms poll without sending" do
       state = build_state()
       assert {:noreply, ^state} = Client.handle_poll_result(nil, state)
@@ -270,12 +318,18 @@ defmodule ExRatatui.Distributed.ClientTest do
     end
   end
 
-  defp build_state(remote_pid \\ nil) do
-    %Client{
-      terminal_ref: make_ref(),
-      remote_pid: remote_pid || spawn(fn -> Process.sleep(:infinity) end),
-      poll_interval: 16,
-      terminal_initialized: true
-    }
+  defp build_state(remote_pid \\ nil, attrs \\ []) do
+    struct!(
+      Client,
+      Keyword.merge(
+        [
+          terminal_ref: make_ref(),
+          remote_pid: remote_pid || spawn(fn -> Process.sleep(:infinity) end),
+          poll_interval: 16,
+          terminal_initialized: true
+        ],
+        attrs
+      )
+    )
   end
 end

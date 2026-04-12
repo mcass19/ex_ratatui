@@ -32,6 +32,7 @@ defmodule ExRatatui.Distributed.Client do
     :terminal_ref,
     :remote_pid,
     :test_mode,
+    polling_enabled?: false,
     poll_interval: 16,
     terminal_initialized: false
   ]
@@ -63,17 +64,20 @@ defmodule ExRatatui.Distributed.Client do
         {:stop, {:terminal_init_failed, reason}}
 
       terminal_ref ->
+        polling_enabled? = polling_enabled?(test_mode)
+
         state = %__MODULE__{
           terminal_ref: terminal_ref,
           remote_pid: remote_pid,
           poll_interval: poll_interval,
           test_mode: test_mode,
+          polling_enabled?: polling_enabled?,
           terminal_initialized: true
         }
 
         if remote_pid do
           Process.monitor(remote_pid)
-          send(self(), :poll)
+          maybe_rearm_poll(state)
         end
 
         {:ok, state}
@@ -83,11 +87,14 @@ defmodule ExRatatui.Distributed.Client do
   @impl true
   def handle_call({:connect_remote, remote_pid}, _from, state) do
     Process.monitor(remote_pid)
-    send(self(), :poll)
-    {:reply, :ok, %{state | remote_pid: remote_pid}}
+    state = %{state | remote_pid: remote_pid}
+    maybe_rearm_poll(state)
+    {:reply, :ok, state}
   end
 
   @impl true
+  def handle_info(:poll, %__MODULE__{polling_enabled?: false} = state), do: {:noreply, state}
+
   def handle_info(:poll, state) do
     state.poll_interval
     |> ExRatatui.poll_event()
@@ -117,25 +124,30 @@ defmodule ExRatatui.Distributed.Client do
   ## Extracted logic (@doc false, public for testability)
 
   @doc false
-  def handle_poll_result(nil, state), do: {:noreply, rearm_poll(state)}
-  def handle_poll_result({:error, _}, state), do: {:noreply, rearm_poll(state)}
+  def handle_poll_result(nil, state), do: {:noreply, maybe_rearm_poll(state)}
+  def handle_poll_result({:error, _}, state), do: {:noreply, maybe_rearm_poll(state)}
 
   def handle_poll_result(%Event.Resize{width: w, height: h}, state) do
     send(state.remote_pid, {:ex_ratatui_resize, w, h})
-    {:noreply, rearm_poll(state)}
+    {:noreply, maybe_rearm_poll(state)}
   end
 
   def handle_poll_result(event, state) do
     send(state.remote_pid, {:ex_ratatui_event, event})
-    {:noreply, rearm_poll(state)}
+    {:noreply, maybe_rearm_poll(state)}
   end
 
   ## Private helpers
 
-  defp rearm_poll(state) do
+  defp maybe_rearm_poll(%__MODULE__{polling_enabled?: true} = state) do
     send(self(), :poll)
     state
   end
+
+  defp maybe_rearm_poll(state), do: state
+
+  defp polling_enabled?(nil), do: true
+  defp polling_enabled?({_width, _height}), do: false
 
   @doc false
   def default_init_terminal(nil), do: Native.init_terminal()

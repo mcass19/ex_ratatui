@@ -81,7 +81,9 @@ defmodule ExRatatui.App do
       use more CPU; higher values reduce CPU but add input latency.
       Only used by the `:local` transport.
     * `:test_mode` - `{width, height}` tuple to use a headless test terminal
-      instead of the real terminal. Enables `async: true` tests without a TTY.
+      instead of the real terminal. This disables live terminal input polling
+      so tests stay isolated and `async: true` safe; use
+      `ExRatatui.Runtime.inject_event/2` to drive input deterministically.
 
   The same app module can be supervised under multiple transports
   simultaneously — `mount/1`, `render/2`, `handle_event/2` and

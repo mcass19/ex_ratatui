@@ -729,7 +729,7 @@ end
 
 ## Testing
 
-ExRatatui includes a headless test backend for CI-friendly rendering verification. Each test terminal is independent, enabling `async: true` tests:
+ExRatatui includes a headless test backend for CI-friendly rendering verification. Each test terminal is independent, and `test_mode` disables live terminal input polling so `async: true` tests do not race ambient TTY events:
 
 ```elixir
 test "renders a paragraph" do
@@ -742,6 +742,9 @@ test "renders a paragraph" do
   assert content =~ "Hello!"
 end
 ```
+
+For supervised apps, use `ExRatatui.Runtime.inject_event/2` to drive input
+deterministically under `test_mode`.
 
 ## Contributing
 
