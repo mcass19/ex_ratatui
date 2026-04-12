@@ -1,0 +1,127 @@
+defmodule ExRatatui.Distributed do
+  @moduledoc """
+  Distribution-attach transport for `ExRatatui.App`.
+
+  Lets a laptop (or any connected BEAM node) attach to a TUI running
+  on a remote node. The remote node runs the app's `mount/render/
+  handle_event` callbacks and sends widget lists as BEAM terms over
+  Erlang distribution. The local node renders those widgets on its own
+  terminal and forwards input events back.
+
+  ## Quick start
+
+  On the app node (e.g. a Nerves device), add the Listener to your
+  supervision tree:
+
+      children = [
+        {MyApp.TUI, transport: :distributed}
+      ]
+
+  On your laptop, connect and attach:
+
+      iex --sname laptop --cookie mycookie
+      iex> ExRatatui.Distributed.attach(:"app@nerves.local", MyApp.TUI)
+
+  The TUI takes over your terminal. Press the app's quit key (or
+  Ctrl-C twice) to disconnect and restore the terminal.
+
+  ## How it works
+
+  1. `attach/2` connects to the remote node if not already connected.
+  2. An RPC call spawns a `Server` in `:distributed_server` mode on
+     the remote node — this process runs the app module and sends
+     `{:ex_ratatui_draw, widgets}` messages over distribution.
+  3. A local `Distributed.Client` process takes over the laptop's
+     terminal, polls input events, and forwards them to the remote
+     server as `{:ex_ratatui_event, event}` / `{:ex_ratatui_resize,
+     w, h}`.
+  4. When either side disconnects, monitors fire, both processes
+     clean up, and the terminal is restored.
+
+  ## Authentication
+
+  Delegated entirely to the Erlang distribution cookie. If you can
+  `Node.connect/1`, you can attach — same trust model as `iex --remsh`.
+  """
+
+  alias ExRatatui.Distributed.Client
+  alias ExRatatui.Distributed.Listener
+
+  @doc """
+  Attaches to a TUI app running on a remote node.
+
+  Connects to `node` (if not already connected), starts a remote
+  session for `mod`, and takes over the local terminal. Blocks until
+  the session ends (app stops, remote node disconnects, or the local
+  process is interrupted).
+
+  ## Options
+
+    * `:listener` — the registered name of the `Distributed.Listener`
+      on the remote node (default: `ExRatatui.Distributed.Listener`).
+    * `:poll_interval` — local event polling interval in ms (default: 16).
+    * `:test_mode` — `{width, height}` for headless test terminal.
+
+  Returns `:ok` when the session ends normally, or `{:error, reason}`.
+  """
+  @spec attach(node(), module(), keyword()) :: :ok | {:error, term()}
+  def attach(node, mod, opts \\ []) when is_atom(node) and is_atom(mod) do
+    listener = Keyword.get(opts, :listener, Listener)
+
+    with :ok <- ensure_connected(node),
+         {:ok, width, height} <- resolve_local_size(opts),
+         {:ok, remote_pid} <- start_remote_session(node, listener, width, height),
+         {:ok, client_pid} <- start_local_client(remote_pid, opts) do
+      ref = Process.monitor(client_pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^client_pid, _reason} -> :ok
+      end
+    end
+  end
+
+  @doc false
+  def ensure_connected(node) do
+    if node == Node.self() do
+      {:error, :cannot_attach_to_self}
+    else
+      case Node.connect(node) do
+        true -> :ok
+        false -> {:error, {:connect_failed, node}}
+        :ignored -> {:error, :distribution_not_started}
+      end
+    end
+  end
+
+  @doc false
+  def resolve_local_size(opts) do
+    case Keyword.get(opts, :test_mode) do
+      {w, h} ->
+        {:ok, w, h}
+
+      nil ->
+        case ExRatatui.terminal_size() do
+          {w, h} when is_integer(w) and is_integer(h) -> {:ok, w, h}
+          {:error, reason} -> {:error, {:terminal_size_failed, reason}}
+        end
+    end
+  end
+
+  @doc false
+  def start_remote_session(node, listener, width, height) do
+    case :rpc.call(node, Listener, :start_session, [self(), width, height, listener]) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, reason} -> {:error, {:remote_session_failed, reason}}
+      {:badrpc, reason} -> {:error, {:rpc_failed, reason}}
+    end
+  end
+
+  @doc false
+  def start_local_client(remote_pid, opts) do
+    client_opts =
+      [remote_pid: remote_pid]
+      |> Keyword.merge(Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal]))
+
+    Client.start_link(client_opts)
+  end
+end

@@ -145,5 +145,24 @@ defmodule ExRatatui.AppTest do
       assert_receive {:fake_started, 0}, 1000
       GenServer.stop(pid)
     end
+
+    test "dispatch_start/1 routes :distributed to ExRatatui.Distributed.Listener" do
+      {:ok, pid} =
+        ExRatatui.App.dispatch_start(
+          mod: SupervisedApp,
+          transport: :distributed,
+          name: nil
+        )
+
+      # The returned pid is a Supervisor (Listener), not a GenServer
+      assert Process.alive?(pid)
+
+      # It should have a DynamicSupervisor child for sessions
+      children = Supervisor.which_children(pid)
+      assert length(children) == 1
+      assert {_id, _sup_pid, :supervisor, _} = hd(children)
+
+      Supervisor.stop(pid)
+    end
   end
 end

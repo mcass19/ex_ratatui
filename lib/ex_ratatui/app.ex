@@ -51,6 +51,11 @@ defmodule ExRatatui.App do
         its own isolated session and `user_state`. Requires the `:port`
         option (and usually `:authorized_keys` / `:system_dir`); see
         `ExRatatui.SSH.Daemon` for the full option list.
+      * `:distributed` — starts a listener that waits for remote BEAM
+        nodes to attach via `ExRatatui.Distributed.attach/2`. Each
+        attaching node gets its own isolated session. No Rust NIF is
+        loaded on the app node — widget lists travel as BEAM terms and
+        the client renders them locally. See `ExRatatui.Distributed`.
     * `:name` - process registration name (defaults to the module name,
       pass `nil` to skip registration)
     * `:poll_interval` - event polling interval in milliseconds (default: `16`,
@@ -67,7 +72,8 @@ defmodule ExRatatui.App do
 
       children = [
         {MyApp.TUI, []},                                      # local TTY
-        {MyApp.TUI, transport: :ssh, port: 2222, ...}         # remote over SSH
+        {MyApp.TUI, transport: :ssh, port: 2222, ...},        # remote over SSH
+        {MyApp.TUI, transport: :distributed}                   # remote over distribution
       ]
 
   ## Callbacks
@@ -177,6 +183,9 @@ defmodule ExRatatui.App do
         # runtime so this file compiles cleanly under --warnings-as-errors
         # before ExRatatui.SSH.Daemon lands in the SSH-transport task.
         apply(ExRatatui.SSH.Daemon, :start_link, [opts])
+
+      :distributed ->
+        ExRatatui.Distributed.Listener.start_link(opts)
     end
   end
 end
