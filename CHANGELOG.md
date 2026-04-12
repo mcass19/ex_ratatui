@@ -39,11 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New subscriptions now store their timer reference correctly instead of keeping the `{timer_ref, token}` tuple in the `timer_ref` field, which broke timer cancellation/rearming paths in the reducer runtime
 - Invalid reducer/runtime payloads and malformed render commands now fail earlier with clearer Elixir-side or Rust-side validation errors
 - **`WidgetList` partial-item clipping** — items straddling the top edge of the viewport are now correctly rendered via an off-screen buffer blit instead of being skipped entirely
+- **Parallel cold compile crash** — `ExRatatui.Native` no longer loads its NIF via `@on_load` during dependency compilation. Precompiled/source artifacts are still prepared at compile time, but the NIF now loads lazily on first use, which stops isolated compiler VMs from crashing under parallel cold compiles on this host
 ### Docs
 
 - README now documents the reducer runtime, reducer example app, command/subscription helpers, and runtime inspection API
 - Expanded public moduledocs for `ExRatatui.App`, `ExRatatui.Command`, `ExRatatui.Subscription`, and `ExRatatui.Runtime`
 - HexDocs module grouping now includes reducer-runtime modules
+- README now notes that the native library loads lazily on first use
 
 ### Tests
 

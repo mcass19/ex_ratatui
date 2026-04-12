@@ -1,10 +1,42 @@
 defmodule ExRatatui.Native do
   @moduledoc false
 
+  @otp_app :ex_ratatui
+  @load_lock {__MODULE__, :nif_load_lock}
+  @loaded_key {__MODULE__, :nif_loaded}
+  @nif_functions [
+    init_terminal: 0,
+    restore_terminal: 1,
+    terminal_size: 0,
+    draw_frame: 2,
+    poll_event: 1,
+    layout_split: 3,
+    init_test_terminal: 2,
+    get_buffer_content: 1,
+    text_input_new: 0,
+    text_input_handle_key: 2,
+    text_input_get_value: 1,
+    text_input_set_value: 2,
+    text_input_cursor: 1,
+    session_new: 2,
+    session_close: 1,
+    session_draw: 2,
+    session_take_output: 1,
+    session_feed_input: 2,
+    session_resize: 3,
+    session_size: 1,
+    textarea_new: 0,
+    textarea_handle_key: 3,
+    textarea_get_value: 1,
+    textarea_set_value: 2,
+    textarea_cursor: 1,
+    textarea_line_count: 1
+  ]
+
   version = Mix.Project.config()[:version]
 
-  use RustlerPrecompiled,
-    otp_app: :ex_ratatui,
+  precompiled_opts = [
+    otp_app: @otp_app,
     crate: "ex_ratatui",
     base_url: "https://github.com/mcass19/ex_ratatui/releases/download/v#{version}",
     force_build: System.get_env("EX_RATATUI_BUILD") in ["1", "true"],
@@ -22,126 +54,114 @@ defmodule ExRatatui.Native do
       x86_64-unknown-linux-musl
     ),
     nif_versions: ["2.16", "2.17"]
+  ]
 
-  # Terminal lifecycle
+  precompiled_opts =
+    if Application.compile_env(
+         :rustler_precompiled,
+         :force_build_all,
+         System.get_env("RUSTLER_PRECOMPILED_FORCE_BUILD_ALL") in ["1", "true"]
+       ) do
+      Keyword.put(precompiled_opts, :force_build, true)
+    else
+      Keyword.put_new(
+        precompiled_opts,
+        :force_build,
+        Application.compile_env(:rustler_precompiled, [:force_build, @otp_app])
+      )
+    end
 
-  @doc false
-  # Enters raw mode, alternate screen, and creates a crossterm-backed terminal.
-  # Returns a terminal reference (ResourceArc).
-  def init_terminal, do: :erlang.nif_error(:not_loaded)
+  case RustlerPrecompiled.__using__(__MODULE__, precompiled_opts) do
+    {:force_build, rustler_opts} ->
+      env = Application.compile_env(@otp_app, __MODULE__, [])
+      config = Rustler.Compiler.compile_crate(@otp_app, env, rustler_opts)
 
-  @doc false
-  # Leaves alternate screen and disables raw mode. Safe to call multiple times.
-  def restore_terminal(_terminal_ref), do: :erlang.nif_error(:not_loaded)
+      for resource <- config.external_resources do
+        @external_resource resource
+      end
 
-  @doc false
-  # Returns `{width, height}` of the current terminal.
-  def terminal_size, do: :erlang.nif_error(:not_loaded)
+      @load_from config.load_from
+      @load_data config.load_data
+      @load_data_fun config.load_data_fun
 
-  # Rendering
+    {:ok, config} ->
+      @load_from config.load_from
+      @load_data config.load_data
+      @load_data_fun nil
 
-  @doc false
-  # Draws a list of `{widget_map, rect_map}` tuples in a single frame.
-  def draw_frame(_terminal_ref, _commands), do: :erlang.nif_error(:not_loaded)
-
-  # Events
-
-  @doc false
-  # Polls for a terminal event with timeout (ms). Runs on DirtyIo scheduler.
-  def poll_event(_timeout_ms), do: :erlang.nif_error(:not_loaded)
-
-  # Layout
-
-  @doc false
-  # Splits a rect into sub-rects given a direction and constraints.
-  def layout_split(_area, _direction, _constraints), do: :erlang.nif_error(:not_loaded)
-
-  # Test backend
-
-  @doc false
-  # Creates a headless test terminal with given dimensions.
-  # Returns a terminal reference (ResourceArc).
-  def init_test_terminal(_width, _height), do: :erlang.nif_error(:not_loaded)
+    {:error, precomp_error} ->
+      raise precomp_error
+  end
 
   @doc false
-  # Returns the test terminal's buffer contents as a string.
-  def get_buffer_content(_terminal_ref), do: :erlang.nif_error(:not_loaded)
-
-  # TextInput (stateful widget)
-
-  @doc false
-  # Creates a new TextInput state. Returns a ResourceArc reference.
-  def text_input_new, do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  # Handles a key event on the TextInput state.
-  def text_input_handle_key(_state_ref, _key_code), do: :erlang.nif_error(:not_loaded)
+  def ensure_loaded do
+    if loaded?() do
+      :ok
+    else
+      :global.trans(@load_lock, &ensure_loaded_once/0)
+    end
+  end
 
   @doc false
-  # Returns the current text value from the TextInput state.
-  def text_input_get_value(_state_ref), do: :erlang.nif_error(:not_loaded)
+  def loaded?, do: :persistent_term.get(@loaded_key, false)
 
-  @doc false
-  # Sets the text value on the TextInput state.
-  def text_input_set_value(_state_ref, _value), do: :erlang.nif_error(:not_loaded)
+  defp mark_loaded, do: :persistent_term.put(@loaded_key, true)
 
-  @doc false
-  # Returns the current cursor position from the TextInput state.
-  def text_input_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
+  defp ensure_loaded_once do
+    if loaded?() do
+      :ok
+    else
+      load_nif_once()
+    end
+  end
 
-  # Session (per-connection terminal with pluggable I/O)
+  defp load_nif_once do
+    case load_nif() do
+      :ok -> mark_loaded_and_return_ok()
+      {:error, {:reload, _reason}} -> mark_loaded_and_return_ok()
+      {:error, {:upgrade, _reason}} -> mark_loaded_and_return_ok()
+      {:error, reason} -> raise "failed to load ExRatatui NIF: #{inspect(reason)}"
+    end
+  end
 
-  @doc false
-  # Creates a new session backed by an in-memory writer. No OS terminal state
-  # is touched. Returns a session reference (ResourceArc).
-  def session_new(_width, _height), do: :erlang.nif_error(:not_loaded)
+  defp mark_loaded_and_return_ok do
+    mark_loaded()
+    :ok
+  end
 
-  @doc false
-  # Drops the session's inner ratatui terminal. Idempotent.
-  def session_close(_session_ref), do: :erlang.nif_error(:not_loaded)
+  defp load_nif do
+    :code.purge(__MODULE__)
 
-  @doc false
-  # Renders a list of `{widget_map, rect_map}` tuples into the session's
-  # in-memory writer. Bytes accumulate until drained via `session_take_output/1`.
-  def session_draw(_session_ref, _commands), do: :erlang.nif_error(:not_loaded)
+    {otp_app, path} = @load_from
 
-  @doc false
-  # Drains and returns the session's pending output bytes as a binary.
-  def session_take_output(_session_ref), do: :erlang.nif_error(:not_loaded)
+    load_path =
+      otp_app
+      |> Application.app_dir(path)
+      |> to_charlist()
 
-  @doc false
-  # Feeds raw transport bytes through the session's ANSI parser. Returns
-  # a list of `{:key, code, modifiers, kind} | {:mouse, ...} | {:resize, ...}`
-  # tagged tuples — the same shape `poll_event/1` returns. Bytes that only
-  # partially form an escape sequence stay buffered for the next call.
-  def session_feed_input(_session_ref, _bytes), do: :erlang.nif_error(:not_loaded)
+    :erlang.load_nif(load_path, load_data())
+  end
 
-  @doc false
-  # Resizes the session's viewport. Triggers a buffer clear that the
-  # transport will see in the next `session_take_output/1` drain.
-  def session_resize(_session_ref, _width, _height), do: :erlang.nif_error(:not_loaded)
+  if @load_data_fun do
+    defp load_data do
+      {module, function} = @load_data_fun
+      apply(module, function, [])
+    end
+  else
+    defp load_data, do: @load_data
+  end
 
-  @doc false
-  # Returns the session's current `{width, height}`.
-  def session_size(_session_ref), do: :erlang.nif_error(:not_loaded)
+  defp dispatch(name, args) do
+    :ok = ensure_loaded()
+    :erlang.apply(__MODULE__, name, args)
+  end
 
-  # Textarea (stateful multiline widget)
+  for {name, arity} <- @nif_functions do
+    args = Macro.generate_arguments(arity, __MODULE__)
 
-  @doc false
-  def textarea_new, do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  def textarea_handle_key(_state_ref, _key_code, _modifiers), do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  def textarea_get_value(_state_ref), do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  def textarea_set_value(_state_ref, _value), do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  def textarea_cursor(_state_ref), do: :erlang.nif_error(:not_loaded)
-
-  @doc false
-  def textarea_line_count(_state_ref), do: :erlang.nif_error(:not_loaded)
+    @doc false
+    def unquote(name)(unquote_splicing(args)) do
+      dispatch(unquote(name), [unquote_splicing(args)])
+    end
+  end
 end

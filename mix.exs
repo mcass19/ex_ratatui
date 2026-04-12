@@ -101,6 +101,8 @@ defmodule ExRatatui.MixProject do
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
       ],
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"],
+      skip_code_autolink_to: &skip_docs_autolink?/1,
       groups_for_extras: [
         Guides: Path.wildcard("guides/*.md")
       ],
@@ -158,5 +160,10 @@ defmodule ExRatatui.MixProject do
         ]
       ]
     ]
+  end
+
+  defp skip_docs_autolink?(term) do
+    String.match?(term, ~r/^ExRatatui\.(Native|Server)(\.|$)/) or
+      term == ":ssh_connection.handle_cli_msg/3"
   end
 end

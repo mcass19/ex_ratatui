@@ -105,6 +105,9 @@ mix deps.get && mix compile
 ```
 
 A precompiled NIF binary for your platform will be downloaded automatically.
+The native library itself is loaded lazily on first use, so compiling a
+dependency that uses `ex_ratatui` does not need to enter the NIF inside the
+compiler VM.
 
 ### Prerequisites
 
