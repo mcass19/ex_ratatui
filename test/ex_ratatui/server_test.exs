@@ -968,6 +968,57 @@ defmodule ExRatatui.ServerTest do
       def handle_event(_event, state), do: {:noreply, state}
     end
 
+    defmodule DistReducerApp do
+      use ExRatatui.App, runtime: :reducer
+
+      alias ExRatatui.{Command, Subscription}
+
+      @impl true
+      def init(opts) do
+        test_pid = Keyword.fetch!(opts, :test_pid)
+        send(test_pid, {:reducer_mounted, opts})
+        {:ok, %{test_pid: test_pid, events: []}, commands: [Command.message(:boot)]}
+      end
+
+      @impl true
+      def render(state, frame) do
+        ordered_events = Enum.reverse(state.events)
+        send(state.test_pid, {:reducer_rendered, ordered_events, frame})
+
+        [
+          {%Paragraph{text: inspect(ordered_events)},
+           %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}
+        ]
+      end
+
+      @impl true
+      def update({:info, :boot}, state) do
+        send(state.test_pid, :boot_seen)
+        {:noreply, %{state | events: [:boot | state.events]}}
+      end
+
+      def update({:info, :tick}, state) do
+        send(state.test_pid, :tick_seen)
+        {:noreply, %{state | events: [:tick | state.events]}}
+      end
+
+      def update({:event, %ExRatatui.Event.Key{} = event}, state) do
+        send(state.test_pid, {:reducer_event, event})
+        {:noreply, %{state | events: [{:event, event.code} | state.events]}}
+      end
+
+      def update(_msg, state), do: {:noreply, state}
+
+      @impl true
+      def subscriptions(%{events: events}) do
+        if Enum.member?(events, :boot) and not Enum.member?(events, :tick) do
+          [Subscription.once(:after_boot, 10, :tick)]
+        else
+          []
+        end
+      end
+    end
+
     test "start_link with {:distributed_server, ...} mounts and sends widgets to client" do
       {:ok, pid} =
         ExRatatui.Server.start_link(
@@ -990,6 +1041,67 @@ defmodule ExRatatui.ServerTest do
 
       GenServer.stop(pid)
       assert_receive {:terminated, :normal}, 1000
+    end
+
+    test "reducer apps run over {:distributed_server, ...} with commands, subscriptions, and events" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: DistReducerApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 40, 10}
+        )
+
+      assert_receive {:reducer_mounted, opts}, 1000
+      assert opts[:transport] == :distributed
+      assert opts[:width] == 40
+      assert opts[:height] == 10
+
+      assert_receive {:reducer_rendered, [], %Frame{width: 40, height: 10}}, 1000
+      assert_receive {:ex_ratatui_draw, initial_widgets}, 1000
+
+      assert [{%Paragraph{text: "[]"}, %Rect{x: 0, y: 0, width: 40, height: 10}}] =
+               initial_widgets
+
+      assert_receive :boot_seen, 1000
+      assert_receive {:reducer_rendered, [:boot], %Frame{width: 40, height: 10}}, 1000
+      assert_receive {:ex_ratatui_draw, boot_widgets}, 1000
+
+      assert [{%Paragraph{text: "[:boot]"}, %Rect{x: 0, y: 0, width: 40, height: 10}}] =
+               boot_widgets
+
+      assert_receive :tick_seen, 1000
+      assert_receive {:reducer_rendered, [:boot, :tick], %Frame{width: 40, height: 10}}, 1000
+
+      assert_receive {:ex_ratatui_draw, tick_widgets}, 1000
+
+      assert [{%Paragraph{text: "[:boot, :tick]"}, %Rect{x: 0, y: 0, width: 40, height: 10}}] =
+               tick_widgets
+
+      event = %ExRatatui.Event.Key{code: "x", modifiers: [], kind: "press"}
+      send(pid, {:ex_ratatui_event, event})
+
+      assert_receive {:reducer_event, ^event}, 1000
+
+      assert_receive {:reducer_rendered, [:boot, :tick, {:event, "x"}],
+                      %Frame{width: 40, height: 10}},
+                     1000
+
+      assert_receive {:ex_ratatui_draw, event_widgets}, 1000
+
+      assert [
+               {%Paragraph{text: "[:boot, :tick, {:event, \"x\"}]"},
+                %Rect{x: 0, y: 0, width: 40, height: 10}}
+             ] = event_widgets
+
+      snapshot = Runtime.snapshot(pid)
+      assert snapshot.mode == :reducer
+      assert snapshot.transport == :distributed_server
+      refute snapshot.polling_enabled?
+      assert snapshot.subscription_count == 0
+      assert snapshot.active_async_commands == 0
+
+      GenServer.stop(pid)
     end
 
     test "{:ex_ratatui_event, event} drives handle_event and re-renders" do
