@@ -141,7 +141,8 @@ fn textarea_cursor(resource: ResourceArc<TextareaResource>) -> Result<(usize, us
         .state
         .lock()
         .map_err(|_| Error::Term(Box::new("textarea lock poisoned")))?;
-    Ok(textarea.cursor())
+    let cursor = textarea.cursor();
+    Ok((cursor.0, cursor.1))
 }
 
 #[rustler::nif]
