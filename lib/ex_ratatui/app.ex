@@ -97,8 +97,9 @@ defmodule ExRatatui.App do
 
   ## Callbacks
 
-    * `mount/1` — Called once on startup with options. Return `{:ok, initial_state}`
-      or `{:error, reason}` to abort startup.
+    * `mount/1` — Called once on startup with options. Return
+      `{:ok, initial_state}`, `{:ok, initial_state, runtime_opts}`, or
+      `{:error, reason}` to abort startup.
     * `init/1` — Reducer runtime startup callback. Return `{:ok, initial_state}`
       or `{:ok, initial_state, runtime_opts}`.
     * `render/2` — Called after every state change. Receives state and a
@@ -127,7 +128,8 @@ defmodule ExRatatui.App do
   @doc """
   Called once on startup with the options passed to `start_link/1`.
 
-  Return `{:ok, initial_state}` to proceed or `{:error, reason}` to abort.
+  Return `{:ok, initial_state}`, `{:ok, initial_state, runtime_opts}`, or
+  `{:error, reason}` to abort.
   """
   @callback mount(opts :: keyword()) ::
               {:ok, state()} | {:ok, state(), callback_opts()} | {:error, reason :: term()}

@@ -201,7 +201,7 @@ Supervisor.start_link(children, strategy: :one_for_one)
 
 | Callback | Description |
 |----------|-------------|
-| `mount/1` | Called once on startup. Return `{:ok, initial_state}` |
+| `mount/1` | Called once on startup. Return `{:ok, initial_state}`, `{:ok, initial_state, runtime_opts}`, or `{:error, reason}` |
 | `render/2` | Called after every state change. Receives state and `%Frame{}` with terminal dimensions. Return `[{widget, rect}]` |
 | `handle_event/2` | Called on terminal events. Return `{:noreply, state}` or `{:stop, state}` |
 | `handle_info/2` | Called for non-terminal messages (e.g., PubSub). Optional — defaults to `{:noreply, state}` |
@@ -288,7 +288,7 @@ Available building blocks:
 - `ExRatatui.Subscription.interval/3`
 - `ExRatatui.Subscription.once/3`
 
-`Command.async/2` passes the async function's return value directly to the mapper on success. If the function raises or exits, the mapper receives `{:error, reason}`.
+`Command.async/2` passes the async function's return value directly to the mapper on success. If the function raises or exits, the mapper receives `{:error, reason}`. If the mapper itself raises or exits, the runtime turns that into an error tuple as well so the async command still completes cleanly.
 
 Reducer callbacks can also return runtime options from `init/1` and `update/2`:
 
@@ -658,6 +658,8 @@ Centered modal overlay. Renders any widget centered over the parent area, cleari
 ### WidgetList
 
 Vertical list of heterogeneous widgets with optional selection and scrolling. Each item is a `{widget, height}` tuple. Ideal for chat message histories where items have different heights.
+
+`scroll_offset` is a row offset from the top of the content, not an item index. To scroll to a specific item, sum the heights of all preceding items. Items partially above the viewport are clipped row-by-row instead of being dropped entirely.
 
 ```elixir
 %WidgetList{

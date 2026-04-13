@@ -39,13 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - New subscriptions now store their timer reference correctly instead of keeping the `{timer_ref, token}` tuple in the `timer_ref` field, which broke timer cancellation/rearming paths in the reducer runtime
+- Async command mappers are now wrapped the same way as async functions, so mapper exceptions/exits return structured error tuples and `active_async_commands` bookkeeping is always decremented
+- `ExRatatui.App.mount/1`'s published callback contract now includes the supported `{:ok, state, callback_opts}` form, which keeps reducer-style startup shims aligned with Dialyzer and the runtime's actual behavior
 - Invalid reducer/runtime payloads and malformed render commands now fail earlier with clearer Elixir-side or Rust-side validation errors
 - **`WidgetList` partial-item clipping** — items straddling the top edge of the viewport are now correctly rendered via an off-screen buffer blit instead of being skipped entirely
 - **Parallel cold compile crash** — `ExRatatui.Native` no longer loads its NIF via `@on_load` during dependency compilation. Precompiled/source artifacts are still prepared at compile time, but the NIF now loads lazily on first use, which stops isolated compiler VMs from crashing under parallel cold compiles on this host
 - **`test_mode` input flake** — local supervised apps and distributed attach clients no longer poll the real terminal while running headless tests, which removes ambient crossterm events from async test runs and stops spurious renders like the `render?: false` reducer flake
+- **SSH `auto_host_key` bootstrap** — host-key generation now recreates the parent `<priv_dir>/ssh/` directory immediately before writing the key, so first boot succeeds even if the app's priv tree was absent or cleaned between runs
 ### Docs
 
 - README now documents the reducer runtime, reducer example app, command/subscription helpers, and runtime inspection API
+- README and `ExRatatui.App` docs now call out that `mount/1` may return runtime opts and that `WidgetList.scroll_offset` is row-based with partial clipping semantics
 - Expanded public moduledocs for `ExRatatui.App`, `ExRatatui.Command`, `ExRatatui.Subscription`, and `ExRatatui.Runtime`
 - HexDocs module grouping now includes reducer-runtime modules
 - README now notes that the native library loads lazily on first use
