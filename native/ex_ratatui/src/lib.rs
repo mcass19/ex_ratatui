@@ -7,6 +7,7 @@ mod session_input;
 mod style;
 mod terminal;
 mod test_utils;
+mod text;
 mod text_input;
 mod textarea;
 mod widgets;
