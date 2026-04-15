@@ -6,6 +6,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
+use unicode_width::UnicodeWidthChar;
+
 use rustler::{Atom, Error, Resource, ResourceArc};
 
 use crate::widgets::block::BlockData;
@@ -192,6 +194,25 @@ struct RenderOpts<'a> {
     block: Option<&'a BlockData>,
 }
 
+// Display-cell width of a single char. Control chars and zero-width chars are 0.
+fn char_cells(c: char) -> usize {
+    UnicodeWidthChar::width(c).unwrap_or(0)
+}
+
+// Cells reserved by the cursor: width of the char under it, or 1 cell when at end.
+// Treat zero-width cursor positions as 1 cell so the cursor remains visible.
+fn cursor_cells(chars: &[char], cursor: usize) -> usize {
+    if cursor < chars.len() {
+        char_cells(chars[cursor]).max(1)
+    } else {
+        1
+    }
+}
+
+fn cells_in(chars: &[char]) -> usize {
+    chars.iter().map(|&c| char_cells(c)).sum()
+}
+
 fn render_state(buf: &mut Buffer, state: &mut TextInputState, area: Rect, opts: &RenderOpts) {
     let inner_width = if opts.block.is_some() {
         area.width.saturating_sub(2) as usize
@@ -206,16 +227,24 @@ fn render_state(buf: &mut Buffer, state: &mut TextInputState, area: Rect, opts: 
     let chars: Vec<char> = state.value.chars().collect();
     let len = chars.len();
 
-    // Adjust viewport to keep cursor visible
+    // Adjust viewport so the cursor remains visible. Both the viewport offset
+    // and the cursor are tracked in char units, but visibility is computed in
+    // terminal cells so wide chars (CJK, emoji) consume two columns.
     if state.cursor < state.viewport_offset {
         state.viewport_offset = state.cursor;
-    } else if state.cursor >= state.viewport_offset + inner_width {
-        state.viewport_offset = state.cursor.saturating_sub(inner_width - 1);
+    }
+    let cursor_w = cursor_cells(&chars, state.cursor);
+    while state.viewport_offset < state.cursor {
+        let cells_to_cursor = cells_in(&chars[state.viewport_offset..state.cursor]);
+        if cells_to_cursor + cursor_w <= inner_width {
+            break;
+        }
+        state.viewport_offset += 1;
     }
 
     let line = if chars.is_empty() {
         if let Some(placeholder) = opts.placeholder {
-            let visible: String = placeholder.chars().take(inner_width).collect();
+            let visible = take_cells(placeholder.chars(), inner_width);
             if state.cursor == 0 {
                 let mut spans = Vec::new();
                 let mut pchars = visible.chars();
@@ -234,38 +263,57 @@ fn render_state(buf: &mut Buffer, state: &mut TextInputState, area: Rect, opts: 
             Line::from(Span::styled(" ", opts.cursor_style))
         }
     } else {
-        let visible_end = (state.viewport_offset + inner_width).min(len);
-        let visible_chars = &chars[state.viewport_offset..visible_end];
+        let mut spans = Vec::new();
+        let mut cells_used = 0usize;
+        let mut idx = state.viewport_offset;
 
-        let cursor_in_view = state.cursor >= state.viewport_offset
-            && state.cursor < state.viewport_offset + inner_width;
-
-        if cursor_in_view {
-            let cursor_local = state.cursor - state.viewport_offset;
-            let mut spans = Vec::new();
-
-            if cursor_local > 0 {
-                let before: String = visible_chars[..cursor_local].iter().collect();
-                spans.push(Span::styled(before, opts.style));
+        // Before-cursor span (chars between viewport_offset and the cursor).
+        let mut before = String::new();
+        while idx < state.cursor && idx < len {
+            let w = char_cells(chars[idx]);
+            if cells_used + w > inner_width {
+                break;
             }
+            before.push(chars[idx]);
+            cells_used += w;
+            idx += 1;
+        }
+        if !before.is_empty() {
+            spans.push(Span::styled(before, opts.style));
+        }
 
+        // Cursor span. Always emit when reachable from the viewport so the
+        // cursor stays visible even when subsequent chars would overflow.
+        if state.cursor >= state.viewport_offset {
             if state.cursor < len {
-                let cursor_char = visible_chars[cursor_local].to_string();
-                spans.push(Span::styled(cursor_char, opts.cursor_style));
+                spans.push(Span::styled(
+                    chars[state.cursor].to_string(),
+                    opts.cursor_style,
+                ));
+                cells_used += char_cells(chars[state.cursor]).max(1);
+                idx = state.cursor + 1;
             } else {
                 spans.push(Span::styled(" ", opts.cursor_style));
+                cells_used += 1;
             }
-
-            if cursor_local + 1 < visible_chars.len() {
-                let after: String = visible_chars[cursor_local + 1..].iter().collect();
-                spans.push(Span::styled(after, opts.style));
-            }
-
-            Line::from(spans)
-        } else {
-            let text: String = visible_chars.iter().collect();
-            Line::from(Span::styled(text, opts.style))
         }
+
+        // After-cursor span: keep appending while chars still fit in the viewport.
+        let mut after = String::new();
+        while idx < len {
+            let w = char_cells(chars[idx]);
+            if cells_used + w > inner_width {
+                break;
+            }
+            after.push(chars[idx]);
+            cells_used += w;
+            idx += 1;
+        }
+        if !after.is_empty() {
+            spans.push(Span::styled(after, opts.style));
+        }
+
+        Line::from(spans)
     };
 
     let mut paragraph = Paragraph::new(line);
@@ -275,6 +323,21 @@ fn render_state(buf: &mut Buffer, state: &mut TextInputState, area: Rect, opts: 
     }
 
     paragraph.render(area, buf);
+}
+
+// Take chars from `iter` while their cumulative display width fits in `max_cells`.
+fn take_cells<I: IntoIterator<Item = char>>(iter: I, max_cells: usize) -> String {
+    let mut out = String::new();
+    let mut used = 0usize;
+    for c in iter {
+        let w = char_cells(c);
+        if used + w > max_cells {
+            break;
+        }
+        out.push(c);
+        used += w;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -500,6 +563,134 @@ mod tests {
         state.handle_key("backspace");
         assert_eq!(state.value, "é");
         assert_eq!(state.cursor, 1);
+    }
+
+    fn render_to_line(state: &mut TextInputState, width: u16) -> String {
+        let backend = TestBackend::new(width, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| {
+                let opts = RenderOpts {
+                    style: Style::default(),
+                    cursor_style: Style::default().fg(Color::Black).bg(Color::White),
+                    placeholder: None,
+                    placeholder_style: Style::default(),
+                    block: None,
+                };
+                render_state(frame.buffer_mut(), state, Rect::new(0, 0, width, 1), &opts);
+            })
+            .unwrap();
+
+        buffer_line(&terminal, 0, width)
+    }
+
+    fn cursor_cell_index(terminal: &Terminal<TestBackend>, y: u16, width: u16) -> Option<u16> {
+        let buf = terminal.backend().buffer();
+        (0..width).find(|x| {
+            buf.cell((*x, y))
+                .map(|c| c.bg == Color::White)
+                .unwrap_or(false)
+        })
+    }
+
+    fn render_and_find_cursor(state: &mut TextInputState, width: u16) -> Option<u16> {
+        let backend = TestBackend::new(width, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| {
+                let opts = RenderOpts {
+                    style: Style::default(),
+                    cursor_style: Style::default().fg(Color::Black).bg(Color::White),
+                    placeholder: None,
+                    placeholder_style: Style::default(),
+                    block: None,
+                };
+                render_state(frame.buffer_mut(), state, Rect::new(0, 0, width, 1), &opts);
+            })
+            .unwrap();
+
+        cursor_cell_index(&terminal, 0, width)
+    }
+
+    #[test]
+    fn test_cursor_visible_with_cjk_at_end_fitting_viewport() {
+        // 5 CJK chars × 2 cells = 10 cells, plus cursor = 11 cells.
+        // With width 10, cursor should be visible at right edge after viewport scrolls.
+        let mut state = new_state_with("测试测试测", 5);
+        let cursor_pos = render_and_find_cursor(&mut state, 10);
+        assert!(
+            cursor_pos.is_some(),
+            "cursor should be visible after viewport scrolls"
+        );
+    }
+
+    #[test]
+    fn test_cursor_visible_with_cjk_overflowing_viewport() {
+        // Reproduces issue #45: 6 CJK chars × 2 cells = 12 cells overflows width 10.
+        // Cursor at end (position 6) must remain visible by scrolling the viewport.
+        let mut state = new_state_with("测试测试测试", 6);
+        let cursor_pos = render_and_find_cursor(&mut state, 10);
+        assert!(
+            cursor_pos.is_some(),
+            "cursor at end of CJK input must remain visible"
+        );
+    }
+
+    #[test]
+    fn test_cursor_visible_on_cjk_char_mid_text() {
+        // Cursor highlights the 3rd CJK char ('试' at index 2, cells 4-5).
+        let mut state = new_state_with("测试测试", 2);
+        let cursor_pos = render_and_find_cursor(&mut state, 10);
+        assert_eq!(cursor_pos, Some(4));
+    }
+
+    #[test]
+    fn test_cjk_chars_truncated_at_viewport_boundary() {
+        // 6 CJK chars (12 cells) overflow width 10. Only 5 wide chars fit
+        // (cells 0-9), so the 6th must not appear in the output.
+        let mut state = new_state_with("测试测试测试", 0);
+        let line = render_to_line(&mut state, 10);
+        let cjk_count = line.chars().filter(|c| char_cells(*c) == 2).count();
+        assert_eq!(
+            cjk_count, 5,
+            "expected 5 CJK chars to fit in width 10, got {:?}",
+            line
+        );
+    }
+
+    #[test]
+    fn test_issue_45_right_arrow_at_end_keeps_cursor_visible() {
+        // Reproduces the exact steps from issue #45:
+        //   1. width: 10
+        //   2. value containing 6 double-width CJK chars (12 cells > 10)
+        //   3. press right arrow at end
+        // Cursor must remain visible.
+        let mut state = new_state();
+        for ch in ["测", "试", "测", "试", "测", "试"] {
+            state.handle_key(ch);
+        }
+        state.handle_key("end");
+        state.handle_key("right");
+
+        let cursor_pos = render_and_find_cursor(&mut state, 10);
+        assert!(
+            cursor_pos.is_some(),
+            "cursor must be visible after pressing right arrow at end of CJK input"
+        );
+    }
+
+    #[test]
+    fn test_viewport_scrolls_for_cjk_when_cursor_at_end() {
+        // Initially cursor at end of overflowing CJK input (12 cells, width 10).
+        // Viewport must scroll forward so the cursor is visible.
+        let mut state = new_state_with("测试测试测试", 6);
+        let _ = render_and_find_cursor(&mut state, 10);
+        assert!(
+            state.viewport_offset > 0,
+            "viewport must scroll past first chars to keep cursor visible"
+        );
     }
 
     #[test]

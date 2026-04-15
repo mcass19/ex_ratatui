@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TextInput cursor invisible at end of double-width input** ([#45](https://github.com/mcass19/ex_ratatui/issues/45)) — when a `TextInput` contained CJK or other double-width characters that overflowed the widget's display width, moving the cursor to the end made it disappear. Viewport scrolling and span construction tracked positions in char counts but the widget's display width is measured in terminal cells, so wide chars consumed twice their accounted-for space and the trailing cursor span was truncated. Both the viewport adjustment and the rendered spans are now cell-aware via the `unicode-width` crate
+
 ## [0.7.1] - 2026-04-13
 
 ### Fixed
