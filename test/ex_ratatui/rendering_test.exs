@@ -148,6 +148,32 @@ defmodule ExRatatui.RenderingTest do
       assert content =~ "plain"
     end
 
+    test "accepts tabs with rich-text titles", %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+      alias ExRatatui.Widgets.Tabs
+
+      tabs = %Tabs{
+        titles: [
+          Span.new("Home", style: %Style{fg: :cyan}),
+          Line.new([
+            Span.new("["),
+            Span.new("X", style: %Style{modifiers: [:bold]}),
+            Span.new("]")
+          ]),
+          "Plain"
+        ],
+        selected: 0
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{tabs, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Home"
+      assert content =~ "X"
+      assert content =~ "Plain"
+    end
+
     test "accepts list with rich-text items (mixed strings, Spans, Lines)", %{terminal: terminal} do
       alias ExRatatui.Text.{Line, Span}
       alias ExRatatui.Widgets.List, as: ListWidget

@@ -274,7 +274,16 @@ fn decode_gauge(map: &TermMap<'_>) -> Result<GaugeData, Error> {
 }
 
 fn decode_tabs(map: &TermMap<'_>) -> Result<TabsData, Error> {
-    let titles: Vec<String> = decode_required(map, "titles", "tabs")?;
+    let titles_term = optional_term(map, "titles")
+        .ok_or_else(|| crate::decode::missing_field("tabs", "titles"))?;
+    let title_terms: Vec<Term<'_>> = titles_term
+        .decode()
+        .map_err(|_| invalid_field("tabs", "titles", "expected a list"))?;
+    let titles: Vec<ratatui::text::Line<'static>> = title_terms
+        .into_iter()
+        .map(text::decode_line)
+        .collect::<Result<_, _>>()?;
+
     let selected: Option<usize> = decode_optional(map, "selected", "tabs")?;
 
     let style = match optional_term(map, "style") {

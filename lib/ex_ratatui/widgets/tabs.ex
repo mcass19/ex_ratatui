@@ -4,7 +4,10 @@ defmodule ExRatatui.Widgets.Tabs do
 
   ## Fields
 
-    * `:titles` - list of tab title strings
+    * `:titles` - list of tab titles. Each title accepts any `ExRatatui.Text`-coercible
+      line-like value: a `String.t()`, a `%ExRatatui.Text.Span{}`, a
+      `%ExRatatui.Text.Line{}`, or a list of spans. Titles are single-line —
+      strings with embedded newlines raise.
     * `:selected` - zero-based index of the selected tab, or `nil` for no selection
     * `:style` - `%ExRatatui.Style{}` for non-selected tabs
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected tab
@@ -26,8 +29,14 @@ defmodule ExRatatui.Widgets.Tabs do
       }
   """
 
+  @type title ::
+          String.t()
+          | ExRatatui.Text.Span.t()
+          | ExRatatui.Text.Line.t()
+          | [ExRatatui.Text.Span.t()]
+
   @type t :: %__MODULE__{
-          titles: [String.t()],
+          titles: [title()],
           selected: non_neg_integer() | nil,
           style: ExRatatui.Style.t(),
           highlight_style: ExRatatui.Style.t(),

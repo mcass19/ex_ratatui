@@ -1,12 +1,13 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
+use ratatui::text::Line;
 use ratatui::widgets::{Tabs, Widget};
 
 use crate::widgets::block::BlockData;
 
 pub struct TabsData {
-    pub titles: Vec<String>,
+    pub titles: Vec<Line<'static>>,
     pub selected: Option<usize>,
     pub style: Style,
     pub highlight_style: Style,
@@ -54,7 +55,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = TabsData {
-            titles: vec!["Tab1".into(), "Tab2".into(), "Tab3".into()],
+            titles: vec![Line::from("Tab1"), Line::from("Tab2"), Line::from("Tab3")],
             selected: Some(0),
             style: Style::default(),
             highlight_style: Style::default().fg(Color::Yellow),
@@ -80,7 +81,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = TabsData {
-            titles: vec!["A".into(), "B".into()],
+            titles: vec![Line::from("A"), Line::from("B")],
             selected: None,
             style: Style::default(),
             highlight_style: Style::default(),
@@ -104,7 +105,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = TabsData {
-            titles: vec!["One".into(), "Two".into()],
+            titles: vec![Line::from("One"), Line::from("Two")],
             selected: None,
             style: Style::default(),
             highlight_style: Style::default(),
@@ -120,5 +121,50 @@ mod tests {
 
         let line = buffer_line(&terminal, 0, 30);
         assert!(line.contains("One"));
+    }
+
+    #[test]
+    fn test_render_titles_with_rich_text_spans() {
+        use ratatui::style::Modifier;
+        use ratatui::text::Span;
+
+        let backend = TestBackend::new(40, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let data = TabsData {
+            titles: vec![
+                Line::from(vec![
+                    Span::styled("[", Style::default().fg(Color::Red)),
+                    Span::styled(
+                        "H",
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled("ome]", Style::default().fg(Color::Red)),
+                ]),
+                Line::from("Docs"),
+            ],
+            selected: Some(0),
+            style: Style::default(),
+            highlight_style: Style::default(),
+            divider: None,
+            block: None,
+            padding_left: 1,
+            padding_right: 1,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 1)))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        // First title starts at col 1 (padding_left = 1)
+        assert_eq!(buf.cell((1, 0)).unwrap().symbol(), "[");
+        assert_eq!(buf.cell((1, 0)).unwrap().fg, Color::Red);
+        let h_cell = buf.cell((2, 0)).unwrap();
+        assert_eq!(h_cell.symbol(), "H");
+        assert_eq!(h_cell.fg, Color::Yellow);
+        assert!(h_cell.modifier.contains(Modifier::BOLD));
     }
 }

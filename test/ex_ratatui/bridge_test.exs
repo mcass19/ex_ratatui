@@ -132,6 +132,43 @@ defmodule ExRatatui.BridgeTest do
            } = command
   end
 
+  test "encode_command encodes tab titles through rich-text lines" do
+    alias ExRatatui.Widgets.Tabs
+
+    command =
+      Bridge.encode_command(
+        {%Tabs{
+           titles: [
+             "Home",
+             Span.new("Docs", style: %Style{fg: :cyan}),
+             Line.new([
+               Span.new("["),
+               Span.new("X", style: %Style{modifiers: [:bold]}),
+               Span.new("]")
+             ])
+           ]
+         }, %Rect{x: 0, y: 0, width: 30, height: 1}}
+      )
+
+    assert {
+             %{
+               "type" => "tabs",
+               "titles" => [
+                 %{"spans" => [%{"content" => "Home"}]},
+                 %{"spans" => [%{"content" => "Docs", "style" => %{"fg" => "cyan"}}]},
+                 %{
+                   "spans" => [
+                     %{"content" => "["},
+                     %{"content" => "X"},
+                     %{"content" => "]"}
+                   ]
+                 }
+               ]
+             },
+             _rect
+           } = command
+  end
+
   test "ExRatatui.encode_command/1 delegates to the shared bridge" do
     assert {
              %{

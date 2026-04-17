@@ -87,7 +87,7 @@ defmodule ExRatatui.Bridge do
       "type" => "table",
       "rows" =>
         Enum.map(table.rows, fn row ->
-          Enum.map(row, &encode_table_cell/1)
+          Enum.map(row, &encode_line_like/1)
         end),
       "widths" => Enum.map(table.widths, &encode_constraint(&1, "table.widths")),
       "style" => encode_style(table.style, "table.style"),
@@ -130,7 +130,7 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%Tabs{} = tabs) do
     %{
       "type" => "tabs",
-      "titles" => tabs.titles,
+      "titles" => Enum.map(tabs.titles, &encode_line_like/1),
       "style" => encode_style(tabs.style, "tabs.style"),
       "highlight_style" => encode_style(tabs.highlight_style, "tabs.highlight_style"),
       "padding_left" => elem(tabs.padding, 0),
@@ -290,10 +290,10 @@ defmodule ExRatatui.Bridge do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
   end
 
-  defp encode_table_cell(cell), do: cell |> Coerce.coerce_line!() |> Encode.to_wire_line!()
+  defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()
 
   defp encode_table_header(nil), do: nil
-  defp encode_table_header(cells), do: Enum.map(cells, &encode_table_cell/1)
+  defp encode_table_header(cells), do: Enum.map(cells, &encode_line_like/1)
 
   defp encode_block(%Block{} = block, context) do
     %{
