@@ -4,8 +4,11 @@ defmodule ExRatatui.Widgets.Table do
 
   ## Fields
 
-    * `:rows` - list of rows, each row is a list of cell strings
-    * `:header` - optional list of header cell strings
+    * `:rows` - list of rows. Each row is a list of cells, and each cell
+      accepts any `ExRatatui.Text`-coercible line-like value: a `String.t()`,
+      a `%ExRatatui.Text.Span{}`, a `%ExRatatui.Text.Line{}`, or a list of
+      spans. Cells are single-line — strings with embedded newlines raise.
+    * `:header` - optional list of header cells (same shape as row cells)
     * `:widths` - list of constraint tuples for column widths
       (e.g., `[{:length, 10}, {:percentage, 50}, {:min, 5}]`)
     * `:style` - `%ExRatatui.Style{}` for the table
@@ -35,9 +38,15 @@ defmodule ExRatatui.Widgets.Table do
       }
   """
 
+  @type cell ::
+          String.t()
+          | ExRatatui.Text.Span.t()
+          | ExRatatui.Text.Line.t()
+          | [ExRatatui.Text.Span.t()]
+
   @type t :: %__MODULE__{
-          rows: [[String.t()]],
-          header: [String.t()] | nil,
+          rows: [[cell()]],
+          header: [cell()] | nil,
           widths: [ExRatatui.Layout.constraint()],
           style: ExRatatui.Style.t(),
           block: ExRatatui.Widgets.Block.t() | nil,

@@ -91,6 +91,47 @@ defmodule ExRatatui.BridgeTest do
            } = command
   end
 
+  test "encode_command encodes table rows and header through rich-text lines" do
+    command =
+      Bridge.encode_command(
+        {%Table{
+           rows: [
+             [
+               "plain",
+               Span.new("styled", style: %Style{fg: :red})
+             ],
+             [
+               Line.new([Span.new("a"), Span.new("b")]),
+               "last"
+             ]
+           ],
+           header: ["Name", Span.new("Value", style: %Style{modifiers: [:bold]})],
+           widths: [{:length, 10}, {:length, 10}]
+         }, %Rect{x: 0, y: 0, width: 30, height: 5}}
+      )
+
+    assert {
+             %{
+               "type" => "table",
+               "rows" => [
+                 [
+                   %{"spans" => [%{"content" => "plain"}]},
+                   %{"spans" => [%{"content" => "styled", "style" => %{"fg" => "red"}}]}
+                 ],
+                 [
+                   %{"spans" => [%{"content" => "a"}, %{"content" => "b"}]},
+                   %{"spans" => [%{"content" => "last"}]}
+                 ]
+               ],
+               "header" => [
+                 %{"spans" => [%{"content" => "Name"}]},
+                 %{"spans" => [%{"content" => "Value"}]}
+               ]
+             },
+             _rect
+           } = command
+  end
+
   test "ExRatatui.encode_command/1 delegates to the shared bridge" do
     assert {
              %{

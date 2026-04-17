@@ -1,13 +1,14 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
+use ratatui::text::Line;
 use ratatui::widgets::{Cell, Row, StatefulWidget, Table, TableState, Widget};
 
 use crate::widgets::block::BlockData;
 
 pub struct TableData {
-    pub rows: Vec<Vec<String>>,
-    pub header: Option<Vec<String>>,
+    pub rows: Vec<Vec<Line<'static>>>,
+    pub header: Option<Vec<Line<'static>>>,
     pub widths: Vec<Constraint>,
     pub style: Style,
     pub block: Option<BlockData>,
@@ -22,7 +23,7 @@ pub fn render(buf: &mut Buffer, data: &TableData, area: Rect) {
         .rows
         .iter()
         .map(|row| {
-            let cells: Vec<Cell> = row.iter().map(|s| Cell::from(s.as_str())).collect();
+            let cells: Vec<Cell> = row.iter().map(|line| Cell::from(line.clone())).collect();
             Row::new(cells)
         })
         .collect();
@@ -35,7 +36,7 @@ pub fn render(buf: &mut Buffer, data: &TableData, area: Rect) {
     if let Some(ref header_cells) = data.header {
         let cells: Vec<Cell> = header_cells
             .iter()
-            .map(|s| Cell::from(s.as_str()))
+            .map(|line| Cell::from(line.clone()))
             .collect();
         table = table.header(Row::new(cells));
     }
@@ -72,8 +73,8 @@ mod tests {
 
         let data = TableData {
             rows: vec![
-                vec!["Alice".into(), "30".into()],
-                vec!["Bob".into(), "25".into()],
+                vec![Line::from("Alice"), Line::from("30")],
+                vec![Line::from("Bob"), Line::from("25")],
             ],
             header: None,
             widths: vec![Constraint::Length(10), Constraint::Length(10)],
@@ -104,8 +105,8 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = TableData {
-            rows: vec![vec!["Alice".into(), "30".into()]],
-            header: Some(vec!["Name".into(), "Age".into()]),
+            rows: vec![vec![Line::from("Alice"), Line::from("30")]],
+            header: Some(vec![Line::from("Name"), Line::from("Age")]),
             widths: vec![Constraint::Length(10), Constraint::Length(10)],
             style: Style::default(),
             block: None,
@@ -135,9 +136,9 @@ mod tests {
 
         let data = TableData {
             rows: vec![
-                vec!["Row 1".into()],
-                vec!["Row 2".into()],
-                vec!["Row 3".into()],
+                vec![Line::from("Row 1")],
+                vec![Line::from("Row 2")],
+                vec![Line::from("Row 3")],
             ],
             header: None,
             widths: vec![Constraint::Length(20)],
@@ -156,5 +157,53 @@ mod tests {
         let selected_line = buffer_line(&terminal, 1, 30);
         assert!(selected_line.contains("Row 2"));
         assert!(selected_line.contains(">"));
+    }
+
+    #[test]
+    fn test_render_cells_with_rich_text_spans() {
+        use ratatui::style::Modifier;
+        use ratatui::text::Span;
+
+        let backend = TestBackend::new(30, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let styled_cell = Line::from(vec![
+            Span::styled("err", Style::default().fg(Color::Red)),
+            Span::styled(
+                "or",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]);
+
+        let data = TableData {
+            rows: vec![vec![styled_cell, Line::from("details")]],
+            header: Some(vec![
+                Line::from(Span::styled("Status", Style::default().fg(Color::Cyan))),
+                Line::from("Info"),
+            ]),
+            widths: vec![Constraint::Length(10), Constraint::Length(10)],
+            style: Style::default(),
+            block: None,
+            highlight_style: Style::default(),
+            highlight_symbol: None,
+            selected: None,
+            column_spacing: 1,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        // Header "Status" cyan at (0,0)
+        assert_eq!(buf.cell((0, 0)).unwrap().fg, Color::Cyan);
+        // Row 0, col 0: "err" red, "or" yellow+bold (row lives at row 1: header is row 0)
+        assert_eq!(buf.cell((0, 1)).unwrap().fg, Color::Red);
+        let or_cell = buf.cell((3, 1)).unwrap();
+        assert_eq!(or_cell.symbol(), "o");
+        assert_eq!(or_cell.fg, Color::Yellow);
+        assert!(or_cell.modifier.contains(Modifier::BOLD));
     }
 }

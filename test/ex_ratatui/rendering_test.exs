@@ -118,6 +118,36 @@ defmodule ExRatatui.RenderingTest do
       assert ExRatatui.get_buffer_content(terminal) =~ "single span"
     end
 
+    test "accepts table with rich-text cells in rows and header", %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+      alias ExRatatui.Widgets.Table
+
+      table = %Table{
+        rows: [
+          [
+            Span.new("err", style: %Style{fg: :red}),
+            Line.new([Span.new("bold", style: %Style{modifiers: [:bold]})])
+          ],
+          ["plain", "cell"]
+        ],
+        header: [
+          Span.new("Col A", style: %Style{fg: :cyan}),
+          "Col B"
+        ],
+        widths: [{:length, 10}, {:length, 10}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Col A"
+      assert content =~ "Col B"
+      assert content =~ "err"
+      assert content =~ "bold"
+      assert content =~ "plain"
+    end
+
     test "accepts list with rich-text items (mixed strings, Spans, Lines)", %{terminal: terminal} do
       alias ExRatatui.Text.{Line, Span}
       alias ExRatatui.Widgets.List, as: ListWidget

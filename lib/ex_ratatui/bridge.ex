@@ -85,13 +85,16 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%Table{} = table) do
     %{
       "type" => "table",
-      "rows" => table.rows,
+      "rows" =>
+        Enum.map(table.rows, fn row ->
+          Enum.map(row, &encode_table_cell/1)
+        end),
       "widths" => Enum.map(table.widths, &encode_constraint(&1, "table.widths")),
       "style" => encode_style(table.style, "table.style"),
       "highlight_style" => encode_style(table.highlight_style, "table.highlight_style"),
       "column_spacing" => table.column_spacing
     }
-    |> maybe_put("header", table.header)
+    |> maybe_put("header", encode_table_header(table.header))
     |> maybe_put("highlight_symbol", table.highlight_symbol)
     |> maybe_put("selected", table.selected)
     |> maybe_put_block(table.block, "table.block")
@@ -286,6 +289,11 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(widget) do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
   end
+
+  defp encode_table_cell(cell), do: cell |> Coerce.coerce_line!() |> Encode.to_wire_line!()
+
+  defp encode_table_header(nil), do: nil
+  defp encode_table_header(cells), do: Enum.map(cells, &encode_table_cell/1)
 
   defp encode_block(%Block{} = block, context) do
     %{

@@ -176,8 +176,30 @@ fn decode_list(map: &TermMap<'_>) -> Result<ListData, Error> {
 }
 
 fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
-    let rows: Vec<Vec<String>> = decode_required(map, "rows", "table")?;
-    let header: Option<Vec<String>> = decode_optional(map, "header", "table")?;
+    let rows_term =
+        optional_term(map, "rows").ok_or_else(|| crate::decode::missing_field("table", "rows"))?;
+    let row_terms: Vec<Vec<Term<'_>>> = rows_term
+        .decode()
+        .map_err(|_| invalid_field("table", "rows", "expected a list of cell lists"))?;
+    let rows: Vec<Vec<ratatui::text::Line<'static>>> = row_terms
+        .into_iter()
+        .map(|cells| cells.into_iter().map(text::decode_line).collect())
+        .collect::<Result<_, _>>()?;
+
+    let header = match optional_term(map, "header") {
+        Some(term) => {
+            let cell_terms: Vec<Term<'_>> = term
+                .decode()
+                .map_err(|_| invalid_field("table", "header", "expected a list"))?;
+            Some(
+                cell_terms
+                    .into_iter()
+                    .map(text::decode_line)
+                    .collect::<Result<_, _>>()?,
+            )
+        }
+        None => None,
+    };
 
     let widths = match optional_term(map, "widths") {
         Some(term) => {
