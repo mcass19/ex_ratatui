@@ -31,6 +31,7 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Distributed,
           # test-only modules loaded on :peer nodes for integration tests
           ExRatatui.Test.PeerApp,
+          ExRatatui.Test.PeerRichApp,
           ExRatatui.Test.PeerHelper
         ]
       ],

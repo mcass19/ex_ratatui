@@ -6,9 +6,11 @@ defmodule ExRatatui.Distributed.IntegrationTest do
   alias ExRatatui.Distributed
   alias ExRatatui.Distributed.Listener
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Text.{Line, Span}
   alias ExRatatui.Widgets.Paragraph
 
   @peer_app ExRatatui.Test.PeerApp
+  @peer_rich_app ExRatatui.Test.PeerRichApp
 
   # Excluded by default via test_helper.exs.
   # Run with: elixir --sname test -S mix test --only distributed
@@ -37,7 +39,11 @@ defmodule ExRatatui.Distributed.IntegrationTest do
   end
 
   defp start_peer_listener(peer_node, extra_opts) do
-    opts = [mod: @peer_app, name: nil] ++ extra_opts
+    start_peer_listener(peer_node, @peer_app, extra_opts)
+  end
+
+  defp start_peer_listener(peer_node, mod, extra_opts) do
+    opts = [mod: mod, name: nil] ++ extra_opts
 
     :rpc.call(
       peer_node,
@@ -109,6 +115,37 @@ defmodule ExRatatui.Distributed.IntegrationTest do
 
       assert_receive {:DOWN, ^ref, :process, ^server_pid, :normal}, 2000
 
+      :rpc.call(peer_node, Supervisor, :stop, [listener])
+    end
+
+    test "rich-text widgets travel from remote node to local client intact", %{
+      peer_node: peer_node
+    } do
+      {:ok, listener} =
+        start_peer_listener(peer_node, @peer_rich_app, app_opts: [test_pid: self()])
+
+      {:ok, server_pid} =
+        :rpc.call(peer_node, Listener, :start_session, [self(), 80, 24, listener])
+
+      assert_receive {:mounted, ^server_pid, _opts}, 2000
+
+      assert_receive {:ex_ratatui_draw, widgets}, 2000
+
+      assert [
+               {%Paragraph{
+                  text: %Line{
+                    spans: [
+                      %Span{content: "status: "},
+                      %Span{
+                        content: "OK",
+                        style: %ExRatatui.Style{fg: :green, modifiers: [:bold]}
+                      }
+                    ]
+                  }
+                }, %Rect{width: 80, height: 24}}
+             ] = widgets
+
+      GenServer.stop(server_pid)
       :rpc.call(peer_node, Supervisor, :stop, [listener])
     end
 
