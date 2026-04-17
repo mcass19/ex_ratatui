@@ -72,7 +72,7 @@ mod tests {
 
     fn make_block(title: &str) -> BlockData {
         BlockData {
-            title: Some(title.to_string()),
+            title: Some(ratatui::text::Line::from(title.to_string())),
             borders: Borders::ALL,
             border_type: BorderType::Rounded,
             border_style: Style::default(),

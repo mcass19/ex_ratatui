@@ -114,7 +114,7 @@ mod tests {
             items: vec![Text::from("Item 1"), Text::from("Item 2")],
             style: Style::default(),
             block: Some(BlockData {
-                title: Some("My List".to_string()),
+                title: Some(ratatui::text::Line::from("My List")),
                 borders: Borders::ALL,
                 border_style: Style::default(),
                 border_type: BorderType::Plain,

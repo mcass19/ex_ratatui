@@ -8,7 +8,10 @@ defmodule ExRatatui.Widgets.Block do
 
   ## Fields
 
-    * `:title` - optional title string displayed on the top border
+    * `:title` - optional title displayed on the top border. Accepts any
+      `ExRatatui.Text`-coercible line-like value: a `String.t()`, a
+      `%ExRatatui.Text.Span{}`, a `%ExRatatui.Text.Line{}`, or a list of spans.
+      Titles are single-line — strings with embedded newlines raise.
     * `:borders` - list of border sides: `:all`, `:top`, `:right`, `:bottom`, `:left`
     * `:border_style` - `%ExRatatui.Style{}` for border color/modifiers
     * `:border_type` - `:plain`, `:rounded`, `:double`, or `:thick`
@@ -41,8 +44,14 @@ defmodule ExRatatui.Widgets.Block do
   @type border_side :: :all | :top | :right | :bottom | :left
   @type border_type :: :plain | :rounded | :double | :thick
 
+  @type title ::
+          String.t()
+          | ExRatatui.Text.Span.t()
+          | ExRatatui.Text.Line.t()
+          | [ExRatatui.Text.Span.t()]
+
   @type t :: %__MODULE__{
-          title: String.t() | nil,
+          title: title() | nil,
           borders: [border_side()],
           border_style: ExRatatui.Style.t(),
           border_type: border_type(),

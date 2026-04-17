@@ -169,6 +169,69 @@ defmodule ExRatatui.BridgeTest do
            } = command
   end
 
+  test "encode_command encodes block title through rich-text line" do
+    command =
+      Bridge.encode_command(
+        {%Paragraph{
+           text: "body",
+           block: %Block{
+             title:
+               Line.new([
+                 Span.new(" ok ", style: %Style{fg: :green}),
+                 Span.new("Build", style: %Style{fg: :yellow, modifiers: [:bold]})
+               ]),
+             borders: [:all]
+           }
+         }, %Rect{x: 0, y: 0, width: 20, height: 3}}
+      )
+
+    assert {
+             %{
+               "type" => "paragraph",
+               "block" => %{
+                 "title" => %{
+                   "spans" => [
+                     %{"content" => " ok ", "style" => %{"fg" => "green"}},
+                     %{
+                       "content" => "Build",
+                       "style" => %{"fg" => "yellow", "modifiers" => ["bold"]}
+                     }
+                   ]
+                 }
+               }
+             },
+             _rect
+           } = command
+  end
+
+  test "encode_command accepts a plain string block title as a coerced line" do
+    command =
+      Bridge.encode_command(
+        {%Paragraph{text: "body", block: %Block{title: "Hello", borders: [:all]}},
+         %Rect{x: 0, y: 0, width: 20, height: 3}}
+      )
+
+    assert {
+             %{
+               "block" => %{
+                 "title" => %{"spans" => [%{"content" => "Hello"}]}
+               }
+             },
+             _rect
+           } = command
+  end
+
+  test "encode_command omits block title key when nil" do
+    command =
+      Bridge.encode_command(
+        {%Paragraph{text: "body", block: %Block{borders: [:all]}},
+         %Rect{x: 0, y: 0, width: 20, height: 3}}
+      )
+
+    assert {%{"block" => block_map}, _rect} = command
+    refute Map.has_key?(block_map, "title")
+  end
+
   test "ExRatatui.encode_command/1 delegates to the shared bridge" do
     assert {
              %{

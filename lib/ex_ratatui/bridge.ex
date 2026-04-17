@@ -292,6 +292,9 @@ defmodule ExRatatui.Bridge do
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()
 
+  defp encode_optional_line(nil), do: nil
+  defp encode_optional_line(value), do: encode_line_like(value)
+
   defp encode_table_header(nil), do: nil
   defp encode_table_header(cells), do: Enum.map(cells, &encode_line_like/1)
 
@@ -306,7 +309,7 @@ defmodule ExRatatui.Bridge do
       "padding_top" => elem(block.padding, 2),
       "padding_bottom" => elem(block.padding, 3)
     }
-    |> maybe_put("title", block.title)
+    |> maybe_put("title", encode_optional_line(block.title))
   end
 
   defp encode_block(other, context) do

@@ -199,6 +199,30 @@ defmodule ExRatatui.RenderingTest do
       assert content =~ "styled"
     end
 
+    test "accepts block with rich-text title", %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+      alias ExRatatui.Widgets.{Block, Paragraph}
+
+      paragraph = %Paragraph{
+        text: "body",
+        block: %Block{
+          title:
+            Line.new([
+              Span.new(" ok ", style: %Style{fg: :green}),
+              Span.new("Build", style: %Style{fg: :yellow, modifiers: [:bold]})
+            ]),
+          borders: [:all]
+        }
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{paragraph, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "ok"
+      assert content =~ "Build"
+    end
+
     test "accepts textarea with line_number_style", %{terminal: terminal} do
       alias ExRatatui.Widgets.Textarea
 

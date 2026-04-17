@@ -178,7 +178,7 @@ mod tests {
             content: "Some markdown".to_string(),
             style: Style::default(),
             block: Some(BlockData {
-                title: Some("Response".to_string()),
+                title: Some(ratatui::text::Line::from("Response")),
                 borders: ratatui::widgets::Borders::ALL,
                 border_type: ratatui::widgets::BorderType::Rounded,
                 border_style: Style::default(),

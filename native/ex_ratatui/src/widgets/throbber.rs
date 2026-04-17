@@ -137,7 +137,7 @@ mod tests {
             throbber_set: parse_throbber_set("braille"),
             step: 0,
             block: Some(BlockData {
-                title: Some("Status".to_string()),
+                title: Some(ratatui::text::Line::from("Status")),
                 borders: ratatui::widgets::Borders::ALL,
                 border_type: ratatui::widgets::BorderType::Rounded,
                 border_style: Style::default(),

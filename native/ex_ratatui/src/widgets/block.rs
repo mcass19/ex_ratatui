@@ -1,15 +1,17 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
+use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Padding, Widget};
 use rustler::{Error, Term};
 use std::collections::HashMap;
 
 use crate::style::decode_style;
+use crate::text;
 
 #[derive(Clone)]
 pub struct BlockData {
-    pub title: Option<String>,
+    pub title: Option<Line<'static>>,
     pub borders: Borders,
     pub border_style: Style,
     pub border_type: BorderType,
@@ -27,7 +29,7 @@ impl BlockData {
             .padding(self.padding);
 
         if let Some(ref title) = self.title {
-            block = block.title(title.as_str());
+            block = block.title(title.clone());
         }
 
         block
@@ -45,7 +47,7 @@ pub fn decode_block(term: Term) -> Result<BlockData, Error> {
 
 pub fn decode_block_from_map(map: &HashMap<String, Term>) -> Result<BlockData, Error> {
     let title = match map.get("title") {
-        Some(term) => Some(term.decode::<String>()?),
+        Some(term) => Some(text::decode_line(*term)?),
         None => None,
     };
 
@@ -170,7 +172,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = BlockData {
-            title: Some("Hello".to_string()),
+            title: Some(Line::from("Hello")),
             borders: Borders::ALL,
             border_style: Style::default(),
             border_type: BorderType::Plain,
@@ -209,6 +211,47 @@ mod tests {
         assert_eq!(buf.cell((9, 0)).unwrap().symbol(), "╮");
         assert_eq!(buf.cell((0, 2)).unwrap().symbol(), "╰");
         assert_eq!(buf.cell((9, 2)).unwrap().symbol(), "╯");
+    }
+
+    #[test]
+    fn test_render_block_with_rich_text_title() {
+        use ratatui::style::Modifier;
+        use ratatui::text::Span;
+
+        let backend = TestBackend::new(20, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let title = Line::from(vec![
+            Span::styled(" ok ", Style::default().fg(Color::Green)),
+            Span::styled(
+                "Build",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]);
+
+        let data = BlockData {
+            title: Some(title),
+            borders: Borders::ALL,
+            border_style: Style::default(),
+            border_type: BorderType::Plain,
+            style: Style::default(),
+            padding: Padding::ZERO,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        // Title is drawn starting at col 1 (after left corner)
+        assert_eq!(buf.cell((1, 0)).unwrap().symbol(), " ");
+        assert_eq!(buf.cell((1, 0)).unwrap().fg, Color::Green);
+        let build_b = buf.cell((5, 0)).unwrap();
+        assert_eq!(build_b.symbol(), "B");
+        assert_eq!(build_b.fg, Color::Yellow);
+        assert!(build_b.modifier.contains(Modifier::BOLD));
     }
 
     #[test]
