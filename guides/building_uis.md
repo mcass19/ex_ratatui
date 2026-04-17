@@ -60,6 +60,39 @@ Named colors: `:black`, `:red`, `:green`, `:yellow`, `:blue`, `:magenta`, `:cyan
 
 Styles can be applied to most widgets via the `:style` field, and many widgets accept additional style fields for specific parts (e.g., `highlight_style`, `border_style`).
 
+## Rich Text
+
+Text fields on many widgets accept more than a plain string: you can pass a `%ExRatatui.Text.Span{}`, a `%ExRatatui.Text.Line{}`, a list of spans, or any mix — letting a single string of output carry per-span colors and modifiers.
+
+```elixir
+alias ExRatatui.Text.{Line, Span}
+alias ExRatatui.Style
+
+# A single styled run
+Span.new("error", style: %Style{fg: :red, modifiers: [:bold]})
+
+# Multiple styled runs on one line
+Line.new([
+  Span.new(" ok ", style: %Style{fg: :green}),
+  Span.new(" Build ", style: %Style{fg: :yellow, modifiers: [:bold]})
+])
+
+# Line-level overrides: a style layered over spans + per-line alignment
+Line.new([Span.new("centered")], style: %Style{modifiers: [:bold]}, alignment: :center)
+```
+
+Widgets that accept rich text on their text-bearing fields:
+
+| Widget | Field(s) |
+|--------|----------|
+| `Paragraph` | `:text` |
+| `List` | each `items` entry |
+| `Table` | each cell in `:rows`, each `:header` cell |
+| `Tabs` | each `:titles` entry |
+| `Block` | `:title` (single-line only) |
+
+Accepted shapes on these fields: `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{}]`. Plain strings continue to work everywhere. Fields that are semantically single-line (table cells, tab titles, block titles) raise if you pass a string with embedded newlines.
+
 ## Events
 
 Terminal events are polled automatically by the runtime. In the [Callback Runtime](callback_runtime.md), they arrive in `handle_event/2`. In the [Reducer Runtime](reducer_runtime.md), they arrive as `{:event, event}` in `update/2`.

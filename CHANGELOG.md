@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Rich text primitives** ([#26](https://github.com/mcass19/ex_ratatui/issues/26)) — new `ExRatatui.Text.Span` and `ExRatatui.Text.Line` structs let text-bearing widget fields carry per-span colors and modifiers instead of a single style for the entire string. `Paragraph.text`, `List.items`, `Table.rows`/`Table.header`, `Tabs.titles`, and `Block.title` now accept any mix of `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{}]`. Plain strings continue to work on every field; fields that are semantically single-line (table cells, tab titles, block titles) raise on strings containing embedded newlines. The new "Rich Text" section in [Building UIs](guides/building_uis.md#rich-text) walks through the API
+
 ### Fixed
 
 - **TextInput cursor invisible at end of double-width input** ([#45](https://github.com/mcass19/ex_ratatui/issues/45)) — when a `TextInput` contained CJK or other double-width characters that overflowed the widget's display width, moving the cursor to the end made it disappear. Viewport scrolling and span construction tracked positions in char counts but the widget's display width is measured in terminal cells, so wide chars consumed twice their accounted-for space and the trailing cursor span was truncated. Both the viewport adjustment and the rendered spans are now cell-aware via the `unicode-width` crate

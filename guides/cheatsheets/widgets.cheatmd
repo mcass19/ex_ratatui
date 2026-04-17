@@ -1,5 +1,18 @@
 # Widgets Cheatsheet
 
+## Rich Text
+
+`Paragraph.text`, `List.items`, `Table.rows`/`header`, `Tabs.titles`, and `Block.title` accept a `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{}]` — see the [Rich Text section](../building_uis.md#rich-text) in Building UIs.
+
+```elixir
+alias ExRatatui.Text.{Line, Span}
+
+Line.new([
+  Span.new(" ok ", style: %Style{fg: :green}),
+  Span.new("Build", style: %Style{fg: :yellow, modifiers: [:bold]})
+])
+```
+
 ## Paragraph
 
 Text display with optional wrapping, alignment, and scrolling.
