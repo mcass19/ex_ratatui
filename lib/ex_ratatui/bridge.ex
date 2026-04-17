@@ -70,7 +70,10 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%List{} = list) do
     %{
       "type" => "list",
-      "items" => list.items,
+      "items" =>
+        Enum.map(list.items, fn item ->
+          item |> Coerce.coerce_text!() |> Encode.to_wire_text!()
+        end),
       "style" => encode_style(list.style, "list.style"),
       "highlight_style" => encode_style(list.highlight_style, "list.highlight_style")
     }

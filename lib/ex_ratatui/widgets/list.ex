@@ -4,7 +4,9 @@ defmodule ExRatatui.Widgets.List do
 
   ## Fields
 
-    * `:items` - list of strings to display
+    * `:items` - list of items to display. Each item accepts any
+      `ExRatatui.Text`-coercible value: a `String.t()`, a `%ExRatatui.Text.Span{}`,
+      a `%ExRatatui.Text.Line{}`, a `%ExRatatui.Text{}`, or a list of spans/lines.
     * `:style` - `%ExRatatui.Style{}` for non-selected items
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected item
@@ -24,8 +26,15 @@ defmodule ExRatatui.Widgets.List do
       }
   """
 
+  @type item ::
+          String.t()
+          | ExRatatui.Text.Span.t()
+          | ExRatatui.Text.Line.t()
+          | ExRatatui.Text.t()
+          | [ExRatatui.Text.Span.t() | ExRatatui.Text.Line.t()]
+
   @type t :: %__MODULE__{
-          items: [String.t()],
+          items: [item()],
           style: ExRatatui.Style.t(),
           block: ExRatatui.Widgets.Block.t() | nil,
           highlight_style: ExRatatui.Style.t(),

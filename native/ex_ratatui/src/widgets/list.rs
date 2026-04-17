@@ -1,12 +1,13 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
+use ratatui::text::Text;
 use ratatui::widgets::{List, ListItem, ListState, StatefulWidget, Widget};
 
 use crate::widgets::block::BlockData;
 
 pub struct ListData {
-    pub items: Vec<String>,
+    pub items: Vec<Text<'static>>,
     pub style: Style,
     pub block: Option<BlockData>,
     pub highlight_style: Style,
@@ -18,7 +19,7 @@ pub fn render(buf: &mut Buffer, data: &ListData, area: Rect) {
     let items: Vec<ListItem> = data
         .items
         .iter()
-        .map(|s| ListItem::new(s.as_str()))
+        .map(|t| ListItem::new(t.clone()))
         .collect();
 
     let mut list = List::new(items)
@@ -57,7 +58,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ListData {
-            items: vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            items: vec![Text::from("Alpha"), Text::from("Beta"), Text::from("Gamma")],
             style: Style::default(),
             block: None,
             highlight_style: Style::default(),
@@ -80,7 +81,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ListData {
-            items: vec!["One".into(), "Two".into(), "Three".into()],
+            items: vec![Text::from("One"), Text::from("Two"), Text::from("Three")],
             style: Style::default(),
             block: None,
             highlight_style: Style::default().fg(Color::Yellow),
@@ -110,7 +111,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ListData {
-            items: vec!["Item 1".into(), "Item 2".into()],
+            items: vec![Text::from("Item 1"), Text::from("Item 2")],
             style: Style::default(),
             block: Some(BlockData {
                 title: Some("My List".to_string()),
@@ -136,5 +137,38 @@ mod tests {
         // Items should be inside the border (row 1, 2)
         let line1 = buffer_line(&terminal, 1, 20);
         assert!(line1.contains("Item 1"));
+    }
+
+    #[test]
+    fn test_render_items_with_rich_text_spans() {
+        use ratatui::style::Modifier;
+        use ratatui::text::{Line, Span};
+
+        let backend = TestBackend::new(20, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let item = Text::from(vec![Line::from(vec![
+            Span::styled("error: ", Style::default().fg(Color::Red)),
+            Span::styled("boom", Style::default().add_modifier(Modifier::BOLD)),
+        ])]);
+
+        let data = ListData {
+            items: vec![item],
+            style: Style::default(),
+            block: None,
+            highlight_style: Style::default(),
+            highlight_symbol: None,
+            selected: None,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        assert_eq!(buf.cell((0, 0)).unwrap().fg, Color::Red);
+        let bold_cell = buf.cell((7, 0)).unwrap();
+        assert_eq!(bold_cell.symbol(), "b");
+        assert!(bold_cell.modifier.contains(Modifier::BOLD));
     }
 }

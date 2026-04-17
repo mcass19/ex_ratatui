@@ -118,6 +118,31 @@ defmodule ExRatatui.RenderingTest do
       assert ExRatatui.get_buffer_content(terminal) =~ "single span"
     end
 
+    test "accepts list with rich-text items (mixed strings, Spans, Lines)", %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+      alias ExRatatui.Widgets.List, as: ListWidget
+
+      list = %ListWidget{
+        items: [
+          "plain",
+          Span.new("span item", style: %Style{fg: :red}),
+          Line.new([
+            Span.new("prefix ", style: %Style{fg: :yellow}),
+            Span.new("styled", style: %Style{modifiers: [:bold]})
+          ])
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "plain"
+      assert content =~ "span item"
+      assert content =~ "prefix"
+      assert content =~ "styled"
+    end
+
     test "accepts textarea with line_number_style", %{terminal: terminal} do
       alias ExRatatui.Widgets.Textarea
 

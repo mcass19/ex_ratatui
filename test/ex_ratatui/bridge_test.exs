@@ -5,7 +5,8 @@ defmodule ExRatatui.BridgeTest do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Session
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{Block, Paragraph, Popup, Table, Textarea, TextInput, WidgetList}
+  alias ExRatatui.Text.{Line, Span}
+  alias ExRatatui.Widgets.{Block, List, Paragraph, Popup, Table, Textarea, TextInput, WidgetList}
 
   test "encode_command encodes nested widgets through the shared bridge" do
     command =
@@ -59,6 +60,35 @@ defmodule ExRatatui.BridgeTest do
                       %Rect{x: 0, y: 0, width: 20, height: 5}}
                    ])
                  end
+  end
+
+  test "encode_command encodes list items through the rich-text pipeline" do
+    command =
+      Bridge.encode_command(
+        {%List{
+           items: [
+             "plain",
+             Span.new("span-item"),
+             Line.new([Span.new("a"), Span.new("b")])
+           ]
+         }, %Rect{x: 0, y: 0, width: 10, height: 3}}
+      )
+
+    assert {
+             %{
+               "type" => "list",
+               "items" => [
+                 %{"lines" => [%{"spans" => [%{"content" => "plain"}]}]},
+                 %{"lines" => [%{"spans" => [%{"content" => "span-item"}]}]},
+                 %{
+                   "lines" => [
+                     %{"spans" => [%{"content" => "a"}, %{"content" => "b"}]}
+                   ]
+                 }
+               ]
+             },
+             _rect
+           } = command
   end
 
   test "ExRatatui.encode_command/1 delegates to the shared bridge" do

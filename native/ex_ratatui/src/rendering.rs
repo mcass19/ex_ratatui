@@ -140,7 +140,15 @@ fn decode_paragraph(map: &TermMap<'_>) -> Result<ParagraphData, Error> {
 }
 
 fn decode_list(map: &TermMap<'_>) -> Result<ListData, Error> {
-    let items: Vec<String> = decode_required(map, "items", "list")?;
+    let items_term =
+        optional_term(map, "items").ok_or_else(|| crate::decode::missing_field("list", "items"))?;
+    let item_terms: Vec<Term<'_>> = items_term
+        .decode()
+        .map_err(|_| crate::decode::invalid_field("list", "items", "expected a list"))?;
+    let items: Vec<ratatui::text::Text<'static>> = item_terms
+        .into_iter()
+        .map(text::decode_text)
+        .collect::<Result<_, _>>()?;
 
     let style = match optional_term(map, "style") {
         Some(term) => decode_style(term)?,
