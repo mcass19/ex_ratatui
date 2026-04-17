@@ -13,9 +13,9 @@ defmodule ExRatatui.Text.Encode do
   def to_wire_text!(%Text{} = text) do
     %{
       "lines" => Enum.map(text.lines, &encode_line/1),
-      "style" => encode_style!(text.style),
-      "alignment" => encode_alignment(text.alignment)
+      "style" => encode_style!(text.style)
     }
+    |> maybe_put("alignment", encode_alignment(text.alignment))
   end
 
   @doc """
@@ -27,9 +27,9 @@ defmodule ExRatatui.Text.Encode do
   defp encode_line(%Line{} = line) do
     %{
       "spans" => Enum.map(line.spans, &encode_span/1),
-      "style" => encode_style!(line.style),
-      "alignment" => encode_alignment(line.alignment)
+      "style" => encode_style!(line.style)
     }
+    |> maybe_put("alignment", encode_alignment(line.alignment))
   end
 
   defp encode_span(%Span{} = span) do

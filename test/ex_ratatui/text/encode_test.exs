@@ -7,11 +7,10 @@ defmodule ExRatatui.Text.EncodeTest do
   alias ExRatatui.Text.{Line, Span}
 
   describe "to_wire_text!/1" do
-    test "encodes an empty %Text{} to lines=[], nil alignment, no fg/bg" do
+    test "encodes an empty %Text{} to lines=[], omitted alignment, no fg/bg" do
       assert Encode.to_wire_text!(%Text{}) == %{
                "lines" => [],
-               "style" => %{"modifiers" => []},
-               "alignment" => nil
+               "style" => %{"modifiers" => []}
              }
     end
 
@@ -24,12 +23,10 @@ defmodule ExRatatui.Text.EncodeTest do
                    "spans" => [
                      %{"content" => "hi", "style" => %{"modifiers" => []}}
                    ],
-                   "style" => %{"modifiers" => []},
-                   "alignment" => nil
+                   "style" => %{"modifiers" => []}
                  }
                ],
-               "style" => %{"modifiers" => []},
-               "alignment" => nil
+               "style" => %{"modifiers" => []}
              }
     end
 
@@ -86,14 +83,17 @@ defmodule ExRatatui.Text.EncodeTest do
       text = Text.new([], alignment: :left)
       assert Encode.to_wire_text!(text)["alignment"] == "left"
     end
+
+    test "omits alignment key when nil" do
+      assert Encode.to_wire_text!(%Text{}) |> Map.has_key?("alignment") == false
+    end
   end
 
   describe "to_wire_line!/1" do
     test "encodes an empty %Line{}" do
       assert Encode.to_wire_line!(%Line{}) == %{
                "spans" => [],
-               "style" => %{"modifiers" => []},
-               "alignment" => nil
+               "style" => %{"modifiers" => []}
              }
     end
 

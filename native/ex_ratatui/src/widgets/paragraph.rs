@@ -1,12 +1,13 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
+use ratatui::text::Text;
 use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use crate::widgets::block::BlockData;
 
 pub struct ParagraphData {
-    pub text: String,
+    pub text: Text<'static>,
     pub style: Style,
     pub alignment: Alignment,
     pub wrap: bool,
@@ -48,7 +49,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Hello".to_string(),
+            text: Text::from("Hello"),
             style: Style::default(),
             alignment: Alignment::Left,
             wrap: false,
@@ -70,7 +71,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Styled".to_string(),
+            text: Text::from("Styled"),
             style: Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
@@ -97,7 +98,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Hi".to_string(),
+            text: Text::from("Hi"),
             style: Style::default(),
             alignment: Alignment::Center,
             wrap: false,
@@ -123,7 +124,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Hello world, this wraps".to_string(),
+            text: Text::from("Hello world, this wraps"),
             style: Style::default(),
             alignment: Alignment::Left,
             wrap: true,
@@ -149,7 +150,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Line 1\nLine 2\nLine 3".to_string(),
+            text: Text::from("Line 1\nLine 2\nLine 3"),
             style: Style::default(),
             alignment: Alignment::Left,
             wrap: false,
@@ -172,7 +173,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
 
         let data = ParagraphData {
-            text: "Offset".to_string(),
+            text: Text::from("Offset"),
             style: Style::default(),
             alignment: Alignment::Left,
             wrap: false,
@@ -190,5 +191,36 @@ mod tests {
         assert_eq!(buf.cell((5, 2)).unwrap().symbol(), "O");
         // Cell at (0, 0) should be empty
         assert_eq!(buf.cell((0, 0)).unwrap().symbol(), " ");
+    }
+
+    #[test]
+    fn test_render_rich_text_with_per_span_styles() {
+        use ratatui::text::{Line, Span};
+
+        let backend = TestBackend::new(20, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let text = Text::from(vec![Line::from(vec![
+            Span::styled("error: ", Style::default().fg(Color::Red)),
+            Span::styled("boom", Style::default().add_modifier(Modifier::BOLD)),
+        ])]);
+
+        let data = ParagraphData {
+            text,
+            style: Style::default(),
+            alignment: Alignment::Left,
+            wrap: false,
+            scroll: (0, 0),
+            block: None,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 1)))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        assert_eq!(buf.cell((0, 0)).unwrap().fg, Color::Red);
+        assert_eq!(buf.cell((7, 0)).unwrap().symbol(), "b");
+        assert!(buf.cell((7, 0)).unwrap().modifier.contains(Modifier::BOLD));
     }
 }

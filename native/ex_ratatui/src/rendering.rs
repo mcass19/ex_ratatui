@@ -9,6 +9,7 @@ use crate::decode::{
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
+use crate::text;
 use crate::text_input::{self, TextInputRenderData, TextInputResource, TextInputState};
 use crate::textarea::{self, TextareaRenderData, TextareaResource};
 use crate::widgets::block::{self, BlockData};
@@ -104,7 +105,9 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
 }
 
 fn decode_paragraph(map: &TermMap<'_>) -> Result<ParagraphData, Error> {
-    let text: String = decode_required(map, "text", "paragraph")?;
+    let text_term = optional_term(map, "text")
+        .ok_or_else(|| crate::decode::missing_field("paragraph", "text"))?;
+    let text = text::decode_text(text_term)?;
 
     let style = match optional_term(map, "style") {
         Some(term) => decode_style(term)?,

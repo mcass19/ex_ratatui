@@ -86,6 +86,38 @@ defmodule ExRatatui.RenderingTest do
       assert ExRatatui.get_buffer_content(terminal) =~ "Indexed color"
     end
 
+    test "accepts paragraph with rich text spans and lines", %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+
+      paragraph = %Paragraph{
+        text: [
+          Line.new([
+            Span.new("error: ", style: %Style{fg: :red, modifiers: [:bold]}),
+            Span.new("something broke")
+          ]),
+          Line.new([Span.new("next line", style: %Style{fg: :green})])
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{paragraph, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "error:"
+      assert content =~ "something broke"
+      assert content =~ "next line"
+    end
+
+    test "accepts paragraph with a single %Text.Span{}", %{terminal: terminal} do
+      alias ExRatatui.Text.Span
+
+      paragraph = %Paragraph{text: Span.new("single span", style: %Style{fg: :cyan})}
+      rect = %Rect{x: 0, y: 0, width: 40, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{paragraph, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "single span"
+    end
+
     test "accepts textarea with line_number_style", %{terminal: terminal} do
       alias ExRatatui.Widgets.Textarea
 

@@ -25,7 +25,12 @@ defmodule ExRatatui.BridgeTest do
     assert {
              %{
                "type" => "popup",
-               "content" => %{"type" => "paragraph", "text" => "hello"},
+               "content" => %{
+                 "type" => "paragraph",
+                 "text" => %{
+                   "lines" => [%{"spans" => [%{"content" => "hello"}]}]
+                 }
+               },
                "fixed_width" => 20,
                "fixed_height" => 5
              },
@@ -58,7 +63,12 @@ defmodule ExRatatui.BridgeTest do
 
   test "ExRatatui.encode_command/1 delegates to the shared bridge" do
     assert {
-             %{"type" => "paragraph", "text" => "delegated"},
+             %{
+               "type" => "paragraph",
+               "text" => %{
+                 "lines" => [%{"spans" => [%{"content" => "delegated"}]}]
+               }
+             },
              %{"x" => 0, "y" => 0, "width" => 10, "height" => 2}
            } =
              ExRatatui.encode_command(

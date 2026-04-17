@@ -61,7 +61,7 @@ mod tests {
 
     fn make_paragraph_content(text: &str) -> Box<WidgetData> {
         Box::new(WidgetData::Paragraph(ParagraphData {
-            text: text.to_string(),
+            text: ratatui::text::Text::from(text.to_string()),
             style: Style::default(),
             alignment: ratatui::layout::Alignment::Left,
             wrap: false,

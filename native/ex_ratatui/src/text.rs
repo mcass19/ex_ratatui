@@ -1,7 +1,3 @@
-// Wired into widget decoders in the next step; silencing dead_code warnings
-// until then keeps the rest of the build output clean.
-#![allow(dead_code)]
-
 use ratatui::layout::Alignment;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};

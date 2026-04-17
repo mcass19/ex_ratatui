@@ -9,6 +9,7 @@ defmodule ExRatatui.Bridge do
 
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Style
+  alias ExRatatui.Text.{Coerce, Encode}
 
   alias ExRatatui.Widgets.{
     Block,
@@ -50,7 +51,7 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%Paragraph{} = paragraph) do
     %{
       "type" => "paragraph",
-      "text" => paragraph.text,
+      "text" => paragraph.text |> Coerce.coerce_text!() |> Encode.to_wire_text!(),
       "style" => encode_style(paragraph.style, "paragraph.style"),
       "alignment" => Atom.to_string(paragraph.alignment),
       "wrap" => paragraph.wrap,

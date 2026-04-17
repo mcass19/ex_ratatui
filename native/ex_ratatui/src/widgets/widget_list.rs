@@ -103,7 +103,7 @@ mod tests {
 
     fn make_paragraph(text: &str) -> WidgetData {
         WidgetData::Paragraph(ParagraphData {
-            text: text.to_string(),
+            text: ratatui::text::Text::from(text.to_string()),
             style: Style::default(),
             alignment: Alignment::Left,
             wrap: false,
