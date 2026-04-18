@@ -41,6 +41,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `widget_showcase.exs` | `mix run examples/widget_showcase.exs` | Interactive showcase: tabs, progress bars, checkboxes, text input, scrollable logs |
 | `task_manager.exs` | `mix run examples/task_manager.exs` | Full task manager with tabs, table, scrollbar, line gauge, and more |
 | `chat_interface.exs` | `mix run examples/chat_interface.exs` | AI chat interface: markdown, textarea, throbber, popup, slash commands |
+| `focus_multi_panel.exs` | `mix run examples/focus_multi_panel.exs` | Three-panel layout with Tab-cycled focus using `ExRatatui.Focus` |
 | `task_manager/` | See [README](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) | Supervised Ecto + SQLite CRUD app. **Also runs over SSH**, multiple clients share one DB |
 
 ### Try an example over SSH

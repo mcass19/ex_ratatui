@@ -472,7 +472,7 @@ Focus.new([:search, :results, :details],
 )
 ```
 
-See [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) for a full two-panel demo.
+See [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) for a full three-panel demo.
 
 ## Examples
 

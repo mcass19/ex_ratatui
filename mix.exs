@@ -162,6 +162,9 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Event.Mouse,
           ExRatatui.Event.Resize
         ],
+        Focus: [
+          ExRatatui.Focus
+        ],
         Style: [
           ExRatatui.Style
         ],
