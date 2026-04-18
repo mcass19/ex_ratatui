@@ -39,8 +39,8 @@ defmodule ExRatatui.Focus do
 
       border_style =
         if Focus.focused?(focus, :search),
-          do: %Style{fg: "yellow"},
-          else: %Style{fg: "gray"}
+          do: %Style{fg: :yellow},
+          else: %Style{fg: :gray}
 
       %TextInput{
         state: search_state,
