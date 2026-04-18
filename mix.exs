@@ -102,6 +102,7 @@ defmodule ExRatatui.MixProject do
         "guides/callback_runtime.md": [title: "Callback Runtime"],
         "guides/reducer_runtime.md": [title: "Reducer Runtime"],
         "guides/building_uis.md": [title: "Building UIs"],
+        "guides/custom_widgets.md": [title: "Custom Widgets"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],

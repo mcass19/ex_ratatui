@@ -23,6 +23,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - **Rich text** on text-bearing widget fields (`Paragraph.text`, `List.items`, `Table` cells, `Tabs.titles`, `Block.title`): per-span colors and modifiers via `ExRatatui.Text.Span`/`Line`
+- **Custom widgets in pure Elixir** via the `ExRatatui.Widget` protocol: compose primitives into reusable composite widgets without touching Rust
 - Headless test backend for CI-friendly rendering verification
 - Precompiled NIF binaries: no Rust toolchain needed
 - Runs on BEAM's DirtyIo scheduler: never blocks your processes
@@ -179,6 +180,7 @@ All transports serve the same `ExRatatui.App` module — switch by changing a si
 | [Callback Runtime](guides/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
 | [Reducer Runtime](guides/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
 | [Building UIs](guides/building_uis.md) | Widgets, layout, styles, and events — everything for `render/2` |
+| [Custom Widgets](guides/custom_widgets.md) | Compose primitives into reusable widgets via the `ExRatatui.Widget` protocol |
 | [Running TUIs over SSH](guides/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs over Erlang Distribution](guides/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 
