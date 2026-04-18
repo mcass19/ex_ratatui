@@ -10,6 +10,7 @@ defmodule ExRatatui.Bridge do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Style
   alias ExRatatui.Text.{Coerce, Encode}
+  alias ExRatatui.Widget.Expander
 
   alias ExRatatui.Widgets.{
     Block,
@@ -33,7 +34,9 @@ defmodule ExRatatui.Bridge do
   @doc false
   @spec encode_commands!([{ExRatatui.widget(), Rect.t()}]) :: [{map(), map()}]
   def encode_commands!(widgets) when is_list(widgets) do
-    Enum.map(widgets, &encode_command/1)
+    widgets
+    |> Expander.expand!()
+    |> Enum.map(&encode_command/1)
   end
 
   @doc false

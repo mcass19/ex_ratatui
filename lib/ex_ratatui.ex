@@ -78,7 +78,13 @@ defmodule ExRatatui do
 
   @type terminal_ref :: reference()
 
-  @type widget ::
+  @typedoc """
+  Built-in widget structs the library renders natively.
+
+  `draw/2` also accepts user-defined structs that implement the
+  `ExRatatui.Widget` protocol — see `t:widget/0`.
+  """
+  @type primitive_widget ::
           Paragraph.t()
           | Block.t()
           | Checkbox.t()
@@ -95,6 +101,12 @@ defmodule ExRatatui do
           | TextInput.t()
           | Throbber.t()
           | WidgetList.t()
+
+  @typedoc """
+  Anything `draw/2` accepts: a primitive widget struct or any struct
+  implementing `ExRatatui.Widget`.
+  """
+  @type widget :: primitive_widget() | struct()
 
   @doc """
   Runs a TUI application.
