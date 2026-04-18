@@ -24,6 +24,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Text modifiers: bold, italic, underlined, and more
 - **Rich text** on text-bearing widget fields (`Paragraph.text`, `List.items`, `Table` cells, `Tabs.titles`, `Block.title`): per-span colors and modifiers via `ExRatatui.Text.Span`/`Line`
 - **Custom widgets in pure Elixir** via the `ExRatatui.Widget` protocol: compose primitives into reusable composite widgets without touching Rust
+- **Focus management** for multi-panel apps via `ExRatatui.Focus`: declare a ring of focusable IDs, cycle with Tab/Shift+Tab, dispatch keystrokes to the active widget
 - Headless test backend for CI-friendly rendering verification
 - Precompiled NIF binaries: no Rust toolchain needed
 - Runs on BEAM's DirtyIo scheduler: never blocks your processes

@@ -412,11 +412,74 @@ end
 
 See [`examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs) for a full integration.
 
+## Focus management
+
+Apps with multiple interactive widgets (e.g., a TextInput + List + details pane) need to track which widget "owns" the current keystroke. Rather than reinventing that bookkeeping every time, use `ExRatatui.Focus`:
+
+```elixir
+alias ExRatatui.{Event, Focus}
+
+# Declare the focus ring up front, e.g. in mount/2 or init/1.
+state = %{
+  focus: Focus.new([:search, :results, :details]),
+  search: ExRatatui.text_input_new(),
+  results: [...],
+  selected: 0
+}
+```
+
+Route every key event through `Focus.handle_key/2` before dispatching. Tab / Shift+Tab / `back_tab` are consumed (focus moves, you get `nil` back). Everything else passes through unchanged.
+
+```elixir
+def handle_event(%Event.Key{} = key, state) do
+  {focus, key} = Focus.handle_key(state.focus, key)
+  state = %{state | focus: focus}
+
+  case key do
+    nil ->
+      state
+
+    key ->
+      case Focus.current(focus) do
+        :search  -> update_search(state, key)
+        :results -> update_results(state, key)
+        :details -> update_details(state, key)
+      end
+  end
+end
+```
+
+Style the focused widget with `Focus.focused?/2`:
+
+```elixir
+border_style =
+  if Focus.focused?(focus, :search),
+    do: %Style{fg: :yellow},
+    else: %Style{fg: :gray}
+
+%TextInput{
+  state: state.search,
+  block: %Block{borders: [:all], border_style: border_style}
+}
+```
+
+Override the default keys with `%Event.Key{}` entries — e.g., to add Ctrl+Tab / Ctrl+Shift+Tab or arrow-based cycling:
+
+```elixir
+Focus.new([:search, :results, :details],
+  next_keys: [%Event.Key{code: "tab"}, %Event.Key{code: "right", modifiers: ["ctrl"]}],
+  prev_keys: [%Event.Key{code: "back_tab"}, %Event.Key{code: "left", modifiers: ["ctrl"]}]
+)
+```
+
+See [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) for a full two-panel demo.
+
 ## Examples
 
   * [`examples/widget_showcase.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widget_showcase.exs) — interactive showcase of tabs, progress bars, checkboxes, text input, and scrollable logs
   * [`examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs) — AI chat interface demonstrating markdown, textarea, throbber, popup, and slash commands
   * [`examples/task_manager/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) — full CRUD app using table, tabs, scrollbar, line gauge, and block compositions
+  * [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) — multi-panel layout with Tab-cycled focus
 
 ## Related
 
