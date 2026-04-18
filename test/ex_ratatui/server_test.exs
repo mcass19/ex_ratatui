@@ -1,6 +1,8 @@
 defmodule ExRatatui.ServerTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
+
   alias ExRatatui.Frame
   alias ExRatatui.Runtime
 
@@ -307,12 +309,14 @@ defmodule ExRatatui.ServerTest do
     test "server stops when mount returns {:error, reason}" do
       Process.flag(:trap_exit, true)
 
-      assert {:error, :mount_failed} =
-               ExRatatui.Server.start_link(
-                 mod: FailingMountApp,
-                 name: nil,
-                 test_mode: {80, 24}
-               )
+      capture_log(fn ->
+        assert {:error, :mount_failed} =
+                 ExRatatui.Server.start_link(
+                   mod: FailingMountApp,
+                   name: nil,
+                   test_mode: {80, 24}
+                 )
+      end)
     end
 
     test "server stops when terminal init fails (no TTY)" do
@@ -827,12 +831,14 @@ defmodule ExRatatui.ServerTest do
       Process.flag(:trap_exit, true)
       session = Session.new(40, 10)
 
-      assert {:error, :nope} =
-               ExRatatui.Server.start_link(
-                 mod: SshFailingMountApp,
-                 name: nil,
-                 transport: {:ssh, session, ssh_writer(self())}
-               )
+      capture_log(fn ->
+        assert {:error, :nope} =
+                 ExRatatui.Server.start_link(
+                   mod: SshFailingMountApp,
+                   name: nil,
+                   transport: {:ssh, session, ssh_writer(self())}
+                 )
+      end)
 
       # session is closed — draw on it must error with "closed"
       assert {:error, reason} = Session.draw(session, [])
