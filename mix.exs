@@ -162,6 +162,11 @@ defmodule ExRatatui.MixProject do
         ],
         Style: [
           ExRatatui.Style
+        ],
+        "Rich Text": [
+          ExRatatui.Text,
+          ExRatatui.Text.Line,
+          ExRatatui.Text.Span
         ]
       ]
     ]

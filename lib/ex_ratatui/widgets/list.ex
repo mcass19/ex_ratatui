@@ -31,7 +31,8 @@ defmodule ExRatatui.Widgets.List do
           | ExRatatui.Text.Span.t()
           | ExRatatui.Text.Line.t()
           | ExRatatui.Text.t()
-          | [ExRatatui.Text.Span.t() | ExRatatui.Text.Line.t()]
+          | [ExRatatui.Text.Span.t()]
+          | [ExRatatui.Text.Line.t()]
 
   @type t :: %__MODULE__{
           items: [item()],

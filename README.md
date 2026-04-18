@@ -22,6 +22,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - **Erlang distribution transport**: attach to a remote TUI over Erlang distribution with zero NIF on the app node
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
+- **Rich text** on text-bearing widget fields (`Paragraph.text`, `List.items`, `Table` cells, `Tabs.titles`, `Block.title`): per-span colors and modifiers via `ExRatatui.Text.Span`/`Line`
 - Headless test backend for CI-friendly rendering verification
 - Precompiled NIF binaries: no Rust toolchain needed
 - Runs on BEAM's DirtyIo scheduler: never blocks your processes

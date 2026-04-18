@@ -39,7 +39,7 @@ Container with borders, title, and padding. Wraps other widgets via their `:bloc
   border_type: :rounded,      # :plain | :rounded | :double | :thick
   border_style: %Style{fg: :cyan},
   style: %Style{},
-  padding: {0, 0, 0, 0}      # {top, right, bottom, left}
+  padding: {0, 0, 0, 0}      # {left, right, top, bottom}
 }
 ```
 

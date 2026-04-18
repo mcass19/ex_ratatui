@@ -103,5 +103,21 @@ defmodule ExRatatui.ExamplesTest do
 
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
     end
+
+    test "rich_text_showcase starts, renders, and stops on quit event" do
+      compile_example_modules("rich_text_showcase.exs")
+
+      {:ok, pid} = RichTextShowcase.start_link(name: nil, test_mode: {80, 24})
+      ref = Process.monitor(pid)
+
+      snapshot = ExRatatui.Runtime.snapshot(pid)
+      assert snapshot.mode == :callbacks
+      assert snapshot.render_count >= 1
+
+      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
+      :ok = ExRatatui.Runtime.inject_event(pid, quit)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+    end
   end
 end
