@@ -1,9 +1,10 @@
-# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, and more.
+# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, Sparkline, and more.
 # Run with: mix run examples/widget_showcase.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Left/Right = select chart bar,
 #           Space = toggle checkbox, q = quit
 
+alias ExRatatui.Focus
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
@@ -16,6 +17,7 @@ alias ExRatatui.Widgets.{
   LineGauge,
   Paragraph,
   Scrollbar,
+  Sparkline,
   Tabs,
   TextInput
 }
@@ -48,8 +50,62 @@ defmodule WidgetShowcase do
        # Search tab
        search_input: ExRatatui.text_input_new(),
        # Charts tab
+       chart_focus:
+         Focus.new([:traffic, :languages, :cpu],
+           next_keys: [%Event.Key{code: "]"}],
+           prev_keys: [%Event.Key{code: "["}]
+         ),
        traffic: [42, 67, 55, 80, 30, 72, 48],
        chart_cursor: 0,
+       languages: [
+         %{label: "Elixir", share: 42, fg: :magenta},
+         %{label: "Rust", share: 31, fg: :red},
+         %{label: "Go", share: 15, fg: :blue},
+         %{label: "Other", share: 12, fg: :dark_gray}
+       ],
+       language_cursor: 0,
+       cpu_history: [
+         3,
+         5,
+         4,
+         7,
+         6,
+         9,
+         12,
+         15,
+         18,
+         14,
+         11,
+         nil,
+         8,
+         6,
+         10,
+         13,
+         17,
+         20,
+         18,
+         15,
+         12,
+         10,
+         9,
+         7,
+         nil,
+         5,
+         4,
+         6,
+         8,
+         11,
+         14,
+         16,
+         19,
+         17,
+         14,
+         11,
+         9,
+         7,
+         6,
+         5
+       ],
        # Logs tab
        scroll: 0
      }}
@@ -220,8 +276,11 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 3} = state, area) do
+    [charts_area, sparkline_area] =
+      Layout.split(area, :vertical, [{:min, 0}, {:length, 5}])
+
     [vertical_area, horizontal_area] =
-      Layout.split(area, :vertical, [{:percentage, 60}, {:percentage, 40}])
+      Layout.split(charts_area, :vertical, [{:percentage, 60}, {:percentage, 40}])
 
     days = ~w(Mon Tue Wed Thu Fri Sat Sun)
 
@@ -229,7 +288,7 @@ defmodule WidgetShowcase do
       state.traffic
       |> Enum.with_index()
       |> Enum.map(fn {value, idx} ->
-        selected? = idx == state.chart_cursor
+        selected? = Focus.focused?(state.chart_focus, :traffic) and idx == state.chart_cursor
 
         style =
           if selected?,
@@ -249,20 +308,34 @@ defmodule WidgetShowcase do
       max: 100,
       direction: :vertical,
       block: %Block{
-        title: " Weekly Traffic (visits) ",
+        title: focus_title(" Weekly Traffic (visits) ", state.chart_focus, :traffic),
         borders: [:all],
         border_type: :rounded,
-        border_style: %Style{fg: :cyan}
+        border_style: focus_border(state.chart_focus, :traffic)
       }
     }
 
+    horizontal_bars =
+      state.languages
+      |> Enum.with_index()
+      |> Enum.map(fn {lang, idx} ->
+        selected? = Focus.focused?(state.chart_focus, :languages) and idx == state.language_cursor
+
+        style =
+          if selected?,
+            do: %Style{fg: :yellow, modifiers: [:bold]},
+            else: %Style{fg: lang.fg}
+
+        %Bar{
+          label: lang.label,
+          value: lang.share,
+          text_value: "#{lang.share}%",
+          style: style
+        }
+      end)
+
     horizontal_chart = %BarChart{
-      data: [
-        %Bar{label: "Elixir", value: 42, text_value: "42%", style: %Style{fg: :magenta}},
-        %Bar{label: "Rust", value: 31, text_value: "31%", style: %Style{fg: :red}},
-        %Bar{label: "Go", value: 15, text_value: "15%", style: %Style{fg: :blue}},
-        %Bar{label: "Other", value: 12, text_value: "12%", style: %Style{fg: :dark_gray}}
-      ],
+      data: horizontal_bars,
       bar_width: 1,
       bar_gap: 0,
       value_style: %Style{fg: :white, modifiers: [:bold]},
@@ -270,14 +343,34 @@ defmodule WidgetShowcase do
       max: 100,
       direction: :horizontal,
       block: %Block{
-        title: " Language Share ",
+        title: focus_title(" Language Share ", state.chart_focus, :languages),
         borders: [:all],
         border_type: :rounded,
-        border_style: %Style{fg: :dark_gray}
+        border_style: focus_border(state.chart_focus, :languages)
       }
     }
 
-    [{vertical_chart, vertical_area}, {horizontal_chart, horizontal_area}]
+    sparkline = %Sparkline{
+      data: state.cpu_history,
+      max: 25,
+      bar_set: :nine_levels,
+      style: %Style{fg: :green},
+      absent_value_symbol: "·",
+      absent_value_style: %Style{fg: :dark_gray},
+      block: %Block{
+        title:
+          focus_title(" CPU Load (last 40 samples · nil = missing) ", state.chart_focus, :cpu),
+        borders: [:all],
+        border_type: :rounded,
+        border_style: focus_border(state.chart_focus, :cpu)
+      }
+    }
+
+    [
+      {vertical_chart, vertical_area},
+      {horizontal_chart, horizontal_area},
+      {sparkline, sparkline_area}
+    ]
   end
 
   defp render_tab(%{tab: 4} = state, area) do
@@ -317,6 +410,92 @@ defmodule WidgetShowcase do
     [{content, content_area}, {scrollbar, scrollbar_area}]
   end
 
+  defp handle_chart_key(%Event.Key{code: "left"}, :traffic, state) do
+    %{state | chart_cursor: max(state.chart_cursor - 1, 0)}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "right"}, :traffic, state) do
+    max_idx = length(state.traffic) - 1
+    %{state | chart_cursor: min(state.chart_cursor + 1, max_idx)}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "up"}, :traffic, state) do
+    traffic =
+      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> min(v + 5, 100) end)
+
+    %{state | traffic: traffic}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "down"}, :traffic, state) do
+    traffic =
+      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> max(v - 5, 0) end)
+
+    %{state | traffic: traffic}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "up"}, :languages, state) do
+    %{state | language_cursor: max(state.language_cursor - 1, 0)}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "down"}, :languages, state) do
+    max_idx = length(state.languages) - 1
+    %{state | language_cursor: min(state.language_cursor + 1, max_idx)}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "left"}, :languages, state) do
+    languages =
+      Elixir.List.update_at(state.languages, state.language_cursor, fn l ->
+        %{l | share: max(l.share - 5, 0)}
+      end)
+
+    %{state | languages: languages}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "right"}, :languages, state) do
+    languages =
+      Elixir.List.update_at(state.languages, state.language_cursor, fn l ->
+        %{l | share: min(l.share + 5, 100)}
+      end)
+
+    %{state | languages: languages}
+  end
+
+  defp handle_chart_key(%Event.Key{code: "up"}, :cpu, state) do
+    push_cpu_sample(state, last_cpu_value(state) + 3)
+  end
+
+  defp handle_chart_key(%Event.Key{code: "down"}, :cpu, state) do
+    push_cpu_sample(state, max(last_cpu_value(state) - 3, 0))
+  end
+
+  defp handle_chart_key(%Event.Key{code: " "}, :cpu, state) do
+    push_cpu_sample(state, nil)
+  end
+
+  defp handle_chart_key(_key, _focus, state), do: state
+
+  defp last_cpu_value(state) do
+    state.cpu_history
+    |> Enum.reverse()
+    |> Enum.find(&is_integer/1)
+    |> Kernel.||(0)
+  end
+
+  defp push_cpu_sample(state, sample) do
+    [_oldest | rest] = state.cpu_history
+    %{state | cpu_history: rest ++ [sample]}
+  end
+
+  defp focus_border(focus, id) do
+    if Focus.focused?(focus, id),
+      do: %Style{fg: :yellow, modifiers: [:bold]},
+      else: %Style{fg: :dark_gray}
+  end
+
+  defp focus_title(title, focus, id) do
+    if Focus.focused?(focus, id), do: "●" <> title, else: title
+  end
+
   defp footer_text(0), do: " Tab/Shift+Tab = switch tabs | Up/Down = adjust progress | q = quit"
 
   defp footer_text(1),
@@ -327,7 +506,7 @@ defmodule WidgetShowcase do
 
   defp footer_text(3),
     do:
-      " Tab/Shift+Tab = switch tabs | Left/Right = select bar | Up/Down = adjust value | q = quit"
+      " Tab = tabs | [ / ] = cycle focus | arrows = interact with focused chart | Space = push gap (CPU) | q = quit"
 
   defp footer_text(4), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
@@ -389,28 +568,15 @@ defmodule WidgetShowcase do
     {:noreply, %{state | settings: settings}}
   end
 
-  # Charts tab: left/right selects bar, up/down adjusts value
-  def handle_event(%Event.Key{code: "left", kind: "press"}, %{tab: 3} = state) do
-    {:noreply, %{state | chart_cursor: max(state.chart_cursor - 1, 0)}}
-  end
+  # Charts tab: [ / ] cycle focus, arrows interact with focused chart.
+  def handle_event(%Event.Key{kind: "press"} = key, %{tab: 3} = state) do
+    {focus, key} = Focus.handle_key(state.chart_focus, key)
+    state = %{state | chart_focus: focus}
 
-  def handle_event(%Event.Key{code: "right", kind: "press"}, %{tab: 3} = state) do
-    max_idx = length(state.traffic) - 1
-    {:noreply, %{state | chart_cursor: min(state.chart_cursor + 1, max_idx)}}
-  end
-
-  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 3} = state) do
-    traffic =
-      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> min(v + 5, 100) end)
-
-    {:noreply, %{state | traffic: traffic}}
-  end
-
-  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 3} = state) do
-    traffic =
-      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> max(v - 5, 0) end)
-
-    {:noreply, %{state | traffic: traffic}}
+    case key do
+      nil -> {:noreply, state}
+      key -> {:noreply, handle_chart_key(key, Focus.current(focus), state)}
+    end
   end
 
   # Logs tab: up/down scrolls
