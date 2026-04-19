@@ -9,6 +9,8 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.Table
   doctest ExRatatui.Widgets.Gauge
   doctest ExRatatui.Widgets.LineGauge
+  doctest ExRatatui.Widgets.BarChart
+  doctest ExRatatui.Widgets.Bar
   doctest ExRatatui.Widgets.Tabs
   doctest ExRatatui.Widgets.Scrollbar
   doctest ExRatatui.Widgets.Checkbox

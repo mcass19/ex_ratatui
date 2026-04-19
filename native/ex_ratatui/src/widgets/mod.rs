@@ -1,3 +1,4 @@
+pub mod bar_chart;
 pub mod block;
 pub mod checkbox;
 pub mod clear;

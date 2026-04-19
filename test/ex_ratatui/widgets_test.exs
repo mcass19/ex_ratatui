@@ -6,6 +6,8 @@ defmodule ExRatatui.WidgetsTest do
   alias ExRatatui.Style
 
   alias ExRatatui.Widgets.{
+    Bar,
+    BarChart,
     Block,
     Checkbox,
     Clear,
@@ -639,6 +641,69 @@ defmodule ExRatatui.WidgetsTest do
       assert lg.ratio == 0.0
       assert lg.label == nil
     end
+
+    test "bar struct has correct defaults" do
+      bar = %Bar{}
+      assert bar.label == ""
+      assert bar.value == 0
+      assert bar.style == nil
+      assert bar.text_value == nil
+    end
+
+    test "bar_chart struct has correct defaults" do
+      chart = %BarChart{}
+      assert chart.data == []
+      assert chart.bar_width == 1
+      assert chart.bar_gap == 1
+      assert chart.max == nil
+      assert chart.direction == :vertical
+      assert chart.block == nil
+    end
+
+    test "bar_chart rejects negative bar value" do
+      chart = %BarChart{data: [%Bar{label: "x", value: -1}]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError, ~r/non-negative integer/, fn ->
+        ExRatatui.Bridge.encode_commands!([{chart, rect}])
+      end
+    end
+
+    test "bar_chart rejects float bar value" do
+      chart = %BarChart{data: [%Bar{label: "x", value: 3.5}]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError, ~r/non-negative integer/, fn ->
+        ExRatatui.Bridge.encode_commands!([{chart, rect}])
+      end
+    end
+
+    test "bar_chart rejects non-Bar entry in data" do
+      chart = %BarChart{data: [{"Elixir", 80}]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError, ~r/list of %Bar\{\}/, fn ->
+        ExRatatui.Bridge.encode_commands!([{chart, rect}])
+      end
+    end
+
+    test "bar_chart rejects non-list data" do
+      chart = %BarChart{data: "not a list"}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError, ~r/list of %Bar\{\}/, fn ->
+        ExRatatui.Bridge.encode_commands!([{chart, rect}])
+      end
+    end
+
+    test "bar_chart rejects unknown direction" do
+      chart = %BarChart{data: [], direction: :diagonal}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError, ~r/:vertical or :horizontal/, fn ->
+        ExRatatui.Bridge.encode_commands!([{chart, rect}])
+      end
+    end
   end
 
   describe "Tabs widget" do
@@ -792,6 +857,92 @@ defmodule ExRatatui.WidgetsTest do
       rect = %Rect{x: 0, y: 0, width: 20, height: 1}
 
       assert :ok = ExRatatui.draw(terminal, [{lg, rect}])
+    end
+  end
+
+  describe "BarChart widget" do
+    test "basic vertical chart with labels", %{terminal: terminal} do
+      chart = %BarChart{
+        data: [
+          %Bar{label: "Elixir", value: 80},
+          %Bar{label: "Rust", value: 95}
+        ],
+        bar_width: 6,
+        bar_gap: 2,
+        bar_style: %Style{fg: :cyan}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Elixir"
+      assert content =~ "Rust"
+    end
+
+    test "horizontal direction", %{terminal: terminal} do
+      chart = %BarChart{
+        data: [%Bar{label: "Go", value: 60}],
+        direction: :horizontal,
+        max: 100
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 4}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Go"
+    end
+
+    test "per-bar style override and text_value", %{terminal: terminal} do
+      chart = %BarChart{
+        data: [
+          %Bar{label: "Default", value: 10},
+          %Bar{label: "Red", value: 20, style: %Style{fg: :red}, text_value: "20!"}
+        ],
+        bar_width: 4,
+        bar_style: %Style{fg: :blue},
+        max: 30
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 8}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "20!"
+    end
+
+    test "with block title", %{terminal: terminal} do
+      chart = %BarChart{
+        data: [%Bar{label: "A", value: 1}],
+        block: %Block{title: " Traffic ", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 8}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "Traffic"
+    end
+
+    test "auto-scales when max is nil", %{terminal: terminal} do
+      chart = %BarChart{
+        data: [
+          %Bar{label: "A", value: 1},
+          %Bar{label: "B", value: 100}
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 8}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+    end
+
+    test "empty data list renders", %{terminal: terminal} do
+      chart = %BarChart{data: []}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 4}
+
+      assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
     end
   end
 

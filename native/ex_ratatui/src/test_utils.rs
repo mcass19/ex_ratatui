@@ -12,4 +12,15 @@ pub mod helpers {
             .trim_end()
             .to_string()
     }
+
+    /// Concatenate every row of the buffer into a single newline-separated string.
+    /// Convenient for assertions that don't care where on screen the text lands.
+    pub fn buffer_to_string(terminal: &Terminal<TestBackend>) -> String {
+        let buf = terminal.backend().buffer();
+        let area = buf.area;
+        (0..area.height)
+            .map(|y| buffer_line(terminal, y, area.width))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 }

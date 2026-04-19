@@ -13,6 +13,8 @@ defmodule ExRatatui.Bridge do
   alias ExRatatui.Widget.Expander
 
   alias ExRatatui.Widgets.{
+    Bar,
+    BarChart,
     Block,
     Checkbox,
     Clear,
@@ -128,6 +130,26 @@ defmodule ExRatatui.Bridge do
     }
     |> maybe_put("label", line_gauge.label)
     |> maybe_put_block(line_gauge.block, "line_gauge.block")
+  end
+
+  defp encode_widget(%BarChart{} = chart) do
+    unless chart.direction in [:vertical, :horizontal] do
+      raise ArgumentError,
+            "bar_chart.direction expected :vertical or :horizontal, got: #{inspect(chart.direction)}"
+    end
+
+    %{
+      "type" => "bar_chart",
+      "data" => encode_bars(chart.data),
+      "bar_width" => chart.bar_width,
+      "bar_gap" => chart.bar_gap,
+      "bar_style" => encode_style(chart.bar_style, "bar_chart.bar_style"),
+      "value_style" => encode_style(chart.value_style, "bar_chart.value_style"),
+      "label_style" => encode_style(chart.label_style, "bar_chart.label_style"),
+      "direction" => Atom.to_string(chart.direction)
+    }
+    |> maybe_put("max", chart.max)
+    |> maybe_put_block(chart.block, "bar_chart.block")
   end
 
   defp encode_widget(%Tabs{} = tabs) do
@@ -291,6 +313,27 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(widget) do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
+  end
+
+  defp encode_bars(bars) when is_list(bars), do: Enum.map(bars, &encode_bar/1)
+
+  defp encode_bars(other) do
+    raise ArgumentError, "bar_chart.data expected a list of %Bar{}, got: #{inspect(other)}"
+  end
+
+  defp encode_bar(%Bar{value: value}) when not is_integer(value) or value < 0 do
+    raise ArgumentError,
+          "bar.value expected a non-negative integer, got: #{inspect(value)}"
+  end
+
+  defp encode_bar(%Bar{} = bar) do
+    %{"label" => bar.label, "value" => bar.value}
+    |> maybe_put_style("style", bar.style, "bar.style")
+    |> maybe_put("text_value", bar.text_value)
+  end
+
+  defp encode_bar(other) do
+    raise ArgumentError, "bar_chart.data expected a list of %Bar{}, got entry: #{inspect(other)}"
   end
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()

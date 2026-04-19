@@ -12,6 +12,7 @@ use crate::terminal::{with_terminal_draw, TerminalResource};
 use crate::text;
 use crate::text_input::{self, TextInputRenderData, TextInputResource, TextInputState};
 use crate::textarea::{self, TextareaRenderData, TextareaResource};
+use crate::widgets::bar_chart::{self, BarChartData, BarData};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
@@ -33,6 +34,7 @@ pub enum WidgetData {
     Table(TableData),
     Gauge(GaugeData),
     LineGauge(LineGaugeData),
+    BarChart(BarChartData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
@@ -88,6 +90,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "table" => Ok(WidgetData::Table(decode_table(widget_map)?)),
         "gauge" => Ok(WidgetData::Gauge(decode_gauge(widget_map)?)),
         "line_gauge" => Ok(WidgetData::LineGauge(decode_line_gauge(widget_map)?)),
+        "bar_chart" => Ok(WidgetData::BarChart(decode_bar_chart(widget_map)?)),
         "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
         "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
         "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
@@ -392,6 +395,77 @@ fn decode_line_gauge(map: &TermMap<'_>) -> Result<LineGaugeData, Error> {
     })
 }
 
+fn decode_bar_chart(map: &TermMap<'_>) -> Result<BarChartData, Error> {
+    let data_term = optional_term(map, "data")
+        .ok_or_else(|| crate::decode::missing_field("bar_chart", "data"))?;
+    let bar_terms: Vec<Term<'_>> = data_term
+        .decode()
+        .map_err(|_| invalid_field("bar_chart", "data", "expected a list"))?;
+
+    let data: Vec<BarData> = bar_terms
+        .into_iter()
+        .map(decode_bar)
+        .collect::<Result<_, _>>()?;
+
+    let bar_width: u16 = decode_optional(map, "bar_width", "bar_chart")?.unwrap_or(1);
+    let bar_gap: u16 = decode_optional(map, "bar_gap", "bar_chart")?.unwrap_or(1);
+
+    let bar_style = match optional_term(map, "bar_style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let value_style = match optional_term(map, "value_style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let label_style = match optional_term(map, "label_style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let max: Option<u64> = decode_optional(map, "max", "bar_chart")?;
+
+    let direction_str: String =
+        decode_optional(map, "direction", "bar_chart")?.unwrap_or_else(|| "vertical".to_string());
+    let direction = bar_chart::parse_direction(&direction_str)?;
+
+    let block = decode_optional_block(map)?;
+
+    Ok(BarChartData {
+        data,
+        bar_width,
+        bar_gap,
+        bar_style,
+        value_style,
+        label_style,
+        max,
+        direction,
+        block,
+    })
+}
+
+fn decode_bar(term: Term<'_>) -> Result<BarData, Error> {
+    let map = decode_map(term, "bar")?;
+    let label: String = decode_required(&map, "label", "bar")?;
+    let value: u64 = decode_required(&map, "value", "bar")?;
+
+    let style = match optional_term(&map, "style") {
+        Some(style_term) => Some(decode_style(style_term)?),
+        None => None,
+    };
+
+    let text_value: Option<String> = decode_optional(&map, "text_value", "bar")?;
+
+    Ok(BarData {
+        label,
+        value,
+        style,
+        text_value,
+    })
+}
+
 fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     let label: String = decode_required(map, "label", "checkbox")?;
     let checked: bool = decode_required(map, "checked", "checkbox")?;
@@ -662,6 +736,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Table(data) => table::render(buf, data, area),
         WidgetData::Gauge(data) => gauge::render(buf, data, area),
         WidgetData::LineGauge(data) => line_gauge::render(buf, data, area),
+        WidgetData::BarChart(data) => bar_chart::render(buf, data, area),
         WidgetData::Tabs(data) => tabs::render(buf, data, area),
         WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
         WidgetData::Checkbox(data) => checkbox::render(buf, data, area),

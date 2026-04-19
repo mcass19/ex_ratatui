@@ -39,11 +39,12 @@ defmodule ExRatatui do
   See `ExRatatui.Widgets.Paragraph`, `ExRatatui.Widgets.Block`,
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
   `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
-  `ExRatatui.Widgets.Tabs`, `ExRatatui.Widgets.Scrollbar`,
-  `ExRatatui.Widgets.Checkbox`, `ExRatatui.Widgets.TextInput`,
-  `ExRatatui.Widgets.Clear`, `ExRatatui.Widgets.Markdown`,
-  `ExRatatui.Widgets.Textarea`, `ExRatatui.Widgets.Throbber`,
-  `ExRatatui.Widgets.Popup`, and `ExRatatui.Widgets.WidgetList`.
+  `ExRatatui.Widgets.BarChart`, `ExRatatui.Widgets.Tabs`,
+  `ExRatatui.Widgets.Scrollbar`, `ExRatatui.Widgets.Checkbox`,
+  `ExRatatui.Widgets.TextInput`, `ExRatatui.Widgets.Clear`,
+  `ExRatatui.Widgets.Markdown`, `ExRatatui.Widgets.Textarea`,
+  `ExRatatui.Widgets.Throbber`, `ExRatatui.Widgets.Popup`,
+  and `ExRatatui.Widgets.WidgetList`.
 
   ## Testing
 
@@ -58,6 +59,7 @@ defmodule ExRatatui do
   alias ExRatatui.Native
 
   alias ExRatatui.Widgets.{
+    BarChart,
     Block,
     Checkbox,
     Clear,
@@ -93,6 +95,7 @@ defmodule ExRatatui do
           | Table.t()
           | Gauge.t()
           | LineGauge.t()
+          | BarChart.t()
           | Tabs.t()
           | Scrollbar.t()
           | Markdown.t()
