@@ -1,18 +1,31 @@
-# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, and more.
+# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, and more.
 # Run with: mix run examples/widget_showcase.exs
 #
-# Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Space = toggle checkbox, q = quit
+# Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Left/Right = select chart bar,
+#           Space = toggle checkbox, q = quit
 
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
-alias ExRatatui.Widgets.{Block, Checkbox, LineGauge, Paragraph, Scrollbar, Tabs, TextInput}
+
+alias ExRatatui.Widgets.{
+  Bar,
+  BarChart,
+  Block,
+  Checkbox,
+  LineGauge,
+  Paragraph,
+  Scrollbar,
+  Tabs,
+  TextInput
+}
+
 alias ExRatatui.Event
 
 defmodule WidgetShowcase do
   use ExRatatui.App
 
-  @tabs ["Progress", "Settings", "Search", "Logs"]
+  @tabs ["Progress", "Settings", "Search", "Charts", "Logs"]
   @log_lines 40
 
   @impl true
@@ -34,6 +47,9 @@ defmodule WidgetShowcase do
        setting_cursor: 0,
        # Search tab
        search_input: ExRatatui.text_input_new(),
+       # Charts tab
+       traffic: [42, 67, 55, 80, 30, 72, 48],
+       chart_cursor: 0,
        # Logs tab
        scroll: 0
      }}
@@ -204,6 +220,67 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 3} = state, area) do
+    [vertical_area, horizontal_area] =
+      Layout.split(area, :vertical, [{:percentage, 60}, {:percentage, 40}])
+
+    days = ~w(Mon Tue Wed Thu Fri Sat Sun)
+
+    vertical_bars =
+      state.traffic
+      |> Enum.with_index()
+      |> Enum.map(fn {value, idx} ->
+        selected? = idx == state.chart_cursor
+
+        style =
+          if selected?,
+            do: %Style{fg: :yellow, modifiers: [:bold]},
+            else: %Style{fg: :green}
+
+        %Bar{label: Enum.at(days, idx), value: value, style: style}
+      end)
+
+    vertical_chart = %BarChart{
+      data: vertical_bars,
+      bar_width: 5,
+      bar_gap: 2,
+      bar_style: %Style{fg: :green},
+      value_style: %Style{fg: :white, modifiers: [:bold]},
+      label_style: %Style{fg: :cyan},
+      max: 100,
+      direction: :vertical,
+      block: %Block{
+        title: " Weekly Traffic (visits) ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    horizontal_chart = %BarChart{
+      data: [
+        %Bar{label: "Elixir", value: 42, text_value: "42%", style: %Style{fg: :magenta}},
+        %Bar{label: "Rust", value: 31, text_value: "31%", style: %Style{fg: :red}},
+        %Bar{label: "Go", value: 15, text_value: "15%", style: %Style{fg: :blue}},
+        %Bar{label: "Other", value: 12, text_value: "12%", style: %Style{fg: :dark_gray}}
+      ],
+      bar_width: 1,
+      bar_gap: 0,
+      value_style: %Style{fg: :white, modifiers: [:bold]},
+      label_style: %Style{fg: :cyan},
+      max: 100,
+      direction: :horizontal,
+      block: %Block{
+        title: " Language Share ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+
+    [{vertical_chart, vertical_area}, {horizontal_chart, horizontal_area}]
+  end
+
+  defp render_tab(%{tab: 4} = state, area) do
     content_width = area.width - 1
     content_area = %Rect{area | width: content_width}
     scrollbar_area = %Rect{area | x: area.x + content_width, width: 1}
@@ -248,7 +325,11 @@ defmodule WidgetShowcase do
   defp footer_text(2),
     do: " Tab/Shift+Tab = switch tabs | Type to search | Arrows = move cursor | q = quit"
 
-  defp footer_text(3), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
+  defp footer_text(3),
+    do:
+      " Tab/Shift+Tab = switch tabs | Left/Right = select bar | Up/Down = adjust value | q = quit"
+
+  defp footer_text(4), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
@@ -308,12 +389,36 @@ defmodule WidgetShowcase do
     {:noreply, %{state | settings: settings}}
   end
 
-  # Logs tab: up/down scrolls
-  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 3} = state) do
-    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  # Charts tab: left/right selects bar, up/down adjusts value
+  def handle_event(%Event.Key{code: "left", kind: "press"}, %{tab: 3} = state) do
+    {:noreply, %{state | chart_cursor: max(state.chart_cursor - 1, 0)}}
+  end
+
+  def handle_event(%Event.Key{code: "right", kind: "press"}, %{tab: 3} = state) do
+    max_idx = length(state.traffic) - 1
+    {:noreply, %{state | chart_cursor: min(state.chart_cursor + 1, max_idx)}}
   end
 
   def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 3} = state) do
+    traffic =
+      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> min(v + 5, 100) end)
+
+    {:noreply, %{state | traffic: traffic}}
+  end
+
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 3} = state) do
+    traffic =
+      Elixir.List.update_at(state.traffic, state.chart_cursor, fn v -> max(v - 5, 0) end)
+
+    {:noreply, %{state | traffic: traffic}}
+  end
+
+  # Logs tab: up/down scrolls
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 4} = state) do
+    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  end
+
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 4} = state) do
     {:noreply, %{state | scroll: max(state.scroll - 1, 0)}}
   end
 
