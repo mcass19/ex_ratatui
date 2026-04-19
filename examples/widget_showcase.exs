@@ -1,8 +1,8 @@
-# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, Sparkline, and more.
+# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, Sparkline, Calendar, and more.
 # Run with: mix run examples/widget_showcase.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Left/Right = select chart bar,
-#           Space = toggle checkbox, q = quit
+#           Space = toggle checkbox or calendar event, q = quit
 
 alias ExRatatui.Focus
 alias ExRatatui.Layout
@@ -13,6 +13,7 @@ alias ExRatatui.Widgets.{
   Bar,
   BarChart,
   Block,
+  Calendar,
   Checkbox,
   LineGauge,
   Paragraph,
@@ -27,7 +28,7 @@ alias ExRatatui.Event
 defmodule WidgetShowcase do
   use ExRatatui.App
 
-  @tabs ["Progress", "Settings", "Search", "Charts", "Logs"]
+  @tabs ["Progress", "Settings", "Search", "Charts", "Calendar", "Logs"]
   @log_lines 40
 
   @impl true
@@ -106,9 +107,20 @@ defmodule WidgetShowcase do
          6,
          5
        ],
+       # Calendar tab
+       calendar_date: Date.utc_today(),
+       calendar_events: seed_calendar_events(Date.utc_today()),
        # Logs tab
        scroll: 0
      }}
+  end
+
+  defp seed_calendar_events(today) do
+    %{
+      Date.add(today, -3) => %Style{fg: :green, modifiers: [:bold]},
+      Date.add(today, 2) => %Style{fg: :magenta, modifiers: [:bold]},
+      Date.add(today, 9) => %Style{fg: :blue, modifiers: [:bold]}
+    }
   end
 
   @impl true
@@ -374,6 +386,55 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 4} = state, area) do
+    [calendar_area, legend_area] =
+      Layout.split(area, :horizontal, [{:length, 26}, {:min, 0}])
+
+    cursor_style = %Style{fg: :black, bg: :yellow, modifiers: [:bold]}
+    events_with_cursor = Map.put(state.calendar_events, state.calendar_date, cursor_style)
+
+    calendar = %Calendar{
+      display_date: state.calendar_date,
+      events: events_with_cursor,
+      default_style: %Style{fg: :white},
+      header_style: %Style{fg: :cyan, modifiers: [:bold]},
+      weekday_style: %Style{fg: :dark_gray, modifiers: [:bold]},
+      show_surrounding: %Style{fg: :dark_gray},
+      block: %Block{
+        title: " #{Elixir.Calendar.strftime(state.calendar_date, "%B %Y")} ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    event_dates =
+      state.calendar_events
+      |> Map.keys()
+      |> Enum.sort(Date)
+      |> Enum.map_join("\n", fn d -> "  • #{Date.to_string(d)}" end)
+
+    cursor_line = "  Cursor: #{Date.to_string(state.calendar_date)}"
+
+    legend_text =
+      cursor_line <>
+        "\n\n  Events (#{map_size(state.calendar_events)}):\n" <>
+        if(event_dates == "", do: "  (none)", else: event_dates)
+
+    legend = %Paragraph{
+      text: legend_text,
+      style: %Style{fg: :white},
+      block: %Block{
+        title: " Legend ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+
+    [{calendar, calendar_area}, {legend, legend_area}]
+  end
+
+  defp render_tab(%{tab: 5} = state, area) do
     content_width = area.width - 1
     content_area = %Rect{area | width: content_width}
     scrollbar_area = %Rect{area | x: area.x + content_width, width: 1}
@@ -508,7 +569,11 @@ defmodule WidgetShowcase do
     do:
       " Tab = tabs | [ / ] = cycle focus | arrows = interact with focused chart | Space = push gap (CPU) | q = quit"
 
-  defp footer_text(4), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
+  defp footer_text(4),
+    do:
+      " Tab/Shift+Tab = switch tabs | arrows = move cursor (±1 / ±7 days) | Space = toggle event | q = quit"
+
+  defp footer_text(5), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
@@ -579,12 +644,41 @@ defmodule WidgetShowcase do
     end
   end
 
-  # Logs tab: up/down scrolls
-  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 4} = state) do
-    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  # Calendar tab: arrows move the cursor, Space toggles an event
+  def handle_event(%Event.Key{code: "left", kind: "press"}, %{tab: 4} = state) do
+    {:noreply, %{state | calendar_date: Date.add(state.calendar_date, -1)}}
+  end
+
+  def handle_event(%Event.Key{code: "right", kind: "press"}, %{tab: 4} = state) do
+    {:noreply, %{state | calendar_date: Date.add(state.calendar_date, 1)}}
   end
 
   def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 4} = state) do
+    {:noreply, %{state | calendar_date: Date.add(state.calendar_date, -7)}}
+  end
+
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 4} = state) do
+    {:noreply, %{state | calendar_date: Date.add(state.calendar_date, 7)}}
+  end
+
+  def handle_event(%Event.Key{code: " ", kind: "press"}, %{tab: 4} = state) do
+    events =
+      Map.update(
+        state.calendar_events,
+        state.calendar_date,
+        %Style{fg: :magenta, modifiers: [:bold]},
+        fn _existing -> nil end
+      )
+
+    {:noreply, %{state | calendar_events: events}}
+  end
+
+  # Logs tab: up/down scrolls
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  end
+
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 5} = state) do
     {:noreply, %{state | scroll: max(state.scroll - 1, 0)}}
   end
 
