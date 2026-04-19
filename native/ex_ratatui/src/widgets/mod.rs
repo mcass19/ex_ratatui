@@ -1,5 +1,6 @@
 pub mod bar_chart;
 pub mod block;
+pub mod calendar;
 pub mod checkbox;
 pub mod clear;
 pub mod gauge;

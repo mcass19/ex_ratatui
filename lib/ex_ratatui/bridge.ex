@@ -16,6 +16,7 @@ defmodule ExRatatui.Bridge do
     Bar,
     BarChart,
     Block,
+    Calendar,
     Checkbox,
     Clear,
     Gauge,
@@ -176,6 +177,29 @@ defmodule ExRatatui.Bridge do
     |> maybe_put("max", sparkline.max)
     |> maybe_put("absent_value_symbol", sparkline.absent_value_symbol)
     |> maybe_put_block(sparkline.block, "sparkline.block")
+  end
+
+  defp encode_widget(%Calendar{} = calendar) do
+    validate_calendar_display_date!(calendar.display_date)
+    validate_calendar_bool!("show_month_header", calendar.show_month_header)
+    validate_calendar_bool!("show_weekdays_header", calendar.show_weekdays_header)
+
+    %Date{year: year, month: month, day: day} = calendar.display_date
+
+    %{
+      "type" => "calendar",
+      "year" => year,
+      "month" => month,
+      "day" => day,
+      "show_month_header" => calendar.show_month_header,
+      "show_weekdays_header" => calendar.show_weekdays_header,
+      "events" => encode_calendar_events(calendar.events)
+    }
+    |> maybe_put_style("default_style", calendar.default_style, "calendar.default_style")
+    |> maybe_put_style("header_style", calendar.header_style, "calendar.header_style")
+    |> maybe_put_style("weekday_style", calendar.weekday_style, "calendar.weekday_style")
+    |> maybe_put_style("show_surrounding", calendar.show_surrounding, "calendar.show_surrounding")
+    |> maybe_put_block(calendar.block, "calendar.block")
   end
 
   defp encode_widget(%Tabs{} = tabs) do
@@ -406,6 +430,46 @@ defmodule ExRatatui.Bridge do
   defp validate_sparkline_max!(other) do
     raise ArgumentError,
           "sparkline.max expected a non-negative integer or nil, got: #{inspect(other)}"
+  end
+
+  defp validate_calendar_display_date!(%Date{}), do: :ok
+
+  defp validate_calendar_display_date!(other) do
+    raise ArgumentError,
+          "calendar.display_date expected a %Date{}, got: #{inspect(other)}"
+  end
+
+  defp validate_calendar_bool!(_field, value) when is_boolean(value), do: :ok
+
+  defp validate_calendar_bool!(field, other) do
+    raise ArgumentError,
+          "calendar.#{field} expected a boolean, got: #{inspect(other)}"
+  end
+
+  defp encode_calendar_events(nil), do: []
+
+  defp encode_calendar_events(events) when is_map(events) and not is_struct(events) do
+    events
+    |> Enum.reject(fn {_date, style} -> is_nil(style) end)
+    |> Enum.map(&encode_calendar_event/1)
+  end
+
+  defp encode_calendar_events(events) when is_list(events) do
+    Enum.map(events, &encode_calendar_event/1)
+  end
+
+  defp encode_calendar_events(other) do
+    raise ArgumentError,
+          "calendar.events expected a list of {Date, Style} tuples, a map of Date => Style, or nil, got: #{inspect(other)}"
+  end
+
+  defp encode_calendar_event({%Date{year: y, month: m, day: d}, %Style{} = style}) do
+    {{y, m, d}, encode_style(style, "calendar.events entry")}
+  end
+
+  defp encode_calendar_event(other) do
+    raise ArgumentError,
+          "calendar.events entries must be {Date, Style} tuples, got: #{inspect(other)}"
   end
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()

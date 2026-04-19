@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 rustler = { version = "0.37.2", default-features = false, features = ["derive"] }
 ratatui = "0.30"
 crossterm = "0.29"
+time = "0.3"
 throbber-widgets-tui = "0.11"
 ratatui-textarea = "0.9"
 tui-markdown = "0.3"

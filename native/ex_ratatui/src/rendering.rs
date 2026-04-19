@@ -14,6 +14,7 @@ use crate::text_input::{self, TextInputRenderData, TextInputResource, TextInputS
 use crate::textarea::{self, TextareaRenderData, TextareaResource};
 use crate::widgets::bar_chart::{self, BarChartData, BarData};
 use crate::widgets::block::{self, BlockData};
+use crate::widgets::calendar::{self, CalendarData};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
@@ -37,6 +38,7 @@ pub enum WidgetData {
     LineGauge(LineGaugeData),
     BarChart(BarChartData),
     Sparkline(SparklineData),
+    Calendar(CalendarData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
@@ -94,6 +96,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "line_gauge" => Ok(WidgetData::LineGauge(decode_line_gauge(widget_map)?)),
         "bar_chart" => Ok(WidgetData::BarChart(decode_bar_chart(widget_map)?)),
         "sparkline" => Ok(WidgetData::Sparkline(decode_sparkline(widget_map)?)),
+        "calendar" => Ok(WidgetData::Calendar(decode_calendar(widget_map)?)),
         "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
         "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
         "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
@@ -575,6 +578,87 @@ fn decode_sparkline_bar_set(term: Term<'_>) -> Result<SparklineBarSet, Error> {
     }
 }
 
+fn decode_calendar(map: &TermMap<'_>) -> Result<CalendarData, Error> {
+    let year: i32 = decode_required(map, "year", "calendar")?;
+    let month: u8 = decode_required(map, "month", "calendar")?;
+    let day: u8 = decode_required(map, "day", "calendar")?;
+    let display_date = calendar::parse_date(year, month, day)?;
+
+    let show_month_header: bool = decode_required(map, "show_month_header", "calendar")?;
+    let show_weekdays_header: bool = decode_required(map, "show_weekdays_header", "calendar")?;
+
+    let header_style = match optional_term(map, "header_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+    let weekday_style = match optional_term(map, "weekday_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
+    let show_month_header = if show_month_header {
+        Some(header_style.unwrap_or_default())
+    } else {
+        None
+    };
+    let show_weekdays_header = if show_weekdays_header {
+        Some(weekday_style.unwrap_or_default())
+    } else {
+        None
+    };
+
+    let show_surrounding = match optional_term(map, "show_surrounding") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
+    let default_style = match optional_term(map, "default_style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let events = decode_calendar_events(map)?;
+
+    let block = decode_optional_block(map)?;
+
+    Ok(CalendarData {
+        display_date,
+        events,
+        default_style,
+        show_month_header,
+        show_weekdays_header,
+        show_surrounding,
+        block,
+    })
+}
+
+fn decode_calendar_events(
+    map: &TermMap<'_>,
+) -> Result<Vec<(time::Date, ratatui::style::Style)>, Error> {
+    let Some(term) = optional_term(map, "events") else {
+        return Ok(Vec::new());
+    };
+    let entries: Vec<(Term<'_>, Term<'_>)> = term
+        .decode()
+        .map_err(|_| invalid_field("calendar", "events", "expected a list of tuples"))?;
+
+    entries
+        .into_iter()
+        .map(|(date_term, style_term)| {
+            let (year, month, day): (i32, u8, u8) = date_term.decode().map_err(|_| {
+                invalid_field(
+                    "calendar",
+                    "events",
+                    "date entry must be {year, month, day}",
+                )
+            })?;
+            let date = calendar::parse_date(year, month, day)?;
+            let style = decode_style(style_term)?;
+            Ok((date, style))
+        })
+        .collect()
+}
+
 fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     let label: String = decode_required(map, "label", "checkbox")?;
     let checked: bool = decode_required(map, "checked", "checkbox")?;
@@ -847,6 +931,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::LineGauge(data) => line_gauge::render(buf, data, area),
         WidgetData::BarChart(data) => bar_chart::render(buf, data, area),
         WidgetData::Sparkline(data) => sparkline::render(buf, data, area),
+        WidgetData::Calendar(data) => calendar::render(buf, data, area),
         WidgetData::Tabs(data) => tabs::render(buf, data, area),
         WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
         WidgetData::Checkbox(data) => checkbox::render(buf, data, area),

@@ -12,6 +12,7 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.BarChart
   doctest ExRatatui.Widgets.Bar
   doctest ExRatatui.Widgets.Sparkline
+  doctest ExRatatui.Widgets.Calendar
   doctest ExRatatui.Widgets.Tabs
   doctest ExRatatui.Widgets.Scrollbar
   doctest ExRatatui.Widgets.Checkbox
