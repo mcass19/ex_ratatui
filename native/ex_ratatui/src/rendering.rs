@@ -22,6 +22,7 @@ use crate::widgets::markdown::{self, MarkdownData};
 use crate::widgets::paragraph::{self, ParagraphData};
 use crate::widgets::popup::{self, PopupData};
 use crate::widgets::scrollbar::{self, ScrollbarData};
+use crate::widgets::sparkline::{self, SparklineBarSet, SparklineData};
 use crate::widgets::table::{self, TableData};
 use crate::widgets::tabs::{self, TabsData};
 use crate::widgets::throbber::{self, ThrobberData};
@@ -35,6 +36,7 @@ pub enum WidgetData {
     Gauge(GaugeData),
     LineGauge(LineGaugeData),
     BarChart(BarChartData),
+    Sparkline(SparklineData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
@@ -91,6 +93,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "gauge" => Ok(WidgetData::Gauge(decode_gauge(widget_map)?)),
         "line_gauge" => Ok(WidgetData::LineGauge(decode_line_gauge(widget_map)?)),
         "bar_chart" => Ok(WidgetData::BarChart(decode_bar_chart(widget_map)?)),
+        "sparkline" => Ok(WidgetData::Sparkline(decode_sparkline(widget_map)?)),
         "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
         "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
         "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
@@ -466,6 +469,112 @@ fn decode_bar(term: Term<'_>) -> Result<BarData, Error> {
     })
 }
 
+fn decode_sparkline(map: &TermMap<'_>) -> Result<SparklineData, Error> {
+    let data_term = optional_term(map, "data")
+        .ok_or_else(|| crate::decode::missing_field("sparkline", "data"))?;
+    let entry_terms: Vec<Term<'_>> = data_term
+        .decode()
+        .map_err(|_| invalid_field("sparkline", "data", "expected a list"))?;
+
+    let data: Vec<Option<u64>> = entry_terms
+        .into_iter()
+        .map(|term| {
+            if term.decode::<Atom>().is_ok() {
+                // Nil came through as the atom :nil.
+                return Ok(None);
+            }
+            term.decode::<u64>()
+                .map(Some)
+                .map_err(|_| invalid_field("sparkline", "data", "expected integer or nil"))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let absent_value_style = match optional_term(map, "absent_value_style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let max: Option<u64> = decode_optional(map, "max", "sparkline")?;
+
+    let direction_str: String = decode_optional(map, "direction", "sparkline")?
+        .unwrap_or_else(|| "left_to_right".to_string());
+    let direction = sparkline::parse_direction(&direction_str)?;
+
+    let bar_set_term = optional_term(map, "bar_set")
+        .ok_or_else(|| crate::decode::missing_field("sparkline", "bar_set"))?;
+    let bar_set = decode_sparkline_bar_set(bar_set_term)?;
+
+    let absent_value_symbol: Option<String> =
+        decode_optional(map, "absent_value_symbol", "sparkline")?;
+
+    let block = decode_optional_block(map)?;
+
+    Ok(SparklineData {
+        data,
+        style,
+        max,
+        direction,
+        bar_set,
+        absent_value_style,
+        absent_value_symbol,
+        block,
+    })
+}
+
+fn decode_sparkline_bar_set(term: Term<'_>) -> Result<SparklineBarSet, Error> {
+    let (tag, payload): (String, Term<'_>) = term.decode().map_err(|_| {
+        invalid_field(
+            "sparkline",
+            "bar_set",
+            "expected {\"preset\", name} or {\"custom\", symbols}",
+        )
+    })?;
+
+    match tag.as_str() {
+        "preset" => {
+            let name: String = payload.decode().map_err(|_| {
+                invalid_field("sparkline", "bar_set", "preset name must be a string")
+            })?;
+            match name.as_str() {
+                "nine_levels" => Ok(SparklineBarSet::NineLevels),
+                "three_levels" => Ok(SparklineBarSet::ThreeLevels),
+                other => Err(invalid_field(
+                    "sparkline",
+                    "bar_set",
+                    &format!("unknown preset '{other}'"),
+                )),
+            }
+        }
+        "custom" => {
+            let symbols: Vec<String> = payload.decode().map_err(|_| {
+                invalid_field(
+                    "sparkline",
+                    "bar_set",
+                    "custom symbols must be a list of strings",
+                )
+            })?;
+            if symbols.is_empty() {
+                return Err(invalid_field(
+                    "sparkline",
+                    "bar_set",
+                    "custom symbols list must not be empty",
+                ));
+            }
+            Ok(SparklineBarSet::Custom(symbols))
+        }
+        other => Err(invalid_field(
+            "sparkline",
+            "bar_set",
+            &format!("unknown tag '{other}'"),
+        )),
+    }
+}
+
 fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     let label: String = decode_required(map, "label", "checkbox")?;
     let checked: bool = decode_required(map, "checked", "checkbox")?;
@@ -737,6 +846,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Gauge(data) => gauge::render(buf, data, area),
         WidgetData::LineGauge(data) => line_gauge::render(buf, data, area),
         WidgetData::BarChart(data) => bar_chart::render(buf, data, area),
+        WidgetData::Sparkline(data) => sparkline::render(buf, data, area),
         WidgetData::Tabs(data) => tabs::render(buf, data, area),
         WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
         WidgetData::Checkbox(data) => checkbox::render(buf, data, area),

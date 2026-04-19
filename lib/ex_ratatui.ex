@@ -39,7 +39,8 @@ defmodule ExRatatui do
   See `ExRatatui.Widgets.Paragraph`, `ExRatatui.Widgets.Block`,
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
   `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
-  `ExRatatui.Widgets.BarChart`, `ExRatatui.Widgets.Tabs`,
+  `ExRatatui.Widgets.BarChart`, `ExRatatui.Widgets.Sparkline`,
+  `ExRatatui.Widgets.Tabs`,
   `ExRatatui.Widgets.Scrollbar`, `ExRatatui.Widgets.Checkbox`,
   `ExRatatui.Widgets.TextInput`, `ExRatatui.Widgets.Clear`,
   `ExRatatui.Widgets.Markdown`, `ExRatatui.Widgets.Textarea`,
@@ -70,6 +71,7 @@ defmodule ExRatatui do
     Paragraph,
     Popup,
     Scrollbar,
+    Sparkline,
     Table,
     Tabs,
     Textarea,
@@ -96,6 +98,7 @@ defmodule ExRatatui do
           | Gauge.t()
           | LineGauge.t()
           | BarChart.t()
+          | Sparkline.t()
           | Tabs.t()
           | Scrollbar.t()
           | Markdown.t()

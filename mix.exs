@@ -145,6 +145,7 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Widgets.LineGauge,
           ExRatatui.Widgets.BarChart,
           ExRatatui.Widgets.Bar,
+          ExRatatui.Widgets.Sparkline,
           ExRatatui.Widgets.Tabs,
           ExRatatui.Widgets.Scrollbar,
           ExRatatui.Widgets.Checkbox,

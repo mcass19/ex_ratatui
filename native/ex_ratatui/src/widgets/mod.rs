@@ -9,6 +9,7 @@ pub mod markdown;
 pub mod paragraph;
 pub mod popup;
 pub mod scrollbar;
+pub mod sparkline;
 pub mod table;
 pub mod tabs;
 pub mod throbber;

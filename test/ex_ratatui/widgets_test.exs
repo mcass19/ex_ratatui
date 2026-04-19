@@ -18,6 +18,7 @@ defmodule ExRatatui.WidgetsTest do
     Paragraph,
     Popup,
     Scrollbar,
+    Sparkline,
     Table,
     Tabs,
     Textarea,
@@ -704,6 +705,99 @@ defmodule ExRatatui.WidgetsTest do
         ExRatatui.Bridge.encode_commands!([{chart, rect}])
       end
     end
+
+    test "sparkline struct has correct defaults" do
+      sparkline = %Sparkline{}
+      assert sparkline.data == []
+      assert sparkline.style == nil
+      assert sparkline.max == nil
+      assert sparkline.direction == :left_to_right
+      assert sparkline.bar_set == :nine_levels
+      assert sparkline.absent_value_style == nil
+      assert sparkline.absent_value_symbol == nil
+      assert sparkline.block == nil
+    end
+
+    test "sparkline rejects non-list data" do
+      sparkline = %Sparkline{data: "nope"}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/list of non-negative integers/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects negative data entry" do
+      sparkline = %Sparkline{data: [1, -2, 3]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/non-negative integer/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects float data entry" do
+      sparkline = %Sparkline{data: [1, 2.5, 3]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/non-negative integer/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects unknown direction" do
+      sparkline = %Sparkline{data: [1, 2], direction: :diagonal}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/:left_to_right or :right_to_left/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects unknown bar_set atom" do
+      sparkline = %Sparkline{data: [1, 2], bar_set: :fancy}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/bar_set/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects empty custom bar_set list" do
+      sparkline = %Sparkline{data: [1, 2], bar_set: []}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/bar_set/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects non-string custom bar_set entry" do
+      sparkline = %Sparkline{data: [1, 2], bar_set: [" ", :oops]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/bar_set/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects non-integer max" do
+      sparkline = %Sparkline{data: [1, 2], max: 3.5}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/max/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
+
+    test "sparkline rejects negative max" do
+      sparkline = %Sparkline{data: [1, 2], max: -1}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/max/, fn ->
+        ExRatatui.Bridge.encode_commands!([{sparkline, rect}])
+      end
+    end
   end
 
   describe "Tabs widget" do
@@ -943,6 +1037,99 @@ defmodule ExRatatui.WidgetsTest do
       rect = %Rect{x: 0, y: 0, width: 20, height: 4}
 
       assert :ok = ExRatatui.draw(terminal, [{chart, rect}])
+    end
+  end
+
+  describe "Sparkline widget" do
+    test "basic left-to-right data renders", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [0, 1, 3, 5, 8, 3, 1],
+        style: %Style{fg: :cyan}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+    end
+
+    test "right-to-left direction renders", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [1, 2, 8],
+        direction: :right_to_left,
+        max: 8
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+    end
+
+    test "auto-scales when max is nil", %{terminal: terminal} do
+      sparkline = %Sparkline{data: [5, 10, 15]}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+    end
+
+    test "absent value renders with custom symbol", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [1, nil, 5],
+        max: 5,
+        absent_value_symbol: "?",
+        absent_value_style: %Style{fg: :red}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 6, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "?"
+    end
+
+    test "three_levels bar_set preset renders", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [0, 4, 8],
+        max: 8,
+        bar_set: :three_levels
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 6, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+    end
+
+    test "custom bar_set list renders", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [0, 2, 5, 8],
+        max: 8,
+        bar_set: [".", "o", "O"]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 8, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "O"
+    end
+
+    test "with block title renders", %{terminal: terminal} do
+      sparkline = %Sparkline{
+        data: [1, 2, 3, 4],
+        block: %Block{title: " CPU ", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "CPU"
+    end
+
+    test "empty data list renders", %{terminal: terminal} do
+      sparkline = %Sparkline{data: []}
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{sparkline, rect}])
     end
   end
 

@@ -25,6 +25,7 @@ defmodule ExRatatui.Bridge do
     Paragraph,
     Popup,
     Scrollbar,
+    Sparkline,
     Table,
     Tabs,
     Textarea,
@@ -150,6 +151,31 @@ defmodule ExRatatui.Bridge do
     }
     |> maybe_put("max", chart.max)
     |> maybe_put_block(chart.block, "bar_chart.block")
+  end
+
+  defp encode_widget(%Sparkline{} = sparkline) do
+    unless sparkline.direction in [:left_to_right, :right_to_left] do
+      raise ArgumentError,
+            "sparkline.direction expected :left_to_right or :right_to_left, got: #{inspect(sparkline.direction)}"
+    end
+
+    validate_sparkline_max!(sparkline.max)
+
+    %{
+      "type" => "sparkline",
+      "data" => encode_sparkline_data(sparkline.data),
+      "direction" => Atom.to_string(sparkline.direction),
+      "bar_set" => encode_bar_set(sparkline.bar_set)
+    }
+    |> maybe_put_style("style", sparkline.style, "sparkline.style")
+    |> maybe_put_style(
+      "absent_value_style",
+      sparkline.absent_value_style,
+      "sparkline.absent_value_style"
+    )
+    |> maybe_put("max", sparkline.max)
+    |> maybe_put("absent_value_symbol", sparkline.absent_value_symbol)
+    |> maybe_put_block(sparkline.block, "sparkline.block")
   end
 
   defp encode_widget(%Tabs{} = tabs) do
@@ -334,6 +360,52 @@ defmodule ExRatatui.Bridge do
 
   defp encode_bar(other) do
     raise ArgumentError, "bar_chart.data expected a list of %Bar{}, got entry: #{inspect(other)}"
+  end
+
+  defp encode_sparkline_data(data) when is_list(data),
+    do: Enum.map(data, &encode_sparkline_entry/1)
+
+  defp encode_sparkline_data(other) do
+    raise ArgumentError,
+          "sparkline.data expected a list of non-negative integers or nils, got: #{inspect(other)}"
+  end
+
+  defp encode_sparkline_entry(nil), do: nil
+  defp encode_sparkline_entry(value) when is_integer(value) and value >= 0, do: value
+
+  defp encode_sparkline_entry(other) do
+    raise ArgumentError,
+          "sparkline.data entries must be non-negative integers or nil, got: #{inspect(other)}"
+  end
+
+  defp encode_bar_set(:nine_levels), do: {"preset", "nine_levels"}
+  defp encode_bar_set(:three_levels), do: {"preset", "three_levels"}
+
+  defp encode_bar_set(symbols) when is_list(symbols) and symbols != [] do
+    validated =
+      Enum.map(symbols, fn
+        s when is_binary(s) ->
+          s
+
+        other ->
+          raise ArgumentError,
+                "sparkline.bar_set custom list must contain only strings, got entry: #{inspect(other)}"
+      end)
+
+    {"custom", validated}
+  end
+
+  defp encode_bar_set(other) do
+    raise ArgumentError,
+          "sparkline.bar_set expected :nine_levels, :three_levels, or a non-empty list of strings, got: #{inspect(other)}"
+  end
+
+  defp validate_sparkline_max!(nil), do: :ok
+  defp validate_sparkline_max!(value) when is_integer(value) and value >= 0, do: :ok
+
+  defp validate_sparkline_max!(other) do
+    raise ArgumentError,
+          "sparkline.max expected a non-negative integer or nil, got: #{inspect(other)}"
   end
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()
