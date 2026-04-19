@@ -243,6 +243,27 @@ alias ExRatatui.Widgets.{Bar, BarChart}
 
 Values must be non-negative integers — floats or negatives raise `ArgumentError` at encode time. Grouped bars (multiple `BarGroup`s) are not supported yet; a single flat list is rendered as one group.
 
+### Sparkline
+
+Compact, single-line bar chart for time-series or streaming data. `:data` is a list of non-negative integers with `nil` entries representing missing samples. Pick a preset via `:bar_set` (`:nine_levels` for smooth gradients, `:three_levels` for low-density glyphs) or pass a custom list of strings — the symbols are proportionally mapped across the nine internal density slots so any non-empty list works.
+
+```elixir
+alias ExRatatui.Widgets.Sparkline
+
+%Sparkline{
+  data: [0, 1, 3, 5, 8, 3, 1, nil, 2, 4],
+  max: 8,                                   # auto-scales when nil
+  direction: :left_to_right,                # or :right_to_left
+  bar_set: :nine_levels,                    # or :three_levels, or [" ", "▂", "▅", "█"]
+  style: %Style{fg: :cyan},
+  absent_value_symbol: "·",
+  absent_value_style: %Style{fg: :dark_gray},
+  block: %Block{title: " CPU ", borders: [:all]}
+}
+```
+
+Entries must be non-negative integers or `nil` — floats, negatives, and non-list `:data` raise `ArgumentError` at encode time. Unknown directions, unknown bar-set atoms, empty custom lists, and non-integer `:max` values raise similarly.
+
 ### Tabs
 
 A tab bar for switching between views.

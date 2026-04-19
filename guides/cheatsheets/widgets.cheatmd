@@ -132,6 +132,25 @@ alias ExRatatui.Widgets.Bar
 
 `Bar.value` must be a non-negative integer. Floats and negative numbers raise `ArgumentError`.
 
+## Sparkline
+
+Compact single-line bar chart for streams or time-series. `nil` entries render as absent-value symbols.
+
+```elixir
+%Sparkline{
+  data: [0, 1, 3, 5, 8, 3, 1, nil, 2, 4],
+  max: 8,                               # nil auto-scales to the largest value
+  direction: :left_to_right,            # :left_to_right | :right_to_left
+  bar_set: :nine_levels,                # :nine_levels | :three_levels | [String.t(), ...]
+  style: %Style{fg: :cyan},
+  absent_value_symbol: "·",
+  absent_value_style: %Style{fg: :dark_gray},
+  block: %Block{title: " CPU ", borders: [:all]}
+}
+```
+
+Entries must be non-negative integers or `nil`. Custom `:bar_set` lists must be non-empty strings — the symbols are proportionally mapped across the nine density levels.
+
 ## Tabs
 
 Tab navigation bar with selected highlight.
