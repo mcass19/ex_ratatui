@@ -264,6 +264,31 @@ alias ExRatatui.Widgets.Sparkline
 
 Entries must be non-negative integers or `nil` — floats, negatives, and non-list `:data` raise `ArgumentError` at encode time. Unknown directions, unknown bar-set atoms, empty custom lists, and non-integer `:max` values raise similarly.
 
+### Calendar
+
+A monthly calendar grid that highlights a target date and optional per-day events. `:display_date` drives which month is rendered; events can be passed as a list of `{Date, Style}` tuples or as a `%{Date => Style}` map (map entries with a `nil` value are skipped, making toggling easy).
+
+```elixir
+alias ExRatatui.Widgets.Calendar
+
+%Calendar{
+  display_date: ~D[2026-03-15],
+  events: [
+    {~D[2026-03-10], %Style{fg: :red, modifiers: [:bold]}},
+    {~D[2026-03-20], %Style{fg: :green}}
+  ],
+  default_style: %Style{fg: :white},
+  show_month_header: true,
+  header_style: %Style{fg: :yellow, modifiers: [:bold]},
+  show_weekdays_header: true,
+  weekday_style: %Style{fg: :cyan},
+  show_surrounding: %Style{fg: :dark_gray},
+  block: %Block{title: " March ", borders: [:all]}
+}
+```
+
+`:display_date` must be a `%Date{}`; `:show_month_header` and `:show_weekdays_header` must be booleans; event entries must be `{%Date{}, %Style{}}` tuples. Anything else raises `ArgumentError` at encode time. Set `:show_surrounding` to a `Style` to bleed the previous/next month into empty grid cells (leave it `nil` to hide them). The widget needs roughly 22 columns × 8 rows without a block, or 24 × 10 with one.
+
 ### Tabs
 
 A tab bar for switching between views.

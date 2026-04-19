@@ -13,7 +13,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Features
 
-- 18 built-in widgets (and counting!): Paragraph, Block, List, Table, Gauge, LineGauge, BarChart, Sparkline, Tabs, Scrollbar, Checkbox, TextInput, Clear, Markdown, Textarea, Throbber, Popup, WidgetList
+- 19 built-in widgets (and counting!): Paragraph, Block, List, Table, Gauge, LineGauge, BarChart, Sparkline, Calendar, Tabs, Scrollbar, Checkbox, TextInput, Clear, Markdown, Textarea, Throbber, Popup, WidgetList
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - **OTP-supervised TUI apps** via `ExRatatui.App` behaviour with LiveView-inspired callbacks

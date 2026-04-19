@@ -151,6 +151,29 @@ Compact single-line bar chart for streams or time-series. `nil` entries render a
 
 Entries must be non-negative integers or `nil`. Custom `:bar_set` lists must be non-empty strings — the symbols are proportionally mapped across the nine density levels.
 
+## Calendar
+
+Monthly calendar grid with per-day event highlighting. Events accept a list of `{Date, Style}` tuples or a `%{Date => Style}` map (nil map values are skipped).
+
+```elixir
+%Calendar{
+  display_date: ~D[2026-03-15],
+  events: [
+    {~D[2026-03-10], %Style{fg: :red, modifiers: [:bold]}},
+    {~D[2026-03-20], %Style{fg: :green}}
+  ],
+  default_style: %Style{fg: :white},
+  show_month_header: true,             # default true
+  header_style: %Style{fg: :yellow, modifiers: [:bold]},
+  show_weekdays_header: true,          # default true
+  weekday_style: %Style{fg: :cyan},
+  show_surrounding: %Style{fg: :dark_gray},  # nil hides surrounding days
+  block: %Block{title: " March ", borders: [:all]}
+}
+```
+
+`:display_date` must be a `%Date{}`, booleans must be actual booleans, and event entries must be `{%Date{}, %Style{}}` tuples — anything else raises `ArgumentError`. Needs roughly 22×8 cells (24×10 with a block).
+
 ## Tabs
 
 Tab navigation bar with selected highlight.
