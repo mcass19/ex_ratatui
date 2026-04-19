@@ -218,6 +218,31 @@ A thin single-line progress bar using line-drawing characters, with separate sty
 }
 ```
 
+### BarChart
+
+Vertical or horizontal bar chart. `:data` is a list of `%Bar{}` structs, each with a plain-string `:label` and non-negative integer `:value`. Chart-level `:bar_style`, `:value_style`, and `:label_style` apply to every bar; individual bars override color via `:style` and replace the numeric display via `:text_value`. When `:max` is `nil` the chart auto-scales to the largest value.
+
+```elixir
+alias ExRatatui.Widgets.{Bar, BarChart}
+
+%BarChart{
+  data: [
+    %Bar{label: "Elixir", value: 80},
+    %Bar{label: "Rust", value: 95, style: %Style{fg: :red}, text_value: "95!"},
+    %Bar{label: "Go", value: 60}
+  ],
+  bar_width: 6,
+  bar_gap: 2,
+  bar_style: %Style{fg: :cyan},
+  value_style: %Style{fg: :white, modifiers: [:bold]},
+  label_style: %Style{fg: :dark_gray},
+  direction: :vertical,                 # or :horizontal
+  block: %Block{title: " Traffic ", borders: [:all]}
+}
+```
+
+Values must be non-negative integers — floats or negatives raise `ArgumentError` at encode time. Grouped bars (multiple `BarGroup`s) are not supported yet; a single flat list is rendered as one group.
+
 ### Tabs
 
 A tab bar for switching between views.

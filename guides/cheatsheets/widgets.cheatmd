@@ -106,6 +106,32 @@ Horizontal progress bar with filled/unfilled styling.
 }
 ```
 
+## BarChart
+
+Vertical or horizontal bar chart with optional per-bar styling and text values.
+
+```elixir
+alias ExRatatui.Widgets.Bar
+
+%BarChart{
+  data: [
+    %Bar{label: "Mon", value: 42},
+    %Bar{label: "Tue", value: 67, style: %Style{fg: :yellow}},
+    %Bar{label: "Wed", value: 30, text_value: "30%"}
+  ],
+  bar_width: 5,
+  bar_gap: 1,
+  bar_style: %Style{fg: :green},
+  value_style: %Style{fg: :white, modifiers: [:bold]},
+  label_style: %Style{fg: :cyan},
+  max: 100,                      # nil auto-scales to the largest value
+  direction: :vertical,          # :vertical | :horizontal
+  block: %Block{title: " Traffic ", borders: [:all]}
+}
+```
+
+`Bar.value` must be a non-negative integer. Floats and negative numbers raise `ArgumentError`.
+
 ## Tabs
 
 Tab navigation bar with selected highlight.
