@@ -15,6 +15,7 @@ use crate::textarea::{self, TextareaRenderData, TextareaResource};
 use crate::widgets::bar_chart::{self, BarChartData, BarData};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::calendar::{self, CalendarData};
+use crate::widgets::canvas::{self, CanvasData, CanvasShape};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
@@ -39,6 +40,7 @@ pub enum WidgetData {
     BarChart(BarChartData),
     Sparkline(SparklineData),
     Calendar(CalendarData),
+    Canvas(CanvasData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
@@ -97,6 +99,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "bar_chart" => Ok(WidgetData::BarChart(decode_bar_chart(widget_map)?)),
         "sparkline" => Ok(WidgetData::Sparkline(decode_sparkline(widget_map)?)),
         "calendar" => Ok(WidgetData::Calendar(decode_calendar(widget_map)?)),
+        "canvas" => Ok(WidgetData::Canvas(decode_canvas(widget_map)?)),
         "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
         "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
         "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
@@ -659,6 +662,117 @@ fn decode_calendar_events(
         .collect()
 }
 
+fn decode_canvas(map: &TermMap<'_>) -> Result<CanvasData, Error> {
+    let x_bounds = decode_canvas_bounds(map, "x_bounds")?;
+    let y_bounds = decode_canvas_bounds(map, "y_bounds")?;
+
+    let marker_name: String =
+        decode_optional(map, "marker", "canvas")?.unwrap_or_else(|| "braille".to_string());
+    let marker = canvas::parse_marker(&marker_name)?;
+
+    let background_color = match optional_term(map, "background_color") {
+        Some(term) => Some(crate::style::decode_color(term)?),
+        None => None,
+    };
+
+    let shapes_term = optional_term(map, "shapes")
+        .ok_or_else(|| crate::decode::missing_field("canvas", "shapes"))?;
+    let shape_terms: Vec<Term<'_>> = shapes_term
+        .decode()
+        .map_err(|_| invalid_field("canvas", "shapes", "expected a list"))?;
+    let shapes = shape_terms
+        .into_iter()
+        .map(decode_canvas_shape)
+        .collect::<Result<_, _>>()?;
+
+    let block = decode_optional_block(map)?;
+
+    Ok(CanvasData {
+        x_bounds,
+        y_bounds,
+        marker,
+        background_color,
+        shapes,
+        block,
+    })
+}
+
+fn decode_canvas_bounds(map: &TermMap<'_>, field: &'static str) -> Result<[f64; 2], Error> {
+    let term =
+        optional_term(map, field).ok_or_else(|| crate::decode::missing_field("canvas", field))?;
+    let values: Vec<f64> = term
+        .decode()
+        .map_err(|_| invalid_field("canvas", field, "expected [min, max]"))?;
+
+    if values.len() != 2 {
+        return Err(invalid_field("canvas", field, "expected [min, max]"));
+    }
+
+    Ok([values[0], values[1]])
+}
+
+fn decode_canvas_shape(term: Term<'_>) -> Result<CanvasShape, Error> {
+    let map = decode_map(term, "canvas.shapes")?;
+    let tag: String = decode_required(&map, "shape", "canvas.shapes")?;
+    let color = crate::style::decode_color(
+        optional_term(&map, "color")
+            .ok_or_else(|| crate::decode::missing_field("canvas.shapes", "color"))?,
+    )?;
+
+    match tag.as_str() {
+        "line" => Ok(CanvasShape::Line {
+            x1: decode_required(&map, "x1", "canvas.shapes Line")?,
+            y1: decode_required(&map, "y1", "canvas.shapes Line")?,
+            x2: decode_required(&map, "x2", "canvas.shapes Line")?,
+            y2: decode_required(&map, "y2", "canvas.shapes Line")?,
+            color,
+        }),
+        "rectangle" => Ok(CanvasShape::Rectangle {
+            x: decode_required(&map, "x", "canvas.shapes Rectangle")?,
+            y: decode_required(&map, "y", "canvas.shapes Rectangle")?,
+            width: decode_required(&map, "width", "canvas.shapes Rectangle")?,
+            height: decode_required(&map, "height", "canvas.shapes Rectangle")?,
+            color,
+        }),
+        "circle" => Ok(CanvasShape::Circle {
+            x: decode_required(&map, "x", "canvas.shapes Circle")?,
+            y: decode_required(&map, "y", "canvas.shapes Circle")?,
+            radius: decode_required(&map, "radius", "canvas.shapes Circle")?,
+            color,
+        }),
+        "points" => {
+            let coords_term = optional_term(&map, "coords")
+                .ok_or_else(|| crate::decode::missing_field("canvas.shapes Points", "coords"))?;
+            let coord_pairs: Vec<Vec<f64>> = coords_term.decode().map_err(|_| {
+                invalid_field(
+                    "canvas.shapes Points",
+                    "coords",
+                    "expected a list of [x, y] pairs",
+                )
+            })?;
+            let coords = coord_pairs
+                .into_iter()
+                .map(|pair| {
+                    if pair.len() != 2 {
+                        return Err(invalid_field(
+                            "canvas.shapes Points",
+                            "coords",
+                            "each entry must be [x, y]",
+                        ));
+                    }
+                    Ok((pair[0], pair[1]))
+                })
+                .collect::<Result<_, _>>()?;
+            Ok(CanvasShape::Points { coords, color })
+        }
+        other => Err(invalid_field(
+            "canvas.shapes",
+            "shape",
+            &format!("unknown shape '{other}'"),
+        )),
+    }
+}
+
 fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     let label: String = decode_required(map, "label", "checkbox")?;
     let checked: bool = decode_required(map, "checked", "checkbox")?;
@@ -932,6 +1046,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::BarChart(data) => bar_chart::render(buf, data, area),
         WidgetData::Sparkline(data) => sparkline::render(buf, data, area),
         WidgetData::Calendar(data) => calendar::render(buf, data, area),
+        WidgetData::Canvas(data) => canvas::render(buf, data, area),
         WidgetData::Tabs(data) => tabs::render(buf, data, area),
         WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
         WidgetData::Checkbox(data) => checkbox::render(buf, data, area),

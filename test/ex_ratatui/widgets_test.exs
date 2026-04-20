@@ -10,6 +10,7 @@ defmodule ExRatatui.WidgetsTest do
     BarChart,
     Block,
     Calendar,
+    Canvas,
     Checkbox,
     Clear,
     Gauge,
@@ -27,6 +28,8 @@ defmodule ExRatatui.WidgetsTest do
     Throbber,
     WidgetList
   }
+
+  alias ExRatatui.Widgets.Canvas.{Circle, Line, Points, Rectangle}
 
   setup do
     terminal = ExRatatui.init_test_terminal(60, 15)
@@ -848,6 +851,239 @@ defmodule ExRatatui.WidgetsTest do
         ExRatatui.Bridge.encode_commands!([{calendar, rect}])
       end
     end
+
+    test "canvas rejects non-tuple x_bounds" do
+      canvas = %Canvas{x_bounds: [0.0, 10.0], y_bounds: {0.0, 10.0}, shapes: []}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/x_bounds/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects inverted bounds" do
+      canvas = %Canvas{x_bounds: {10.0, 0.0}, y_bounds: {0.0, 10.0}, shapes: []}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/x_bounds/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects unknown marker" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        marker: :quadrant,
+        shapes: []
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/marker/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects non-list shapes" do
+      canvas = %Canvas{x_bounds: {0.0, 10.0}, y_bounds: {0.0, 10.0}, shapes: "nope"}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/shapes/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects shape with missing color" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Line{x1: 0.0, y1: 0.0, x2: 1.0, y2: 1.0}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/color/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects rectangle with negative width" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Rectangle{x: 0.0, y: 0.0, width: -1.0, height: 2.0, color: :red}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/width/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects circle with negative radius" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Circle{x: 5.0, y: 5.0, radius: -1.0, color: :blue}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/radius/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects points coord that is not a tuple" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Points{coords: [[1.0, 2.0]], color: :green}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/coords/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects unknown shape struct" do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%{foo: :bar}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/shape/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects Line with missing required fields" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+      base = %Canvas{x_bounds: {0.0, 10.0}, y_bounds: {0.0, 10.0}, shapes: []}
+
+      for {attrs, field} <- [
+            {[y1: 0, x2: 0, y2: 0, color: :red], "x1"},
+            {[x1: 0, x2: 0, y2: 0, color: :red], "y1"},
+            {[x1: 0, y1: 0, y2: 0, color: :red], "x2"},
+            {[x1: 0, y1: 0, x2: 0, color: :red], "y2"}
+          ] do
+        canvas = %{base | shapes: [struct(Line, attrs)]}
+
+        assert_raise ArgumentError, ~r/Line\.#{field} is required/, fn ->
+          ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+        end
+      end
+    end
+
+    test "canvas rejects Rectangle with missing required fields" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+      base = %Canvas{x_bounds: {0.0, 10.0}, y_bounds: {0.0, 10.0}, shapes: []}
+
+      for {attrs, field} <- [
+            {[y: 0, width: 1, height: 1, color: :red], "x"},
+            {[x: 0, width: 1, height: 1, color: :red], "y"},
+            {[x: 0, y: 0, height: 1, color: :red], "width"},
+            {[x: 0, y: 0, width: 1, color: :red], "height"},
+            {[x: 0, y: 0, width: 1, height: 1], "color"}
+          ] do
+        canvas = %{base | shapes: [struct(Rectangle, attrs)]}
+
+        assert_raise ArgumentError, ~r/Rectangle\.#{field} is required/, fn ->
+          ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+        end
+      end
+    end
+
+    test "canvas rejects Circle with missing required fields" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+      base = %Canvas{x_bounds: {0.0, 10.0}, y_bounds: {0.0, 10.0}, shapes: []}
+
+      for {attrs, field} <- [
+            {[y: 0, radius: 1, color: :red], "x"},
+            {[x: 0, radius: 1, color: :red], "y"},
+            {[x: 0, y: 0, color: :red], "radius"},
+            {[x: 0, y: 0, radius: 1], "color"}
+          ] do
+        canvas = %{base | shapes: [struct(Circle, attrs)]}
+
+        assert_raise ArgumentError, ~r/Circle\.#{field} is required/, fn ->
+          ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+        end
+      end
+    end
+
+    test "canvas rejects Points with missing color" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Points{coords: [{1.0, 1.0}]}]
+      }
+
+      assert_raise ArgumentError, ~r/Points\.color is required/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects Points with non-list coords" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Points{coords: "bogus", color: :red}]
+      }
+
+      assert_raise ArgumentError, ~r/expected a list of \{x, y\} tuples/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects Line with non-number coordinate" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Line{x1: "bad", y1: 0, x2: 5, y2: 5, color: :red}]
+      }
+
+      assert_raise ArgumentError, ~r/Line\.x1 expected a number/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects Rectangle with non-number width" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Rectangle{x: 0, y: 0, width: "bad", height: 1, color: :red}]
+      }
+
+      assert_raise ArgumentError, ~r/Rectangle\.width expected a non-negative number/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
+
+    test "canvas rejects atom bounds field" do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      canvas = %Canvas{x_bounds: :nope, y_bounds: {0.0, 10.0}, shapes: []}
+
+      assert_raise ArgumentError, ~r/x_bounds expected \{min, max\} tuple of numbers/, fn ->
+        ExRatatui.Bridge.encode_commands!([{canvas, rect}])
+      end
+    end
   end
 
   describe "Tabs widget" do
@@ -1291,6 +1527,130 @@ defmodule ExRatatui.WidgetsTest do
       content = ExRatatui.get_buffer_content(terminal)
       refute content =~ "March"
       refute content =~ "Su"
+    end
+  end
+
+  describe "Canvas widget" do
+    test "renders a line", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Line{x1: 0.0, y1: 0.0, x2: 10.0, y2: 10.0, color: :red}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders a rectangle", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Rectangle{x: 1.0, y: 1.0, width: 5.0, height: 3.0, color: :green}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders a circle", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Circle{x: 5.0, y: 5.0, radius: 3.0, color: :yellow}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders points", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Points{coords: [{1.0, 1.0}, {2.0, 3.0}], color: :magenta}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders with dot marker", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        marker: :dot,
+        shapes: [%Points{coords: [{5.0, 5.0}], color: :white}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders with background color", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        background_color: :blue,
+        shapes: []
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "renders multiple shapes stacked", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [
+          %Line{x1: 0.0, y1: 0.0, x2: 10.0, y2: 0.0, color: :red},
+          %Circle{x: 5.0, y: 5.0, radius: 2.0, color: :blue}
+        ]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "empty shapes list renders", %{terminal: terminal} do
+      canvas = %Canvas{x_bounds: {0.0, 10.0}, y_bounds: {0.0, 10.0}, shapes: []}
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+    end
+
+    test "canvas with block title renders", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0.0, 10.0},
+        y_bounds: {0.0, 10.0},
+        shapes: [%Points{coords: [{5.0, 5.0}], color: :white}],
+        block: %Block{title: " Plot ", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "Plot"
+    end
+
+    test "integer coordinates are coerced to floats", %{terminal: terminal} do
+      canvas = %Canvas{
+        x_bounds: {0, 10},
+        y_bounds: {0, 10},
+        shapes: [%Line{x1: 0, y1: 0, x2: 10, y2: 10, color: :cyan}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert :ok = ExRatatui.draw(terminal, [{canvas, rect}])
     end
   end
 

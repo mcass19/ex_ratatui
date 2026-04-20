@@ -17,6 +17,7 @@ defmodule ExRatatui.Bridge do
     BarChart,
     Block,
     Calendar,
+    Canvas,
     Checkbox,
     Clear,
     Gauge,
@@ -34,6 +35,8 @@ defmodule ExRatatui.Bridge do
     Throbber,
     WidgetList
   }
+
+  alias ExRatatui.Widgets.Canvas.{Circle, Line, Points, Rectangle}
 
   @doc false
   @spec encode_commands!([{ExRatatui.widget(), Rect.t()}]) :: [{map(), map()}]
@@ -200,6 +203,22 @@ defmodule ExRatatui.Bridge do
     |> maybe_put_style("weekday_style", calendar.weekday_style, "calendar.weekday_style")
     |> maybe_put_style("show_surrounding", calendar.show_surrounding, "calendar.show_surrounding")
     |> maybe_put_block(calendar.block, "calendar.block")
+  end
+
+  defp encode_widget(%Canvas{} = canvas) do
+    validate_canvas_bounds!("x_bounds", canvas.x_bounds)
+    validate_canvas_bounds!("y_bounds", canvas.y_bounds)
+    validate_canvas_marker!(canvas.marker)
+
+    %{
+      "type" => "canvas",
+      "x_bounds" => encode_canvas_bounds(canvas.x_bounds),
+      "y_bounds" => encode_canvas_bounds(canvas.y_bounds),
+      "marker" => Atom.to_string(canvas.marker),
+      "shapes" => encode_canvas_shapes(canvas.shapes)
+    }
+    |> maybe_put("background_color", encode_canvas_background(canvas.background_color))
+    |> maybe_put_block(canvas.block, "canvas.block")
   end
 
   defp encode_widget(%Tabs{} = tabs) do
@@ -470,6 +489,167 @@ defmodule ExRatatui.Bridge do
   defp encode_calendar_event(other) do
     raise ArgumentError,
           "calendar.events entries must be {Date, Style} tuples, got: #{inspect(other)}"
+  end
+
+  defp validate_canvas_bounds!(_field, {min, max})
+       when is_number(min) and is_number(max) and min <= max,
+       do: :ok
+
+  defp validate_canvas_bounds!(field, {min, max}) when is_number(min) and is_number(max) do
+    raise ArgumentError,
+          "canvas.#{field} expected {min, max} with min <= max, got: {#{inspect(min)}, #{inspect(max)}}"
+  end
+
+  defp validate_canvas_bounds!(field, other) do
+    raise ArgumentError,
+          "canvas.#{field} expected {min, max} tuple of numbers, got: #{inspect(other)}"
+  end
+
+  defp validate_canvas_marker!(marker)
+       when marker in [:braille, :dot, :block, :bar, :half_block],
+       do: :ok
+
+  defp validate_canvas_marker!(other) do
+    raise ArgumentError,
+          "canvas.marker expected one of :braille, :dot, :block, :bar, :half_block, got: #{inspect(other)}"
+  end
+
+  defp encode_canvas_bounds({min, max}), do: [min * 1.0, max * 1.0]
+
+  defp encode_canvas_background(nil), do: nil
+  defp encode_canvas_background(color), do: encode_color(color)
+
+  defp encode_canvas_shapes(shapes) when is_list(shapes),
+    do: Enum.map(shapes, &encode_canvas_shape/1)
+
+  defp encode_canvas_shapes(other) do
+    raise ArgumentError,
+          "canvas.shapes expected a list of shape structs, got: #{inspect(other)}"
+  end
+
+  defp encode_canvas_shape(%Line{x1: nil}), do: raise_canvas_required("Line", "x1")
+  defp encode_canvas_shape(%Line{y1: nil}), do: raise_canvas_required("Line", "y1")
+  defp encode_canvas_shape(%Line{x2: nil}), do: raise_canvas_required("Line", "x2")
+  defp encode_canvas_shape(%Line{y2: nil}), do: raise_canvas_required("Line", "y2")
+  defp encode_canvas_shape(%Line{color: nil}), do: raise_canvas_required("Line", "color")
+
+  defp encode_canvas_shape(%Line{} = line) do
+    validate_canvas_number!("Line", "x1", line.x1)
+    validate_canvas_number!("Line", "y1", line.y1)
+    validate_canvas_number!("Line", "x2", line.x2)
+    validate_canvas_number!("Line", "y2", line.y2)
+
+    %{
+      "shape" => "line",
+      "x1" => line.x1 * 1.0,
+      "y1" => line.y1 * 1.0,
+      "x2" => line.x2 * 1.0,
+      "y2" => line.y2 * 1.0,
+      "color" => encode_color(line.color)
+    }
+  end
+
+  defp encode_canvas_shape(%Rectangle{x: nil}), do: raise_canvas_required("Rectangle", "x")
+  defp encode_canvas_shape(%Rectangle{y: nil}), do: raise_canvas_required("Rectangle", "y")
+
+  defp encode_canvas_shape(%Rectangle{width: nil}),
+    do: raise_canvas_required("Rectangle", "width")
+
+  defp encode_canvas_shape(%Rectangle{height: nil}),
+    do: raise_canvas_required("Rectangle", "height")
+
+  defp encode_canvas_shape(%Rectangle{color: nil}),
+    do: raise_canvas_required("Rectangle", "color")
+
+  defp encode_canvas_shape(%Rectangle{} = rect) do
+    validate_canvas_number!("Rectangle", "x", rect.x)
+    validate_canvas_number!("Rectangle", "y", rect.y)
+    validate_canvas_non_negative!("Rectangle", "width", rect.width)
+    validate_canvas_non_negative!("Rectangle", "height", rect.height)
+
+    %{
+      "shape" => "rectangle",
+      "x" => rect.x * 1.0,
+      "y" => rect.y * 1.0,
+      "width" => rect.width * 1.0,
+      "height" => rect.height * 1.0,
+      "color" => encode_color(rect.color)
+    }
+  end
+
+  defp encode_canvas_shape(%Circle{x: nil}), do: raise_canvas_required("Circle", "x")
+  defp encode_canvas_shape(%Circle{y: nil}), do: raise_canvas_required("Circle", "y")
+  defp encode_canvas_shape(%Circle{radius: nil}), do: raise_canvas_required("Circle", "radius")
+  defp encode_canvas_shape(%Circle{color: nil}), do: raise_canvas_required("Circle", "color")
+
+  defp encode_canvas_shape(%Circle{} = circle) do
+    validate_canvas_number!("Circle", "x", circle.x)
+    validate_canvas_number!("Circle", "y", circle.y)
+    validate_canvas_non_negative!("Circle", "radius", circle.radius)
+
+    %{
+      "shape" => "circle",
+      "x" => circle.x * 1.0,
+      "y" => circle.y * 1.0,
+      "radius" => circle.radius * 1.0,
+      "color" => encode_color(circle.color)
+    }
+  end
+
+  defp encode_canvas_shape(%Points{color: nil}), do: raise_canvas_required("Points", "color")
+
+  defp encode_canvas_shape(%Points{} = points) do
+    coords = encode_canvas_coords(points.coords)
+
+    %{
+      "shape" => "points",
+      "coords" => coords,
+      "color" => encode_color(points.color)
+    }
+  end
+
+  defp encode_canvas_shape(other) do
+    raise ArgumentError,
+          "canvas.shapes entry must be a Line, Rectangle, Circle, or Points struct, got: #{inspect(other)}"
+  end
+
+  defp encode_canvas_coords(coords) when is_list(coords),
+    do: Enum.map(coords, &encode_canvas_coord/1)
+
+  defp encode_canvas_coords(other) do
+    raise ArgumentError,
+          "canvas.shapes Points.coords expected a list of {x, y} tuples, got: #{inspect(other)}"
+  end
+
+  defp encode_canvas_coord({x, y}) when is_number(x) and is_number(y), do: [x * 1.0, y * 1.0]
+
+  defp encode_canvas_coord(other) do
+    raise ArgumentError,
+          "canvas.shapes Points.coords entries must be {number, number} tuples, got: #{inspect(other)}"
+  end
+
+  defp validate_canvas_number!(_shape, _field, value) when is_number(value), do: :ok
+
+  defp validate_canvas_number!(shape, field, other) do
+    raise ArgumentError,
+          "canvas.shapes #{shape}.#{field} expected a number, got: #{inspect(other)}"
+  end
+
+  defp validate_canvas_non_negative!(_shape, _field, value) when is_number(value) and value >= 0,
+    do: :ok
+
+  defp validate_canvas_non_negative!(shape, field, value) when is_number(value) do
+    raise ArgumentError,
+          "canvas.shapes #{shape}.#{field} must be non-negative, got: #{inspect(value)}"
+  end
+
+  defp validate_canvas_non_negative!(shape, field, other) do
+    raise ArgumentError,
+          "canvas.shapes #{shape}.#{field} expected a non-negative number, got: #{inspect(other)}"
+  end
+
+  defp raise_canvas_required(shape, field) do
+    raise ArgumentError, "canvas.shapes #{shape}.#{field} is required"
   end
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()
