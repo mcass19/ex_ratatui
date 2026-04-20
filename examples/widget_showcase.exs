@@ -1,5 +1,5 @@
 # Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput,
-# BarChart, Sparkline, Calendar, Canvas, and more.
+# BarChart, Sparkline, Calendar, Canvas, Chart, and more.
 # Run with: mix run examples/widget_showcase.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Left/Right = select chart bar,
@@ -18,6 +18,7 @@ alias ExRatatui.Widgets.{
   Block,
   Calendar,
   Canvas,
+  Chart,
   Checkbox,
   LineGauge,
   Paragraph,
@@ -29,11 +30,14 @@ alias ExRatatui.Widgets.{
 
 alias ExRatatui.Widgets.Canvas.{Circle, Label, Line, Points, Rectangle}
 alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
+alias ExRatatui.Widgets.Chart.{Axis, Dataset}
 
 defmodule WidgetShowcase do
   use ExRatatui.App
 
-  @tabs ["Progress", "Settings", "Search", "Charts", "Calendar", "Canvas", "Logs"]
+  @tabs ["Progress", "Settings", "Search", "Charts", "Calendar", "Canvas", "Chart", "Logs"]
+  @chart_legend_positions [:top_right, :top_left, :bottom_right, :bottom_left, :top, :bottom, nil]
+  @chart_markers [:braille, :dot, :block]
   @log_lines 40
   @canvas_x_bounds {0.0, 100.0}
   @canvas_y_bounds {0.0, 50.0}
@@ -123,9 +127,64 @@ defmodule WidgetShowcase do
        canvas_tool: :circle,
        canvas_color_index: 0,
        canvas_shapes: seed_canvas_shapes(),
+       # Chart tab
+       chart_cpu: seed_chart_cpu(),
+       chart_mem: seed_chart_mem(),
+       chart_legend_index: 0,
+       chart_marker_index: 0,
        # Logs tab
        scroll: 0
      }}
+  end
+
+  defp seed_chart_cpu do
+    [
+      {0.0, 15.0},
+      {1.0, 22.0},
+      {2.0, 30.0},
+      {3.0, 28.0},
+      {4.0, 35.0},
+      {5.0, 42.0},
+      {6.0, 38.0},
+      {7.0, 30.0},
+      {8.0, 25.0},
+      {9.0, 33.0},
+      {10.0, 45.0},
+      {11.0, 52.0},
+      {12.0, 48.0},
+      {13.0, 40.0},
+      {14.0, 35.0},
+      {15.0, 38.0},
+      {16.0, 45.0},
+      {17.0, 50.0},
+      {18.0, 55.0},
+      {19.0, 48.0}
+    ]
+  end
+
+  defp seed_chart_mem do
+    [
+      {0.0, 60.0},
+      {1.0, 62.0},
+      {2.0, 65.0},
+      {3.0, 64.0},
+      {4.0, 66.0},
+      {5.0, 68.0},
+      {6.0, 67.0},
+      {7.0, 65.0},
+      {8.0, 64.0},
+      {9.0, 66.0},
+      {10.0, 70.0},
+      {11.0, 72.0},
+      {12.0, 74.0},
+      {13.0, 73.0},
+      {14.0, 72.0},
+      {15.0, 73.0},
+      {16.0, 75.0},
+      {17.0, 78.0},
+      {18.0, 77.0},
+      {19.0, 76.0}
+    ]
   end
 
   defp seed_canvas_shapes do
@@ -581,6 +640,58 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 6} = state, area) do
+    legend_position = Enum.at(@chart_legend_positions, state.chart_legend_index)
+    marker = Enum.at(@chart_markers, state.chart_marker_index)
+
+    legend_label =
+      case legend_position do
+        nil -> "hidden"
+        pos -> Atom.to_string(pos)
+      end
+
+    chart = %Chart{
+      datasets: [
+        %Dataset{
+          name: "CPU %",
+          data: state.chart_cpu,
+          marker: marker,
+          graph_type: :line,
+          style: %Style{fg: :cyan}
+        },
+        %Dataset{
+          name: "Memory %",
+          data: state.chart_mem,
+          marker: marker,
+          graph_type: :line,
+          style: %Style{fg: :magenta}
+        }
+      ],
+      x_axis: %Axis{
+        title: "Sample",
+        bounds: {0.0, 19.0},
+        labels: ["0", "5", "10", "15", "19"],
+        style: %Style{fg: :dark_gray}
+      },
+      y_axis: %Axis{
+        title: "Usage %",
+        bounds: {0.0, 100.0},
+        labels: ["0", "50", "100"],
+        style: %Style{fg: :dark_gray}
+      },
+      legend_position: legend_position,
+      hidden_legend_constraints: {{:ratio, 1, 4}, {:ratio, 1, 4}},
+      block: %Block{
+        title: " Metrics — legend: #{legend_label} · marker: #{marker} ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    [{chart, area}]
+  end
+
+  defp render_tab(%{tab: 7} = state, area) do
     content_width = area.width - 1
     content_area = %Rect{area | width: content_width}
     scrollbar_area = %Rect{area | x: area.x + content_width, width: 1}
@@ -615,6 +726,12 @@ defmodule WidgetShowcase do
     }
 
     [{content, content_area}, {scrollbar, scrollbar_area}]
+  end
+
+  defp bump_chart_sample(points, delta) do
+    Elixir.List.update_at(points, -1, fn {x, y} ->
+      {x, clamp(y + delta, 0.0, 100.0)}
+    end)
   end
 
   defp canvas_tool_label(:line), do: "Line"
@@ -756,7 +873,11 @@ defmodule WidgetShowcase do
     do:
       " Tab = tabs | arrows = move cursor | 1-4 = tool | c = color | Space = stamp | Backspace = clear | q = quit"
 
-  defp footer_text(6), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
+  defp footer_text(6),
+    do:
+      " Tab/Shift+Tab = switch tabs | Up/Down = adjust last CPU sample | L = cycle legend | M = cycle marker | q = quit"
+
+  defp footer_text(7), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
@@ -904,12 +1025,31 @@ defmodule WidgetShowcase do
     {:noreply, %{state | canvas_shapes: seed_canvas_shapes()}}
   end
 
-  # Logs tab: up/down scrolls
+  # Chart tab: Up/Down adjust last CPU sample, L cycles legend, M cycles marker.
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 6} = state) do
+    {:noreply, %{state | chart_cpu: bump_chart_sample(state.chart_cpu, +5.0)}}
+  end
+
   def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 6} = state) do
+    {:noreply, %{state | chart_cpu: bump_chart_sample(state.chart_cpu, -5.0)}}
+  end
+
+  def handle_event(%Event.Key{code: "l", kind: "press"}, %{tab: 6} = state) do
+    next = rem(state.chart_legend_index + 1, length(@chart_legend_positions))
+    {:noreply, %{state | chart_legend_index: next}}
+  end
+
+  def handle_event(%Event.Key{code: "m", kind: "press"}, %{tab: 6} = state) do
+    next = rem(state.chart_marker_index + 1, length(@chart_markers))
+    {:noreply, %{state | chart_marker_index: next}}
+  end
+
+  # Logs tab: up/down scrolls
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 7} = state) do
     {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
   end
 
-  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 6} = state) do
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 7} = state) do
     {:noreply, %{state | scroll: max(state.scroll - 1, 0)}}
   end
 
