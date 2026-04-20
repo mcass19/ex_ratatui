@@ -1,9 +1,11 @@
-# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput, BarChart, Sparkline, Calendar, and more.
+# Example: Widget Showcase — demonstrates Tabs, LineGauge, Scrollbar, Checkbox, TextInput,
+# BarChart, Sparkline, Calendar, Canvas, and more.
 # Run with: mix run examples/widget_showcase.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, Up/Down = scroll/adjust, Left/Right = select chart bar,
 #           Space = toggle checkbox or calendar event, q = quit
 
+alias ExRatatui.Event
 alias ExRatatui.Focus
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
@@ -14,6 +16,7 @@ alias ExRatatui.Widgets.{
   BarChart,
   Block,
   Calendar,
+  Canvas,
   Checkbox,
   LineGauge,
   Paragraph,
@@ -23,13 +26,16 @@ alias ExRatatui.Widgets.{
   TextInput
 }
 
-alias ExRatatui.Event
+alias ExRatatui.Widgets.Canvas.{Circle, Line, Points, Rectangle}
 
 defmodule WidgetShowcase do
   use ExRatatui.App
 
-  @tabs ["Progress", "Settings", "Search", "Charts", "Calendar", "Logs"]
+  @tabs ["Progress", "Settings", "Search", "Charts", "Calendar", "Canvas", "Logs"]
   @log_lines 40
+  @canvas_x_bounds {0.0, 100.0}
+  @canvas_y_bounds {0.0, 50.0}
+  @canvas_palette [:cyan, :magenta, :yellow, :green, :red, :blue]
 
   @impl true
   def mount(_opts) do
@@ -110,9 +116,27 @@ defmodule WidgetShowcase do
        # Calendar tab
        calendar_date: Date.utc_today(),
        calendar_events: seed_calendar_events(Date.utc_today()),
+       # Canvas tab
+       canvas_cursor: {50.0, 25.0},
+       canvas_tool: :circle,
+       canvas_color_index: 0,
+       canvas_shapes: seed_canvas_shapes(),
        # Logs tab
        scroll: 0
      }}
+  end
+
+  defp seed_canvas_shapes do
+    [
+      %Line{x1: 0.0, y1: 0.0, x2: 100.0, y2: 0.0, color: :dark_gray},
+      %Line{x1: 0.0, y1: 0.0, x2: 0.0, y2: 50.0, color: :dark_gray},
+      %Circle{x: 30.0, y: 30.0, radius: 8.0, color: :cyan},
+      %Rectangle{x: 55.0, y: 10.0, width: 25.0, height: 15.0, color: :yellow},
+      %Points{
+        coords: [{70.0, 35.0}, {75.0, 38.0}, {80.0, 42.0}, {85.0, 40.0}],
+        color: :magenta
+      }
+    ]
   end
 
   defp seed_calendar_events(today) do
@@ -435,6 +459,61 @@ defmodule WidgetShowcase do
   end
 
   defp render_tab(%{tab: 5} = state, area) do
+    [canvas_area, legend_area] =
+      Layout.split(area, :horizontal, [{:min, 0}, {:length, 28}])
+
+    cursor_point = %Points{
+      coords: [state.canvas_cursor],
+      color: :white
+    }
+
+    canvas = %Canvas{
+      x_bounds: @canvas_x_bounds,
+      y_bounds: @canvas_y_bounds,
+      marker: :braille,
+      shapes: state.canvas_shapes ++ [cursor_point],
+      block: %Block{
+        title: " Plot (#{length(state.canvas_shapes)} shapes) ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    {cx, cy} = state.canvas_cursor
+    color = Enum.at(@canvas_palette, state.canvas_color_index)
+
+    legend_text = """
+      Cursor: (#{:erlang.float_to_binary(cx, decimals: 1)}, #{:erlang.float_to_binary(cy, decimals: 1)})
+
+      Tool:  #{canvas_tool_label(state.canvas_tool)}
+      Color: #{color}
+
+      1  Line
+      2  Rectangle
+      3  Circle
+      4  Point
+
+      Space stamps shape
+      c      cycles color
+      Backspace clears
+    """
+
+    legend = %Paragraph{
+      text: legend_text,
+      style: %Style{fg: :white},
+      block: %Block{
+        title: " Canvas ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+
+    [{canvas, canvas_area}, {legend, legend_area}]
+  end
+
+  defp render_tab(%{tab: 6} = state, area) do
     content_width = area.width - 1
     content_area = %Rect{area | width: content_width}
     scrollbar_area = %Rect{area | x: area.x + content_width, width: 1}
@@ -470,6 +549,11 @@ defmodule WidgetShowcase do
 
     [{content, content_area}, {scrollbar, scrollbar_area}]
   end
+
+  defp canvas_tool_label(:line), do: "Line"
+  defp canvas_tool_label(:rectangle), do: "Rectangle"
+  defp canvas_tool_label(:circle), do: "Circle"
+  defp canvas_tool_label(:point), do: "Point"
 
   defp handle_chart_key(%Event.Key{code: "left"}, :traffic, state) do
     %{state | chart_cursor: max(state.chart_cursor - 1, 0)}
@@ -547,6 +631,34 @@ defmodule WidgetShowcase do
     %{state | cpu_history: rest ++ [sample]}
   end
 
+  defp move_canvas_cursor({x, y}, dx, dy) do
+    {min_x, max_x} = @canvas_x_bounds
+    {min_y, max_y} = @canvas_y_bounds
+    {clamp(x + dx, min_x, max_x), clamp(y + dy, min_y, max_y)}
+  end
+
+  defp clamp(value, min, _max) when value < min, do: min
+  defp clamp(value, _min, max) when value > max, do: max
+  defp clamp(value, _min, _max), do: value
+
+  defp stamp_canvas_shape(%{canvas_tool: :line, canvas_cursor: {x, y}} = state) do
+    %Line{x1: x, y1: y, x2: x + 15.0, y2: y + 10.0, color: canvas_color(state)}
+  end
+
+  defp stamp_canvas_shape(%{canvas_tool: :rectangle, canvas_cursor: {x, y}} = state) do
+    %Rectangle{x: x, y: y, width: 10.0, height: 8.0, color: canvas_color(state)}
+  end
+
+  defp stamp_canvas_shape(%{canvas_tool: :circle, canvas_cursor: {x, y}} = state) do
+    %Circle{x: x, y: y, radius: 5.0, color: canvas_color(state)}
+  end
+
+  defp stamp_canvas_shape(%{canvas_tool: :point, canvas_cursor: {x, y}} = state) do
+    %Points{coords: [{x, y}], color: canvas_color(state)}
+  end
+
+  defp canvas_color(state), do: Enum.at(@canvas_palette, state.canvas_color_index)
+
   defp focus_border(focus, id) do
     if Focus.focused?(focus, id),
       do: %Style{fg: :yellow, modifiers: [:bold]},
@@ -573,7 +685,11 @@ defmodule WidgetShowcase do
     do:
       " Tab/Shift+Tab = switch tabs | arrows = move cursor (±1 / ±7 days) | Space = toggle event | q = quit"
 
-  defp footer_text(5), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
+  defp footer_text(5),
+    do:
+      " Tab = tabs | arrows = move cursor | 1-4 = tool | c = color | Space = stamp | Backspace = clear | q = quit"
+
+  defp footer_text(6), do: " Tab/Shift+Tab = switch tabs | Up/Down = scroll | q = quit"
 
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
@@ -673,12 +789,60 @@ defmodule WidgetShowcase do
     {:noreply, %{state | calendar_events: events}}
   end
 
-  # Logs tab: up/down scrolls
-  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 5} = state) do
-    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  # Canvas tab: arrows move cursor, 1-4 select tool, c cycles color,
+  # Space stamps the current tool at the cursor, Backspace clears user shapes.
+  def handle_event(%Event.Key{code: "left", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_cursor: move_canvas_cursor(state.canvas_cursor, -2.0, 0.0)}}
+  end
+
+  def handle_event(%Event.Key{code: "right", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_cursor: move_canvas_cursor(state.canvas_cursor, 2.0, 0.0)}}
   end
 
   def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_cursor: move_canvas_cursor(state.canvas_cursor, 0.0, 2.0)}}
+  end
+
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_cursor: move_canvas_cursor(state.canvas_cursor, 0.0, -2.0)}}
+  end
+
+  def handle_event(%Event.Key{code: "1", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_tool: :line}}
+  end
+
+  def handle_event(%Event.Key{code: "2", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_tool: :rectangle}}
+  end
+
+  def handle_event(%Event.Key{code: "3", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_tool: :circle}}
+  end
+
+  def handle_event(%Event.Key{code: "4", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_tool: :point}}
+  end
+
+  def handle_event(%Event.Key{code: "c", kind: "press"}, %{tab: 5} = state) do
+    next = rem(state.canvas_color_index + 1, length(@canvas_palette))
+    {:noreply, %{state | canvas_color_index: next}}
+  end
+
+  def handle_event(%Event.Key{code: " ", kind: "press"}, %{tab: 5} = state) do
+    shape = stamp_canvas_shape(state)
+    {:noreply, %{state | canvas_shapes: state.canvas_shapes ++ [shape]}}
+  end
+
+  def handle_event(%Event.Key{code: "backspace", kind: "press"}, %{tab: 5} = state) do
+    {:noreply, %{state | canvas_shapes: seed_canvas_shapes()}}
+  end
+
+  # Logs tab: up/down scrolls
+  def handle_event(%Event.Key{code: "down", kind: "press"}, %{tab: 6} = state) do
+    {:noreply, %{state | scroll: min(state.scroll + 1, @log_lines - 1)}}
+  end
+
+  def handle_event(%Event.Key{code: "up", kind: "press"}, %{tab: 6} = state) do
     {:noreply, %{state | scroll: max(state.scroll - 1, 0)}}
   end
 
