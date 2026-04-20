@@ -240,6 +240,43 @@ alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
 
 `Map.resolution` accepts `:low` (cheap) or `:high` (richer coastlines). `Label.text` must be a binary; the color applies as the text foreground.
 
+## Chart
+
+X/Y line, scatter, or bar chart with axes, labels, and legend. Each `%Dataset{}` carries `{x, y}` numeric tuples plus its own marker, graph type, and style. Pass `nil` as `:legend_position` to hide the legend.
+
+```elixir
+alias ExRatatui.Widgets.Chart
+alias ExRatatui.Widgets.Chart.{Axis, Dataset}
+
+%Chart{
+  datasets: [
+    %Dataset{
+      name: "CPU",
+      data: [{0.0, 12.0}, {1.0, 25.0}, {2.0, 48.0}, {3.0, 31.0}],
+      marker: :braille,            # or :dot, :block, :bar, :half_block
+      graph_type: :line,           # or :scatter, :bar
+      style: %Style{fg: :cyan}
+    }
+  ],
+  x_axis: %Axis{
+    title: "Time",
+    bounds: {0.0, 3.0},
+    labels: ["0", "1", "2", "3"]
+  },
+  y_axis: %Axis{
+    title: "Usage %",
+    bounds: {0.0, 100.0},
+    labels: ["0", "50", "100"]
+  },
+  legend_position: :top_right,     # or :top, :top_left, :bottom, :bottom_left,
+                                   # :bottom_right, :left, :right, or nil to hide
+  hidden_legend_constraints: {{:ratio, 1, 4}, {:ratio, 1, 4}},
+  block: %Block{title: " Metrics ", borders: [:all]}
+}
+```
+
+`:hidden_legend_constraints` accepts a `{width, height}` pair of layout constraints; the legend is hidden when its size exceeds them against the chart area. Mixing `:graph_type` per dataset (`:line` + `:scatter` overlay) is supported.
+
 ## Tabs
 
 Tab navigation bar with selected highlight.

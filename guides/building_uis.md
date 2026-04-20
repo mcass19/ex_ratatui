@@ -357,6 +357,53 @@ Every shape takes a plain `Color.t()` (not a `Style`) — canvases sample indivi
 
 `Map.resolution` accepts `:low` (cheap silhouette) or `:high` (richer coastline detail). `Label.text` must be a binary; the color applies as the text foreground. Both shapes raise `ArgumentError` if a required field is missing or mistyped.
 
+### Chart
+
+An x/y line, scatter, or bar chart with axes, labels, legend, and multi-series support. Each `%Dataset{}` carries a list of `{x, y}` tuples (integers or floats) plus its own `:marker`, `:graph_type`, and `:style`. The required `:x_axis` and `:y_axis` configure the visible coordinate range via `{min, max}` `:bounds` and optional tick `:labels`. Pass `nil` as `:legend_position` to hide the legend entirely.
+
+```elixir
+alias ExRatatui.Widgets.Chart
+alias ExRatatui.Widgets.Chart.{Axis, Dataset}
+
+%Chart{
+  datasets: [
+    %Dataset{
+      name: "CPU",
+      data: [{0.0, 12.0}, {1.0, 25.0}, {2.0, 48.0}, {3.0, 31.0}, {4.0, 19.0}],
+      marker: :braille,                        # or :dot, :block, :bar, :half_block
+      graph_type: :line,                       # or :scatter, :bar
+      style: %Style{fg: :cyan}
+    },
+    %Dataset{
+      name: "Memory",
+      data: [{0.0, 40.0}, {1.0, 42.0}, {2.0, 55.0}, {3.0, 60.0}, {4.0, 58.0}],
+      marker: :dot,
+      style: %Style{fg: :magenta}
+    }
+  ],
+  x_axis: %Axis{
+    title: "Time (s)",
+    bounds: {0.0, 4.0},
+    labels: ["0", "2", "4"],
+    style: %Style{fg: :dark_gray}
+  },
+  y_axis: %Axis{
+    title: "Usage %",
+    bounds: {0.0, 100.0},
+    labels: ["0", "50", "100"],
+    style: %Style{fg: :dark_gray}
+  },
+  legend_position: :top_right,                 # or :top, :top_left, :bottom, :bottom_left,
+                                               # :bottom_right, :left, :right, or nil to hide
+  hidden_legend_constraints: {{:ratio, 1, 4}, {:ratio, 1, 4}},
+  block: %Block{title: " Metrics ", borders: [:all]}
+}
+```
+
+`:hidden_legend_constraints` takes a `{width_constraint, height_constraint}` tuple — the same shapes accepted by `ExRatatui.Layout` (`:length`, `:percentage`, `:ratio`, `:min`, `:max`, `:fill`). The legend is hidden whenever its rendered size would exceed those bounds against the chart area, which keeps things readable in cramped layouts. Each dataset's `:graph_type` is independent: combine a `:line` series with a `:scatter` overlay in the same chart for emphasis.
+
+Datasets with non-tuple data points, non-numeric coordinates, unknown markers, unknown `:graph_type`s, unknown `:legend_position`s, missing axes, malformed `:bounds`, malformed `:hidden_legend_constraints`, and unknown `:labels_alignment` values raise `ArgumentError` at the bridge boundary.
+
 ### Tabs
 
 A tab bar for switching between views.
