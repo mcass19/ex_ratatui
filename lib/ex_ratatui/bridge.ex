@@ -19,6 +19,7 @@ defmodule ExRatatui.Bridge do
     Block,
     Calendar,
     Canvas,
+    Chart,
     Checkbox,
     Clear,
     Gauge,
@@ -39,6 +40,7 @@ defmodule ExRatatui.Bridge do
 
   alias ExRatatui.Widgets.Canvas.{Circle, Label, Line, Points, Rectangle}
   alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
+  alias ExRatatui.Widgets.Chart.{Axis, Dataset}
 
   @doc false
   @spec encode_commands!([{ExRatatui.widget(), Rect.t()}]) :: [{map(), map()}]
@@ -226,6 +228,33 @@ defmodule ExRatatui.Bridge do
     }
     |> maybe_put("background_color", encode_canvas_background(canvas.background_color))
     |> maybe_put_block(canvas.block, "canvas.block")
+  end
+
+  defp encode_widget(%Chart{x_axis: nil}) do
+    raise ArgumentError, "chart.x_axis is required and must be a %ExRatatui.Widgets.Chart.Axis{}"
+  end
+
+  defp encode_widget(%Chart{y_axis: nil}) do
+    raise ArgumentError, "chart.y_axis is required and must be a %ExRatatui.Widgets.Chart.Axis{}"
+  end
+
+  defp encode_widget(%Chart{} = chart) do
+    validate_chart_legend_position!(chart.legend_position)
+
+    base = %{
+      "type" => "chart",
+      "datasets" => encode_chart_datasets(chart.datasets),
+      "x_axis" => encode_chart_axis(chart.x_axis, "chart.x_axis"),
+      "y_axis" => encode_chart_axis(chart.y_axis, "chart.y_axis")
+    }
+
+    base
+    |> encode_chart_legend(chart.legend_position)
+    |> maybe_put(
+      "hidden_legend_constraints",
+      encode_chart_hidden_legend_constraints(chart.hidden_legend_constraints)
+    )
+    |> maybe_put_block(chart.block, "chart.block")
   end
 
   defp encode_widget(%Tabs{} = tabs) do
@@ -732,6 +761,167 @@ defmodule ExRatatui.Bridge do
 
   defp raise_canvas_required(shape, field) do
     raise ArgumentError, "canvas.shapes #{shape}.#{field} is required"
+  end
+
+  defp encode_chart_datasets(datasets) when is_list(datasets),
+    do: Enum.map(datasets, &encode_chart_dataset/1)
+
+  defp encode_chart_datasets(other) do
+    raise ArgumentError,
+          "chart.datasets expected a list of %ExRatatui.Widgets.Chart.Dataset{}, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_dataset(%Dataset{} = dataset) do
+    validate_chart_dataset_name!(dataset.name)
+    validate_chart_dataset_marker!(dataset.marker)
+    validate_chart_dataset_graph_type!(dataset.graph_type)
+
+    %{
+      "data" => encode_chart_dataset_data(dataset.data),
+      "marker" => Atom.to_string(dataset.marker),
+      "graph_type" => Atom.to_string(dataset.graph_type),
+      "style" => encode_style(dataset.style, "chart.datasets style")
+    }
+    |> maybe_put("name", dataset.name)
+  end
+
+  defp encode_chart_dataset(other) do
+    raise ArgumentError,
+          "chart.datasets expected entries to be %ExRatatui.Widgets.Chart.Dataset{}, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_dataset_data(data) when is_list(data),
+    do: Enum.map(data, &encode_chart_dataset_point/1)
+
+  defp encode_chart_dataset_data(other) do
+    raise ArgumentError,
+          "chart.datasets data expected a list of {x, y} numeric tuples, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_dataset_point({x, y}) when is_number(x) and is_number(y) do
+    validate_chart_finite!(x)
+    validate_chart_finite!(y)
+    [x * 1.0, y * 1.0]
+  end
+
+  defp encode_chart_dataset_point(other) do
+    raise ArgumentError,
+          "chart.datasets data entries must be {number, number} tuples, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_finite!(value) when is_integer(value) or is_float(value), do: :ok
+
+  defp validate_chart_dataset_name!(nil), do: :ok
+  defp validate_chart_dataset_name!(name) when is_binary(name), do: :ok
+
+  defp validate_chart_dataset_name!(other) do
+    raise ArgumentError,
+          "chart.datasets name expected a string or nil, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_dataset_marker!(marker)
+       when marker in [:braille, :dot, :block, :bar, :half_block],
+       do: :ok
+
+  defp validate_chart_dataset_marker!(other) do
+    raise ArgumentError,
+          "chart.datasets marker expected one of :braille, :dot, :block, :bar, :half_block, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_dataset_graph_type!(graph_type)
+       when graph_type in [:line, :scatter, :bar],
+       do: :ok
+
+  defp validate_chart_dataset_graph_type!(other) do
+    raise ArgumentError,
+          "chart.datasets graph_type expected one of :line, :scatter, :bar, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_axis(%Axis{} = axis, context) do
+    validate_chart_axis_bounds!(axis.bounds, context)
+    validate_chart_axis_alignment!(axis.labels_alignment, context)
+
+    %{
+      "bounds" => encode_chart_axis_bounds(axis.bounds),
+      "labels" => encode_chart_axis_labels(axis.labels, context),
+      "style" => encode_style(axis.style, "#{context} style"),
+      "labels_alignment" => Atom.to_string(axis.labels_alignment)
+    }
+    |> maybe_put("title", encode_optional_line(axis.title))
+  end
+
+  defp encode_chart_axis(other, context) do
+    raise ArgumentError,
+          "#{context} expected %ExRatatui.Widgets.Chart.Axis{}, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_axis_bounds!({min, max}, _context)
+       when is_number(min) and is_number(max) do
+    validate_chart_finite!(min)
+    validate_chart_finite!(max)
+    :ok
+  end
+
+  defp validate_chart_axis_bounds!(other, context) do
+    raise ArgumentError,
+          "#{context} bounds expected {min, max} of finite numbers, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_axis_alignment!(alignment, _context)
+       when alignment in [:left, :center, :right],
+       do: :ok
+
+  defp validate_chart_axis_alignment!(other, context) do
+    raise ArgumentError,
+          "#{context} labels_alignment expected one of :left, :center, :right, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_axis_bounds({min, max}), do: [min * 1.0, max * 1.0]
+
+  defp encode_chart_axis_labels(labels, _context) when is_list(labels),
+    do: Enum.map(labels, &encode_line_like/1)
+
+  defp encode_chart_axis_labels(other, context) do
+    raise ArgumentError,
+          "#{context} labels expected a list, got: #{inspect(other)}"
+  end
+
+  defp validate_chart_legend_position!(position)
+       when position in [
+              nil,
+              :top,
+              :top_left,
+              :top_right,
+              :bottom,
+              :bottom_left,
+              :bottom_right,
+              :left,
+              :right
+            ],
+       do: :ok
+
+  defp validate_chart_legend_position!(other) do
+    raise ArgumentError,
+          "chart.legend_position expected nil or one of :top, :top_left, :top_right, :bottom, :bottom_left, :bottom_right, :left, :right, got: #{inspect(other)}"
+  end
+
+  defp encode_chart_legend(map, nil), do: Map.put(map, "hide_legend", true)
+
+  defp encode_chart_legend(map, position),
+    do: Map.put(map, "legend_position", Atom.to_string(position))
+
+  defp encode_chart_hidden_legend_constraints(nil), do: nil
+
+  defp encode_chart_hidden_legend_constraints({h, v}) do
+    [
+      encode_constraint(h, "chart.hidden_legend_constraints"),
+      encode_constraint(v, "chart.hidden_legend_constraints")
+    ]
+  end
+
+  defp encode_chart_hidden_legend_constraints(other) do
+    raise ArgumentError,
+          "chart.hidden_legend_constraints expected {Constraint, Constraint} or nil, got: #{inspect(other)}"
   end
 
   defp encode_line_like(value), do: value |> Coerce.coerce_line!() |> Encode.to_wire_line!()

@@ -40,7 +40,8 @@ defmodule ExRatatui do
   `ExRatatui.Widgets.List`, `ExRatatui.Widgets.Table`,
   `ExRatatui.Widgets.Gauge`, `ExRatatui.Widgets.LineGauge`,
   `ExRatatui.Widgets.BarChart`, `ExRatatui.Widgets.Sparkline`,
-  `ExRatatui.Widgets.Calendar`, `ExRatatui.Widgets.Tabs`,
+  `ExRatatui.Widgets.Calendar`, `ExRatatui.Widgets.Chart`,
+  `ExRatatui.Widgets.Tabs`,
   `ExRatatui.Widgets.Scrollbar`, `ExRatatui.Widgets.Checkbox`,
   `ExRatatui.Widgets.TextInput`, `ExRatatui.Widgets.Clear`,
   `ExRatatui.Widgets.Markdown`, `ExRatatui.Widgets.Textarea`,
@@ -63,6 +64,7 @@ defmodule ExRatatui do
     BarChart,
     Block,
     Calendar,
+    Chart,
     Checkbox,
     Clear,
     Gauge,
@@ -101,6 +103,7 @@ defmodule ExRatatui do
           | BarChart.t()
           | Sparkline.t()
           | Calendar.t()
+          | Chart.t()
           | Tabs.t()
           | Scrollbar.t()
           | Markdown.t()

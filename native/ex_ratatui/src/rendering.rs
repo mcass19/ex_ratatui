@@ -16,6 +16,7 @@ use crate::widgets::bar_chart::{self, BarChartData, BarData, BarGroupData};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::calendar::{self, CalendarData};
 use crate::widgets::canvas::{self, CanvasData, CanvasShape};
+use crate::widgets::chart::{self, AxisData, ChartData, DatasetData};
 use crate::widgets::checkbox::{self, CheckboxData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
@@ -41,6 +42,7 @@ pub enum WidgetData {
     Sparkline(SparklineData),
     Calendar(CalendarData),
     Canvas(CanvasData),
+    Chart(ChartData),
     Tabs(TabsData),
     Scrollbar(ScrollbarData),
     Checkbox(CheckboxData),
@@ -100,6 +102,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "sparkline" => Ok(WidgetData::Sparkline(decode_sparkline(widget_map)?)),
         "calendar" => Ok(WidgetData::Calendar(decode_calendar(widget_map)?)),
         "canvas" => Ok(WidgetData::Canvas(decode_canvas(widget_map)?)),
+        "chart" => Ok(WidgetData::Chart(decode_chart(widget_map)?)),
         "tabs" => Ok(WidgetData::Tabs(decode_tabs(widget_map)?)),
         "scrollbar" => Ok(WidgetData::Scrollbar(decode_scrollbar(widget_map)?)),
         "checkbox" => Ok(WidgetData::Checkbox(decode_checkbox(widget_map)?)),
@@ -1046,6 +1049,177 @@ fn decode_widget_list(map: &TermMap<'_>) -> Result<WidgetListData, Error> {
     })
 }
 
+fn decode_chart(map: &TermMap<'_>) -> Result<ChartData, Error> {
+    let datasets_term = optional_term(map, "datasets")
+        .ok_or_else(|| crate::decode::missing_field("chart", "datasets"))?;
+    let dataset_terms: Vec<Term<'_>> = datasets_term
+        .decode()
+        .map_err(|_| invalid_field("chart", "datasets", "expected a list"))?;
+    let datasets: Vec<DatasetData> = dataset_terms
+        .into_iter()
+        .map(decode_dataset)
+        .collect::<Result<_, _>>()?;
+
+    let x_axis_term = optional_term(map, "x_axis")
+        .ok_or_else(|| crate::decode::missing_field("chart", "x_axis"))?;
+    let x_axis = decode_axis(x_axis_term, "x_axis")?;
+
+    let y_axis_term = optional_term(map, "y_axis")
+        .ok_or_else(|| crate::decode::missing_field("chart", "y_axis"))?;
+    let y_axis = decode_axis(y_axis_term, "y_axis")?;
+
+    let hide_legend: bool = decode_optional(map, "hide_legend", "chart")?.unwrap_or(false);
+
+    let legend_position = match decode_optional::<String>(map, "legend_position", "chart")? {
+        Some(s) => Some(chart::parse_legend_position(&s)?),
+        None => None,
+    };
+
+    let hidden_legend_constraints = match optional_term(map, "hidden_legend_constraints") {
+        Some(term) => {
+            let terms: Vec<Term<'_>> = term.decode().map_err(|_| {
+                invalid_field(
+                    "chart",
+                    "hidden_legend_constraints",
+                    "expected a list of two constraints",
+                )
+            })?;
+            if terms.len() != 2 {
+                return Err(invalid_field(
+                    "chart",
+                    "hidden_legend_constraints",
+                    "expected exactly two constraints",
+                ));
+            }
+            Some((decode_constraint(terms[0])?, decode_constraint(terms[1])?))
+        }
+        None => None,
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(ChartData {
+        datasets,
+        x_axis,
+        y_axis,
+        legend_position,
+        hide_legend,
+        hidden_legend_constraints,
+        block,
+    })
+}
+
+fn decode_dataset(term: Term<'_>) -> Result<DatasetData, Error> {
+    let map = decode_map(term, "chart.datasets")?;
+
+    let name: Option<String> = decode_optional(&map, "name", "chart.datasets")?;
+
+    let data_term = optional_term(&map, "data")
+        .ok_or_else(|| crate::decode::missing_field("chart.datasets", "data"))?;
+    let pairs: Vec<Vec<f64>> = data_term
+        .decode()
+        .map_err(|_| invalid_field("chart.datasets", "data", "expected a list of [x, y] pairs"))?;
+    let data = pairs
+        .into_iter()
+        .map(|pair| {
+            if pair.len() != 2 {
+                return Err(invalid_field(
+                    "chart.datasets",
+                    "data",
+                    "each entry must be [x, y]",
+                ));
+            }
+            Ok((pair[0], pair[1]))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let marker_name: String =
+        decode_optional(&map, "marker", "chart.datasets")?.unwrap_or_else(|| "braille".to_string());
+    let marker = canvas::parse_marker(&marker_name)?;
+
+    let graph_type_name: String = decode_optional(&map, "graph_type", "chart.datasets")?
+        .unwrap_or_else(|| "line".to_string());
+    let graph_type = chart::parse_graph_type(&graph_type_name)?;
+
+    let style = match optional_term(&map, "style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    Ok(DatasetData {
+        name,
+        data,
+        marker,
+        graph_type,
+        style,
+    })
+}
+
+fn decode_axis(term: Term<'_>, field: &'static str) -> Result<AxisData, Error> {
+    let map = decode_map(term, &format!("chart.{field}"))?;
+
+    let bounds_term = optional_term(&map, "bounds")
+        .ok_or_else(|| crate::decode::missing_field(&format!("chart.{field}"), "bounds"))?;
+    let bounds_vec: Vec<f64> = bounds_term
+        .decode()
+        .map_err(|_| invalid_field("chart", field, "expected bounds as [min, max]"))?;
+    if bounds_vec.len() != 2 {
+        return Err(invalid_field(
+            "chart",
+            field,
+            "expected bounds as [min, max]",
+        ));
+    }
+    let bounds = [bounds_vec[0], bounds_vec[1]];
+
+    let labels = match optional_term(&map, "labels") {
+        Some(labels_term) => {
+            let label_terms: Vec<Term<'_>> = labels_term
+                .decode()
+                .map_err(|_| invalid_field("chart", field, "labels must be a list"))?;
+            label_terms
+                .into_iter()
+                .map(text::decode_line)
+                .collect::<Result<_, _>>()?
+        }
+        None => Vec::new(),
+    };
+
+    let style = match optional_term(&map, "style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let alignment = match decode_optional::<String>(&map, "labels_alignment", "chart")? {
+        Some(s) => match s.as_str() {
+            "center" => Alignment::Center,
+            "right" => Alignment::Right,
+            "left" => Alignment::Left,
+            other => {
+                return Err(invalid_field(
+                    "chart",
+                    field,
+                    &format!("unknown labels_alignment '{other}'"),
+                ))
+            }
+        },
+        None => Alignment::Left,
+    };
+
+    let title = match optional_term(&map, "title") {
+        Some(term) => Some(text::decode_line(term)?),
+        None => None,
+    };
+
+    Ok(AxisData {
+        title,
+        bounds,
+        labels,
+        style,
+        labels_alignment: alignment,
+    })
+}
+
 fn decode_optional_block(map: &TermMap<'_>) -> Result<Option<BlockData>, Error> {
     match optional_term(map, "block") {
         Some(term) => Ok(Some(block::decode_block(term)?)),
@@ -1079,6 +1253,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Sparkline(data) => sparkline::render(buf, data, area),
         WidgetData::Calendar(data) => calendar::render(buf, data, area),
         WidgetData::Canvas(data) => canvas::render(buf, data, area),
+        WidgetData::Chart(data) => chart::render(buf, data, area),
         WidgetData::Tabs(data) => tabs::render(buf, data, area),
         WidgetData::Scrollbar(data) => scrollbar::render(buf, data, area),
         WidgetData::Checkbox(data) => checkbox::render(buf, data, area),

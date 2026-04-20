@@ -14,6 +14,9 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.Sparkline
   doctest ExRatatui.Widgets.Calendar
   doctest ExRatatui.Widgets.Canvas
+  doctest ExRatatui.Widgets.Chart
+  doctest ExRatatui.Widgets.Chart.Dataset
+  doctest ExRatatui.Widgets.Chart.Axis
   doctest ExRatatui.Widgets.Canvas.Line
   doctest ExRatatui.Widgets.Canvas.Rectangle
   doctest ExRatatui.Widgets.Canvas.Circle
