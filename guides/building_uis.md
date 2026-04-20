@@ -289,6 +289,31 @@ alias ExRatatui.Widgets.Calendar
 
 `:display_date` must be a `%Date{}`; `:show_month_header` and `:show_weekdays_header` must be booleans; event entries must be `{%Date{}, %Style{}}` tuples. Anything else raises `ArgumentError` at encode time. Set `:show_surrounding` to a `Style` to bleed the previous/next month into empty grid cells (leave it `nil` to hide them). The widget needs roughly 22 columns × 8 rows without a block, or 24 × 10 with one.
 
+### Canvas
+
+A 2D drawing surface for plotting shapes, charts, and custom visualizations. Shapes are drawn onto a virtual coordinate system defined by `:x_bounds` and `:y_bounds` (both `{min, max}` tuples), then sampled onto the terminal cells using the chosen `:marker`.
+
+```elixir
+alias ExRatatui.Widgets.Canvas
+alias ExRatatui.Widgets.Canvas.{Line, Rectangle, Circle, Points}
+
+%Canvas{
+  x_bounds: {0.0, 100.0},
+  y_bounds: {0.0, 50.0},
+  marker: :braille,                          # or :dot, :block, :bar, :half_block
+  background_color: :black,
+  shapes: [
+    %Line{x1: 0.0, y1: 0.0, x2: 100.0, y2: 50.0, color: :cyan},
+    %Rectangle{x: 10.0, y: 10.0, width: 30.0, height: 20.0, color: :yellow},
+    %Circle{x: 70.0, y: 25.0, radius: 10.0, color: :magenta},
+    %Points{coords: [{20.0, 40.0}, {50.0, 30.0}, {80.0, 10.0}], color: :green}
+  ],
+  block: %Block{title: " Plot ", borders: [:all]}
+}
+```
+
+Every shape takes a plain `Color.t()` (not a `Style`) — canvases sample individual pixels so text modifiers do not apply. `Rectangle` is drawn as an outline anchored at its bottom-left corner; `Circle` is drawn as an outline centered on `{x, y}`; `Points` accepts a list of `{x, y}` tuples. Bounds must be `{min, max}` tuples with `min <= max`; `width`, `height`, and `radius` must be non-negative; any required field set to `nil` or a mistyped value raises `ArgumentError` at encode time. `:marker` defaults to `:braille`, which gives the finest sub-cell resolution — drop to `:dot` or `:block` for lower-density output or for terminals without Braille fonts.
+
 ### Tabs
 
 A tab bar for switching between views.

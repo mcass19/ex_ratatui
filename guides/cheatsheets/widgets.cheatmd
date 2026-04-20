@@ -174,6 +174,30 @@ Monthly calendar grid with per-day event highlighting. Events accept a list of `
 
 `:display_date` must be a `%Date{}`, booleans must be actual booleans, and event entries must be `{%Date{}, %Style{}}` tuples — anything else raises `ArgumentError`. Needs roughly 22×8 cells (24×10 with a block).
 
+## Canvas
+
+2D drawing surface. Shapes are plotted in the virtual coordinate space defined by `:x_bounds` / `:y_bounds`, then sampled onto cells using the chosen `:marker`. Colors are plain `Color.t()` values — text modifiers do not apply to canvas pixels.
+
+```elixir
+alias ExRatatui.Widgets.Canvas.{Line, Rectangle, Circle, Points}
+
+%Canvas{
+  x_bounds: {0.0, 100.0},
+  y_bounds: {0.0, 50.0},
+  marker: :braille,              # or :dot, :block, :bar, :half_block
+  background_color: :black,
+  shapes: [
+    %Line{x1: 0.0, y1: 0.0, x2: 100.0, y2: 50.0, color: :cyan},
+    %Rectangle{x: 10.0, y: 10.0, width: 30.0, height: 20.0, color: :yellow},
+    %Circle{x: 70.0, y: 25.0, radius: 10.0, color: :magenta},
+    %Points{coords: [{20.0, 40.0}, {50.0, 30.0}], color: :green}
+  ],
+  block: %Block{title: " Plot ", borders: [:all]}
+}
+```
+
+`Rectangle` is an outline anchored at its bottom-left corner; `Circle` is an outline centered on `{x, y}`. Bounds must be `{min, max}` with `min <= max`; `width`, `height`, and `radius` must be non-negative. `:braille` gives the finest resolution; pick `:dot` or `:block` for terminals without Braille fonts.
+
 ## Tabs
 
 Tab navigation bar with selected highlight.
