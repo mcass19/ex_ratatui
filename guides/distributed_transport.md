@@ -158,7 +158,7 @@ defmodule MyApp.TUI do
 end
 ```
 
-The `mount/1` opts also include `:transport` (set to `:distributed`), `:width`, and `:height` — exactly like the SSH transport, so your app module can be transport-agnostic.
+The `mount/1` opts also include `:transport` (set to `:distributed`), `:width`, and `:height`. Byte-stream transports like SSH set `:transport` to `:session` instead — your app module stays transport-agnostic either way.
 
 ## Authentication
 

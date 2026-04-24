@@ -25,7 +25,7 @@ The entire transport is pure OTP `:ssh` — no Erlang ports, no extra TCP listen
 One `ExRatatui.SSH.Daemon` GenServer owns a `:ssh.daemon/2` listening on a TCP port. Each new client connection spawns its own `ExRatatui.SSH` channel process, which in turn owns:
 
   * A `ExRatatui.Session` — an in-memory terminal sized to the client's PTY, backed by a VTE ANSI parser.
-  * A linked internal server process running your `ExRatatui.App` module in `:ssh` transport mode.
+  * A linked internal server process running your `ExRatatui.App` module in `:session` transport mode — the generic byte-stream runtime the SSH channel (and any other byte-oriented transport, such as a custom TCP bridge) plugs into.
 
 Clients are fully isolated from each other: their own state, their own key events, their own screen size. A single daemon can serve many concurrent sessions without any shared mutable state.
 
@@ -296,7 +296,7 @@ children = [
 ]
 ```
 
-Each transport gets its own supervisor/process tree. `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic — the only difference is the `:transport` key in `mount/1` opts (`:local`, `:ssh`, or `:distributed`).
+Each transport gets its own supervisor/process tree. `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic — the only difference is the `:transport` key in `mount/1` opts (`:local`, `:session` for byte-stream transports like SSH, or `:distributed`).
 
 ## Testing
 

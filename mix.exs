@@ -122,6 +122,7 @@ defmodule ExRatatui.MixProject do
         "guides/telemetry.md": [title: "Telemetry"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
+        "guides/custom_transports.md": [title: "Custom Transports"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
@@ -213,6 +214,10 @@ defmodule ExRatatui.MixProject do
         ],
         "Custom Widgets": [
           ExRatatui.Widget
+        ],
+        Transport: [
+          ExRatatui.Transport,
+          ExRatatui.Transport.ByteStream
         ],
         "SSH Transport": [
           ExRatatui.SSH,
