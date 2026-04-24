@@ -53,7 +53,7 @@ defmodule ExRatatui.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :ssh]
+      extra_applications: [:logger, :ssh, :telemetry]
     ]
   end
 
@@ -73,6 +73,7 @@ defmodule ExRatatui.MixProject do
   defp deps do
     [
       {:rustler_precompiled, "~> 0.8"},
+      {:telemetry, "~> 1.0"},
 
       # Optional
       {:rustler, ">= 0.0.0", optional: true},
