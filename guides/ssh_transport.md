@@ -349,3 +349,4 @@ The integration tests run as part of the default `mix test` — no special flags
   * [Reducer Runtime](reducer_runtime.md) — Elm-style commands and subscriptions
   * [Building UIs](building_uis.md) — widgets, layout, styles, and events
   * [Running TUIs over Erlang Distribution](distributed_transport.md) — alternative remote transport
+  * [Custom Transports](custom_transports.md) — write your own transport on top of `ExRatatui.Transport`

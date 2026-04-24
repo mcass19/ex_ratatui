@@ -17,7 +17,7 @@ An ExRatatui "transport" is any module that decides **where the bytes go** for a
         | {:ex_ratatui_resize, pos_integer(), pos_integer()}
 ```
 
-A byte-stream transport (SSH, a TCP bridge, a Kino widget) does three things. It creates an `ExRatatui.Session` sized to the remote terminal, starts the runtime server with `transport: {:session, session, writer_fn}` (the server calls `writer_fn` with the rendered ANSI bytes on every frame — job is to ship those bytes to the remote terminal), and when bytes arrive *from* the remote terminal it forwards them to the server using `ExRatatui.Transport.ByteStream.forward_input/3`. When the remote terminal resizes, it uses `forward_resize/4`.
+A byte-stream transport (SSH, a TCP bridge, a Kino widget) does three things. It creates an `ExRatatui.Session` sized to the remote terminal, starts the runtime server via `ExRatatui.Transport.start_server/1` with `transport: {:session, session, writer_fn}` (the server calls `writer_fn` with the rendered ANSI bytes on every frame — job is to ship those bytes to the remote terminal), and when bytes arrive *from* the remote terminal it forwards them to the server using `ExRatatui.Transport.ByteStream.forward_input/3`. When the remote terminal resizes, it uses `forward_resize/4`.
 
 `ByteStream` handles the parsing side (`Session.feed_input/2`), absorbs `%Event.Resize{}` events into `{:ex_ratatui_resize, _, _}` notifications, and sends everything else to the server as `{:ex_ratatui_event, event}` — exactly the shape the runtime expects. Reuse it; don't hand-roll the dispatch loop.
 
@@ -52,7 +52,7 @@ defmodule MyApp.TcpTransport do
     writer  = fn bytes -> :gen_tcp.send(socket, bytes) end
 
     {:ok, server} =
-      ExRatatui.Server.start_link(
+      ExRatatui.Transport.start_server(
         mod: state.mod,
         name: nil,
         transport: {:session, session, writer}
@@ -91,5 +91,5 @@ Every transport automatically participates in the runtime telemetry events — s
 
 - [Running TUIs over SSH](ssh_transport.md) — reference implementation of a byte-stream transport, backed by OTP `:ssh`.
 - [Running TUIs over Erlang Distribution](distributed_transport.md) — the non-byte-stream transport.
-- `ExRatatui.Transport` — behaviour + typespecs
+- `ExRatatui.Transport` — behaviour, typespecs, and `start_server/1`
 - `ExRatatui.Transport.ByteStream` — the two helpers used above

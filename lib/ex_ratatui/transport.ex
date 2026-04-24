@@ -92,4 +92,43 @@ defmodule ExRatatui.Transport do
   @callback child_spec(keyword()) :: Supervisor.child_spec()
 
   @optional_callbacks child_spec: 1
+
+  @doc """
+  Starts the runtime server that backs a transport. This is the public
+  entrypoint for custom transports — the built-in `:local`, SSH, and
+  Distributed transports call it internally.
+
+  `opts` is a keyword list:
+
+    * `:mod` (required) — module implementing `ExRatatui.App`.
+    * `:transport` — one of the `t:server_transport/0` shapes. Defaults
+      to `:local`.
+    * `:name` — optional `GenServer` name. Pass `nil` to start an
+      unnamed server (recommended for per-connection transports that
+      serve many clients).
+
+  Returns `{:ok, server_pid}` on success, propagating any error tuple
+  the server raises during init.
+
+  ## Example
+
+  A byte-stream transport typically looks like:
+
+      session = ExRatatui.Session.new(width, height)
+      writer  = fn bytes -> transport_write(conn, bytes) end
+
+      {:ok, server} =
+        ExRatatui.Transport.start_server(
+          mod: MyApp,
+          name: nil,
+          transport: {:session, session, writer}
+        )
+
+  See [`guides/custom_transports.md`](guides/custom_transports.md) for
+  the full walkthrough.
+  """
+  @spec start_server(keyword()) :: GenServer.on_start()
+  def start_server(opts) when is_list(opts) do
+    ExRatatui.Server.start_link(opts)
+  end
 end
