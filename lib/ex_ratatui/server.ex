@@ -10,6 +10,7 @@ defmodule ExRatatui.Server do
   alias ExRatatui.Native
   alias ExRatatui.Session
   alias ExRatatui.Subscription
+  alias ExRatatui.Telemetry
 
   defstruct [
     :mod,
@@ -62,8 +63,15 @@ defmodule ExRatatui.Server do
 
     case Keyword.get(opts, :transport, :local) do
       :local ->
+        mod = Keyword.fetch!(opts, :mod)
         test_mode = Keyword.get(opts, :test_mode)
-        init_terminal(test_mode) |> continue_init(opts)
+
+        terminal_ref =
+          Telemetry.span([:transport, :connect], %{mod: mod, transport: :local}, fn ->
+            init_terminal(test_mode)
+          end)
+
+        continue_init(terminal_ref, opts)
 
       {:ssh, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
         continue_init_ssh(session, writer_fn, opts)
@@ -85,7 +93,12 @@ defmodule ExRatatui.Server do
     # changing production terminal-size behavior.
     terminal_size_fn = Keyword.get(opts, :terminal_size_fn, &ExRatatui.terminal_size/0)
 
-    case normalize_mount_result(mod.mount(opts)) do
+    mount_result =
+      Telemetry.span([:runtime, :init], %{mod: mod, transport: :local}, fn ->
+        mod.mount(opts)
+      end)
+
+    case normalize_mount_result(mount_result) do
       {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
@@ -127,10 +140,20 @@ defmodule ExRatatui.Server do
   # app can opt into per-client behaviour without breaking the local case.
   def continue_init_ssh(%Session{} = session, writer_fn, opts) do
     mod = Keyword.fetch!(opts, :mod)
-    {w, h} = Session.size(session)
+
+    {w, h} =
+      Telemetry.span([:transport, :connect], %{mod: mod, transport: :ssh}, fn ->
+        Session.size(session)
+      end)
+
     augmented_opts = augment_ssh_mount_opts(opts, w, h)
 
-    case normalize_mount_result(mod.mount(augmented_opts)) do
+    mount_result =
+      Telemetry.span([:runtime, :init], %{mod: mod, transport: :ssh}, fn ->
+        mod.mount(augmented_opts)
+      end)
+
+    case normalize_mount_result(mount_result) do
       {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
@@ -167,10 +190,21 @@ defmodule ExRatatui.Server do
   # terms and the client draws them with its own TerminalResource.
   def continue_init_distributed_server(client_pid, width, height, opts) do
     mod = Keyword.fetch!(opts, :mod)
-    Process.monitor(client_pid)
+
+    Telemetry.span([:transport, :connect], %{mod: mod, transport: :distributed_server}, fn ->
+      Process.monitor(client_pid)
+    end)
+
     augmented_opts = augment_distributed_mount_opts(opts, width, height)
 
-    case normalize_mount_result(mod.mount(augmented_opts)) do
+    mount_result =
+      Telemetry.span(
+        [:runtime, :init],
+        %{mod: mod, transport: :distributed_server},
+        fn -> mod.mount(augmented_opts) end
+      )
+
+    case normalize_mount_result(mount_result) do
       {:ok, user_state, runtime_opts} ->
         state = %__MODULE__{
           mod: mod,
@@ -300,6 +334,7 @@ defmodule ExRatatui.Server do
     cancel_subscription_timers(state)
     restore_terminal(state.terminal_ref)
     state.mod.terminate(reason, state.user_state)
+    emit_transport_disconnect(state, reason)
     :ok
   end
 
@@ -307,6 +342,7 @@ defmodule ExRatatui.Server do
     cancel_subscription_timers(state)
     Session.close(state.session)
     state.mod.terminate(reason, state.user_state)
+    emit_transport_disconnect(state, reason)
     :ok
   end
 
@@ -316,11 +352,20 @@ defmodule ExRatatui.Server do
       ) do
     cancel_subscription_timers(state)
     state.mod.terminate(reason, state.user_state)
+    emit_transport_disconnect(state, reason)
     :ok
   end
 
   @impl true
   def terminate(_reason, _state), do: :ok
+
+  defp emit_transport_disconnect(%__MODULE__{} = state, reason) do
+    Telemetry.execute(
+      [:transport, :disconnect],
+      %{},
+      %{mod: state.mod, transport: state.transport, reason: reason}
+    )
+  end
 
   # Cancel any armed subscription timers so pending ticks are not delivered
   # to a restarted process carrying a stale mailbox.
@@ -342,7 +387,14 @@ defmodule ExRatatui.Server do
   def dispatch_event(state, event) do
     state = trace(state, :message, %{source: :event, payload: event})
 
-    state.mod.handle_event(event, state.user_state)
+    meta = %{mod: state.mod, transport: state.transport, event: event}
+
+    result =
+      Telemetry.span([:runtime, :event], meta, fn ->
+        state.mod.handle_event(event, state.user_state)
+      end)
+
+    result
     |> normalize_transition_result()
     |> apply_transition(state)
   end
@@ -405,24 +457,44 @@ defmodule ExRatatui.Server do
 
   defp do_render(state) do
     {w, h} = current_size(state)
-
     frame = %Frame{width: w, height: h}
+    start_meta = %{mod: state.mod, transport: state.transport}
 
-    widgets = state.mod.render(state.user_state, frame)
-    draw_widgets(state, widgets)
+    :telemetry.span([:ex_ratatui, :render, :frame], start_meta, fn ->
+      widgets = state.mod.render(state.user_state, frame)
+      draw_widgets(state, widgets)
 
-    state
-    |> Map.update!(:render_count, &(&1 + 1))
-    |> Map.put(:last_rendered_at, System.system_time(:millisecond))
-    |> trace(:render, %{frame: frame, widget_count: length(widgets)})
+      next_state =
+        state
+        |> Map.update!(:render_count, &(&1 + 1))
+        |> Map.put(:last_rendered_at, System.system_time(:millisecond))
+        |> trace(:render, %{frame: frame, widget_count: length(widgets)})
+
+      {next_state, Map.put(start_meta, :widget_count, length(widgets))}
+    end)
   rescue
     e ->
+      Telemetry.execute(
+        [:render, :dropped],
+        %{},
+        %{
+          mod: state.mod,
+          transport: state.transport,
+          reason: {:exception, Exception.message(e)}
+        }
+      )
+
       Logger.error(
         "ExRatatui render error: #{Exception.message(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
       )
 
       state
   end
+
+  # also emit [:ex_ratatui, :render, :dropped] when we
+  # skip a frame because the previous NIF draw took longer than the poll
+  # interval. The draw-error path below is the only dropped-frame source
+  # today; future work should add a scheduling gate in process_poll_result/1.
 
   defp current_size(%__MODULE__{transport: :ssh, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :distributed_server, width: w, height: h}), do: {w, h}
@@ -433,15 +505,19 @@ defmodule ExRatatui.Server do
 
   defp draw_widgets(_state, []), do: :ok
 
-  defp draw_widgets(%__MODULE__{transport: :local, terminal_ref: terminal_ref}, widgets) do
+  defp draw_widgets(%__MODULE__{transport: :local, terminal_ref: terminal_ref} = state, widgets) do
     case ExRatatui.draw(terminal_ref, widgets) do
-      :ok -> :ok
-      {:error, reason} -> Logger.error("ExRatatui draw error: #{inspect(reason)}")
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        emit_render_dropped(state, reason)
+        Logger.error("ExRatatui draw error: #{inspect(reason)}")
     end
   end
 
   defp draw_widgets(
-         %__MODULE__{transport: :ssh, session: session, writer_fn: writer_fn},
+         %__MODULE__{transport: :ssh, session: session, writer_fn: writer_fn} = state,
          widgets
        ) do
     case Session.draw(session, widgets) do
@@ -451,6 +527,7 @@ defmodule ExRatatui.Server do
         :ok
 
       {:error, reason} ->
+        emit_render_dropped(state, reason)
         Logger.error("ExRatatui session draw error: #{inspect(reason)}")
     end
   end
@@ -458,6 +535,14 @@ defmodule ExRatatui.Server do
   defp draw_widgets(%__MODULE__{transport: :distributed_server, client_pid: pid}, widgets) do
     send(pid, {:ex_ratatui_draw, snapshot_stateful_widgets(widgets)})
     :ok
+  end
+
+  defp emit_render_dropped(%__MODULE__{} = state, reason) do
+    Telemetry.execute(
+      [:render, :dropped],
+      %{},
+      %{mod: state.mod, transport: state.transport, reason: reason}
+    )
   end
 
   # NIF resource references (ResourceArc) cannot cross BEAM node boundaries
@@ -736,7 +821,14 @@ defmodule ExRatatui.Server do
   defp dispatch_info_message(state, msg) do
     state = trace(state, :message, %{source: :info, payload: msg})
 
-    state.mod.handle_info(msg, state.user_state)
+    meta = %{mod: state.mod, transport: state.transport, msg: msg}
+
+    result =
+      Telemetry.span([:runtime, :update], meta, fn ->
+        state.mod.handle_info(msg, state.user_state)
+      end)
+
+    result
     |> normalize_transition_result()
     |> apply_transition(state)
     |> process_event_result()

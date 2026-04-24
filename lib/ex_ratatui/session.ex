@@ -46,6 +46,7 @@ defmodule ExRatatui.Session do
   alias ExRatatui.Event
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Native
+  alias ExRatatui.Telemetry
 
   @enforce_keys [:ref]
   defstruct [:ref]
@@ -70,7 +71,13 @@ defmodule ExRatatui.Session do
   @spec new(pos_integer(), pos_integer()) :: t()
   def new(width, height)
       when is_integer(width) and width > 0 and is_integer(height) and height > 0 do
-    %__MODULE__{ref: Native.session_new(width, height)}
+    Telemetry.span(
+      [:session, :lifecycle],
+      %{action: :open, width: width, height: height},
+      fn ->
+        %__MODULE__{ref: Native.session_new(width, height)}
+      end
+    )
   end
 
   @doc """
@@ -218,6 +225,8 @@ defmodule ExRatatui.Session do
   """
   @spec close(t()) :: :ok
   def close(%__MODULE__{ref: ref}) do
-    Native.session_close(ref)
+    Telemetry.span([:session, :lifecycle], %{action: :close}, fn ->
+      Native.session_close(ref)
+    end)
   end
 end
