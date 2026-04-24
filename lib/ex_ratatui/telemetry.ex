@@ -4,10 +4,9 @@ defmodule ExRatatui.Telemetry do
 
   ExRatatui emits `:telemetry` events so applications can plug in logging,
   metrics, and distributed tracing without forking the runtime. The API
-  follows the conventions popularised by Oban, Ecto, and Phoenix: every
-  long-running operation is wrapped in a span, every one-off operation is
-  a single execute, and every event carries a stable metadata shape you
-  can match on.
+  follows the conventions: every long-running operation is wrapped in a span,
+  every one-off operation is a single execute, and every event carries a stable
+  metadata shape you can match on.
 
   ## Events
 
@@ -47,23 +46,7 @@ defmodule ExRatatui.Telemetry do
   That attaches a handler that logs every `:stop` and single event at
   `:debug` level. Pass a custom level with `attach_default_logger(level: :info)`.
 
-  ## OpenTelemetry
-
-  `opentelemetry_telemetry` turns any span event into an OTel span with
-  no extra code:
-
-      # application start
-      OpentelemetryTelemetry.register_application_tracer(:my_app)
-
-      :ok =
-        OpentelemetryTelemetry.start_telemetry_span(
-          :my_app,
-          :ex_ratatui,
-          [[:ex_ratatui, :runtime, :init]],
-          []
-        )
-
-  See `guides/telemetry.md` for a full wiring example with Telemetry.Metrics.
+  See `guides/telemetry.md` for a full wiring example with Telemetry.Metrics or OpenTelemetry.
   """
 
   require Logger
@@ -85,7 +68,7 @@ defmodule ExRatatui.Telemetry do
   Emits a single `:telemetry` event rooted at `[:ex_ratatui | event]`.
 
   `:system_time` is added to the measurements automatically if not already
-  present, matching Oban / Phoenix conventions.
+  present.
   """
   @spec execute([atom(), ...], map(), map()) :: :ok
   def execute(event, measurements, meta)
