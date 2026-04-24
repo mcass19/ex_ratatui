@@ -1,9 +1,11 @@
-defmodule ExRatatui.Server.SshTransportTest do
+defmodule ExRatatui.Server.SessionTransportTest do
   @moduledoc """
-  Unit tests for `ExRatatui.Server` running under the `{:ssh, session, writer_fn}`
-  transport. These don't stand up a real OTP `:ssh` daemon — they drive the
-  Server directly with a fake `writer_fn` so we can assert on the bytes it
-  emits. The real end-to-end SSH test lives in `ExRatatui.SSH.IntegrationTest`.
+  Unit tests for `ExRatatui.Server` running under the
+  `{:session, session, writer_fn}` transport — the generic byte-stream
+  runtime that SSH uses today and Kino will reuse. These don't stand up
+  a real OTP `:ssh` daemon — they drive the Server directly with a fake
+  `writer_fn` so we can assert on the bytes it emits. The real
+  end-to-end SSH test lives in `ExRatatui.SSH.IntegrationTest`.
   """
 
   use ExUnit.Case, async: true
@@ -14,7 +16,7 @@ defmodule ExRatatui.Server.SshTransportTest do
   alias ExRatatui.Session
   alias ExRatatui.Test.ServerApps.{Echo, FailingMount, StopOnAnyEvent}
 
-  defp ssh_writer(test_pid) do
+  defp session_writer(test_pid) do
     fn bytes -> send(test_pid, {:writer_bytes, bytes}) end
   end
 
@@ -39,7 +41,7 @@ defmodule ExRatatui.Server.SshTransportTest do
   end
 
   describe "lifecycle" do
-    test "start_link with {:ssh, session, writer_fn} mounts and renders" do
+    test "start_link with {:session, session, writer_fn} mounts and renders" do
       session = Session.new(40, 10)
 
       {:ok, pid} =
@@ -47,12 +49,12 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       # mount sees augmented opts (transport/width/height)
       assert_receive {:mounted, opts}, 1000
-      assert opts[:transport] == :ssh
+      assert opts[:transport] == :session
       assert opts[:width] == 40
       assert opts[:height] == 10
       assert opts[:test_pid] == self()
@@ -77,7 +79,7 @@ defmodule ExRatatui.Server.SshTransportTest do
                  ExRatatui.Server.start_link(
                    mod: FailingMount,
                    name: nil,
-                   transport: {:ssh, session, ssh_writer(self())}
+                   transport: {:session, session, session_writer(self())}
                  )
       end)
 
@@ -94,7 +96,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       assert_receive {:mounted, _}, 1000
@@ -122,7 +124,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       assert_receive {:mounted, _opts}, 1000
@@ -147,7 +149,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: StopOnAnyEvent,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       ref = Process.monitor(pid)
@@ -168,7 +170,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       assert_receive {:mounted, _}, 1000
@@ -196,7 +198,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       assert_receive {:mounted, _}, 1000
@@ -221,7 +223,7 @@ defmodule ExRatatui.Server.SshTransportTest do
           mod: Echo,
           name: nil,
           test_pid: self(),
-          transport: {:ssh, session, ssh_writer(self())}
+          transport: {:session, session, session_writer(self())}
         )
 
       assert_receive {:mounted, _}, 1000
@@ -245,14 +247,14 @@ defmodule ExRatatui.Server.SshTransportTest do
   end
 
   describe "helpers" do
-    test "augment_ssh_mount_opts adds transport/width/height" do
+    test "augment_session_mount_opts adds transport/width/height" do
       opts = [mod: Echo, test_pid: self(), foo: :bar]
-      result = ExRatatui.Server.augment_ssh_mount_opts(opts, 80, 24)
+      result = ExRatatui.Server.augment_session_mount_opts(opts, 80, 24)
 
       assert result[:mod] == Echo
       assert result[:test_pid] == self()
       assert result[:foo] == :bar
-      assert result[:transport] == :ssh
+      assert result[:transport] == :session
       assert result[:width] == 80
       assert result[:height] == 24
     end

@@ -29,7 +29,7 @@ defmodule ExRatatui.Runtime do
       %{
         mode: :callbacks | :reducer,
         mod: MyApp.TUI,
-        transport: :local | :ssh | :distributed_server,
+        transport: :local | :session | :distributed_server,
         polling_enabled?: boolean(),
         dimensions: {width, height},
         render_count: non_neg_integer(),

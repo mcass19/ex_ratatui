@@ -746,7 +746,7 @@ defmodule ExRatatui.SSHTest do
       assert_receive {:got_opts, opts}
       assert opts[:mod] == SampleApp
       assert opts[:name] == nil
-      assert {:ssh, _, writer_fn} = opts[:transport]
+      assert {:session, _, writer_fn} = opts[:transport]
       assert is_function(writer_fn, 1)
 
       # enter_screen is queued on the channel before the starter runs

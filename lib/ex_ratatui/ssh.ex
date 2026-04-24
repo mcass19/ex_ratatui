@@ -462,7 +462,7 @@ defmodule ExRatatui.SSH do
       state.app_opts
       |> Keyword.put(:mod, state.mod)
       |> Keyword.put(:name, nil)
-      |> Keyword.put(:transport, {:ssh, state.session, writer_fn})
+      |> Keyword.put(:transport, {:session, state.session, writer_fn})
 
     # Write the alt-screen+hide-cursor prelude BEFORE starting the
     # server so the bytes are queued on the SSH channel ahead of any

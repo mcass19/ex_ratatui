@@ -73,8 +73,8 @@ defmodule ExRatatui.Server do
 
         continue_init(terminal_ref, opts)
 
-      {:ssh, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
-        continue_init_ssh(session, writer_fn, opts)
+      {:session, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
+        continue_init_session(session, writer_fn, opts)
 
       {:distributed_server, client_pid, width, height}
       when is_pid(client_pid) and is_integer(width) and is_integer(height) ->
@@ -134,22 +134,23 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
-  # SSH transport init: the Session is created externally by the SSH
-  # channel (which knows how to ship bytes back to the client), so this
+  # Byte-stream session transport init: the Session is created externally
+  # by the transport (SSH channel, Kino widget, a custom TCP
+  # bridge…) which knows how to ship bytes back to the client, so this
   # path never touches the OS terminal. mount/1 sees augmented opts so an
   # app can opt into per-client behaviour without breaking the local case.
-  def continue_init_ssh(%Session{} = session, writer_fn, opts) do
+  def continue_init_session(%Session{} = session, writer_fn, opts) do
     mod = Keyword.fetch!(opts, :mod)
 
     {w, h} =
-      Telemetry.span([:transport, :connect], %{mod: mod, transport: :ssh}, fn ->
+      Telemetry.span([:transport, :connect], %{mod: mod, transport: :session}, fn ->
         Session.size(session)
       end)
 
-    augmented_opts = augment_ssh_mount_opts(opts, w, h)
+    augmented_opts = augment_session_mount_opts(opts, w, h)
 
     mount_result =
-      Telemetry.span([:runtime, :init], %{mod: mod, transport: :ssh}, fn ->
+      Telemetry.span([:runtime, :init], %{mod: mod, transport: :session}, fn ->
         mod.mount(augmented_opts)
       end)
 
@@ -158,7 +159,7 @@ defmodule ExRatatui.Server do
         state = %__MODULE__{
           mod: mod,
           user_state: user_state,
-          transport: :ssh,
+          transport: :session,
           session: session,
           writer_fn: writer_fn,
           task_supervisor: Keyword.fetch!(opts, :task_supervisor),
@@ -242,9 +243,17 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
-  def augment_ssh_mount_opts(opts, width, height) do
+  # Populates the opts passed to mount/1 for a byte-stream session
+  # transport. `opts[:transport]` is set to `:session` — same tag the
+  # Server stores internally — so every byte-stream transport (SSH
+  # today, Kino later, custom TCP) reports identically to user code.
+  # Apps that need to distinguish "am I running over SSH vs local?"
+  # still can: the user put `transport: :ssh` in their child spec
+  # themselves, so that context is upstream. In mount, the useful
+  # answer is "you're on the session runtime."
+  def augment_session_mount_opts(opts, width, height) do
     opts
-    |> Keyword.put(:transport, :ssh)
+    |> Keyword.put(:transport, :session)
     |> Keyword.put(:width, width)
     |> Keyword.put(:height, height)
   end
@@ -276,14 +285,14 @@ defmodule ExRatatui.Server do
   end
 
   def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: transport} = state)
-      when transport in [:ssh, :distributed_server] do
+      when transport in [:session, :distributed_server] do
     state
     |> dispatch_event(event)
     |> process_event_result()
   end
 
   def handle_info({:ex_ratatui_resize, w, h}, %__MODULE__{transport: transport} = state)
-      when transport in [:ssh, :distributed_server] do
+      when transport in [:session, :distributed_server] do
     {:noreply, do_render(%{state | width: w, height: h})}
   end
 
@@ -338,7 +347,7 @@ defmodule ExRatatui.Server do
     :ok
   end
 
-  def terminate(reason, %__MODULE__{transport: :ssh, terminal_initialized: true} = state) do
+  def terminate(reason, %__MODULE__{transport: :session, terminal_initialized: true} = state) do
     cancel_subscription_timers(state)
     Session.close(state.session)
     state.mod.terminate(reason, state.user_state)
@@ -496,7 +505,7 @@ defmodule ExRatatui.Server do
   # interval. The draw-error path below is the only dropped-frame source
   # today; future work should add a scheduling gate in process_poll_result/1.
 
-  defp current_size(%__MODULE__{transport: :ssh, width: w, height: h}), do: {w, h}
+  defp current_size(%__MODULE__{transport: :session, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :distributed_server, width: w, height: h}), do: {w, h}
 
   defp current_size(%__MODULE__{transport: :local, test_mode: tm, terminal_size_fn: size_fn}) do
@@ -517,7 +526,7 @@ defmodule ExRatatui.Server do
   end
 
   defp draw_widgets(
-         %__MODULE__{transport: :ssh, session: session, writer_fn: writer_fn} = state,
+         %__MODULE__{transport: :session, session: session, writer_fn: writer_fn} = state,
          widgets
        ) do
     case Session.draw(session, widgets) do
