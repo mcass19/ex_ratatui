@@ -60,6 +60,8 @@ defmodule ExRatatui.SSH.Daemon do
 
   use GenServer
 
+  @behaviour ExRatatui.Transport
+
   require Logger
 
   @default_port 2222

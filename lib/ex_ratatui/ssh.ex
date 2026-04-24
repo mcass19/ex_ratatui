@@ -116,11 +116,13 @@ defmodule ExRatatui.SSH do
   """
 
   @behaviour :ssh_server_channel
+  @behaviour ExRatatui.Transport
 
   require Logger
 
   alias ExRatatui.Event
   alias ExRatatui.Session
+  alias ExRatatui.Transport.ByteStream
 
   @default_sender &:ssh_connection.send/3
   @default_replier &:ssh_connection.reply_request/4
@@ -300,10 +302,12 @@ defmodule ExRatatui.SSH do
       when is_pid(server_pid) do
     # The Esc timeout fired — no follow-up byte arrived after a bare
     # 0x1B, so this was a genuine Esc press. Reset the parser to Ground
-    # (clearing the stuck Escape state) and dispatch a synthetic Esc event.
+    # (clearing the stuck Escape state) and emit a synthetic Esc event.
+    # This path doesn't go through ByteStream.forward_input because the
+    # event is manufactured here rather than decoded from new bytes.
     Session.reset_parser(session)
     esc_event = %Event.Key{code: "esc", modifiers: [], kind: "press"}
-    dispatch_input_event(esc_event, session, server_pid)
+    send(server_pid, {:ex_ratatui_event, esc_event})
     {:ok, %{state | esc_timer: nil}}
   end
 
@@ -388,8 +392,7 @@ defmodule ExRatatui.SSH do
     # 0x1B was part of an escape sequence, not a bare Esc press.
     state = cancel_esc_timer(state)
 
-    events = Session.feed_input(session, data)
-    Enum.each(events, &dispatch_input_event(&1, session, server_pid))
+    events = ByteStream.forward_input(session, server_pid, data)
 
     # If the parser consumed bytes but produced no events, the VTE
     # state machine may be sitting in the Escape state after a bare
@@ -412,8 +415,7 @@ defmodule ExRatatui.SSH do
       )
       when is_pid(server_pid) do
     {w, h} = normalize_pty_size(width, height)
-    _ = Session.resize(state.session, w, h)
-    send(server_pid, {:ex_ratatui_resize, w, h})
+    :ok = ByteStream.forward_resize(state.session, server_pid, w, h)
     {:ok, state}
   end
 
@@ -482,30 +484,6 @@ defmodule ExRatatui.SSH do
         _ = state.sender.(state.conn, state.channel_id, @leave_screen)
         error
     end
-  end
-
-  @doc false
-  # Fans an event emitted by `Session.feed_input/2` out to the server.
-  # CPR responses (which the session parser surfaces as
-  # `%Event.Resize{}` values) are intercepted here: we resize the
-  # session in place and tell the server via `{:ex_ratatui_resize, w,
-  # h}` instead of forwarding a Resize event the way we would for a
-  # genuine runtime resize. All other events — Key, Mouse — flow
-  # through as `{:ex_ratatui_event, event}`.
-  def dispatch_input_event(
-        %Event.Resize{width: w, height: h},
-        %Session{} = session,
-        server_pid
-      )
-      when is_integer(w) and w > 0 and is_integer(h) and h > 0 do
-    _ = Session.resize(session, w, h)
-    send(server_pid, {:ex_ratatui_resize, w, h})
-    :ok
-  end
-
-  def dispatch_input_event(event, %Session{}, server_pid) do
-    send(server_pid, {:ex_ratatui_event, event})
-    :ok
   end
 
   @doc false

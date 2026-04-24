@@ -544,41 +544,6 @@ defmodule ExRatatui.SSHTest do
     end
   end
 
-  describe "dispatch_input_event/3" do
-    test "Resize events trigger a session resize + :ex_ratatui_resize to the server" do
-      {:ok, server} = __MODULE__.FakeServer.start_link()
-      session = Session.new(80, 24)
-
-      assert :ok =
-               SSH.dispatch_input_event(
-                 %ExRatatui.Event.Resize{width: 132, height: 50},
-                 session,
-                 server
-               )
-
-      assert Session.size(session) == {132, 50}
-      assert_receive {:server_got, {:ex_ratatui_resize, 132, 50}}
-
-      Session.close(session)
-      GenServer.stop(server)
-    end
-
-    test "non-Resize events are forwarded as :ex_ratatui_event" do
-      {:ok, server} = __MODULE__.FakeServer.start_link()
-      session = Session.new(80, 24)
-
-      key_event = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      assert :ok = SSH.dispatch_input_event(key_event, session, server)
-
-      assert_receive {:server_got, {:ex_ratatui_event, ^key_event}}
-      # Session is untouched — no resize happened.
-      assert Session.size(session) == {80, 24}
-
-      Session.close(session)
-      GenServer.stop(server)
-    end
-  end
-
   describe "handle_ssh_msg :window_change" do
     test "resizes the session and forwards a resize message to the server" do
       {:ok, server} = __MODULE__.FakeServer.start_link()
