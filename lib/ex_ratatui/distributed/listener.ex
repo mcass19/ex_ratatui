@@ -27,6 +27,14 @@ defmodule ExRatatui.Distributed.Listener do
 
   use Supervisor
 
+  # Marker behaviour: Distributed doesn't use ByteStream (it ships
+  # widget trees over BEAM distribution instead of raw bytes), but it
+  # still implements the Transport contract — child_spec/1 comes from
+  # `use Supervisor`, and remote events flow to Server via the same
+  # `{:ex_ratatui_event, _}` / `{:ex_ratatui_resize, _, _}` mailbox
+  # messages documented on ExRatatui.Transport.
+  @behaviour ExRatatui.Transport
+
   @doc """
   Starts the Listener supervisor.
 
