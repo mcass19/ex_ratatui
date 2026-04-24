@@ -153,6 +153,7 @@ All transports serve the same `ExRatatui.App` module — switch by changing a si
 | [Testing](guides/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
 | [Debugging](guides/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
 | [Performance](guides/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
+| [Telemetry](guides/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
 | [Running TUIs over SSH](guides/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs over Erlang Distribution](guides/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |

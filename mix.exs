@@ -119,6 +119,7 @@ defmodule ExRatatui.MixProject do
         "guides/testing.md": [title: "Testing"],
         "guides/debugging.md": [title: "Debugging"],
         "guides/performance.md": [title: "Performance"],
+        "guides/telemetry.md": [title: "Telemetry"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
@@ -133,6 +134,9 @@ defmodule ExRatatui.MixProject do
         Core: [
           ExRatatui,
           ExRatatui.Session
+        ],
+        Observability: [
+          ExRatatui.Telemetry
         ],
         Application: [
           ExRatatui.App
