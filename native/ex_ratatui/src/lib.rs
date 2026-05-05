@@ -1,3 +1,4 @@
+mod cell_session;
 mod decode;
 mod events;
 mod layout;
