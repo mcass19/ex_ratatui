@@ -52,12 +52,14 @@ mod atoms {
         width,
         height,
         cells,
+        ops,
     }
 }
 
 /// Per-cell-session resource. Holds its own ratatui terminal (with a
 /// [`TestBackend`] as the rendering target so the post-draw cell buffer is
-/// directly readable), input parser, and current size.
+/// directly readable), input parser, current size, and a snapshot of the
+/// last buffer surfaced via [`cell_session_take_cells_diff`].
 ///
 /// All fields are guarded by coarse mutexes for the same reason
 /// `SessionResource` does it: NIF entry points are short-running and one
@@ -70,10 +72,18 @@ mod atoms {
 /// BEAM garbage collector. After close, draw/resize surface a clear error
 /// while `feed_input` continues to work — same lifecycle contract as
 /// `SessionResource`.
+///
+/// `prev_buffer` is `None` until the first `take_cells_diff` call, then
+/// holds a clone of whatever buffer was returned. The next diff call uses
+/// it as the comparison baseline and overwrites it with the new current
+/// buffer. `take_cells` does **not** touch this slot — pure snapshots
+/// stay stateless so consumers can mix snapshots and diffs without
+/// surprising the diff baseline.
 pub struct CellSessionResource {
     pub(crate) terminal: Mutex<Option<Terminal<TestBackend>>>,
     pub(crate) input: Mutex<InputParser>,
     pub(crate) size: Mutex<(u16, u16)>,
+    pub(crate) prev_buffer: Mutex<Option<Buffer>>,
 }
 
 #[rustler::resource_impl]
@@ -100,11 +110,13 @@ impl CellSessionResource {
             terminal: Mutex::new(Some(terminal)),
             input: Mutex::new(InputParser::new()),
             size: Mutex::new((width, height)),
+            prev_buffer: Mutex::new(None),
         })
     }
 
-    /// Drops the inner ratatui `Terminal`. Idempotent — calling `close`
-    /// twice is a no-op. After close, draw/resize return errors but
+    /// Drops the inner ratatui `Terminal` and any cached diff baseline.
+    /// Idempotent — calling `close` twice is a no-op. After close,
+    /// draw/resize/take_cells/take_cells_diff return errors but
     /// `feed_input` keeps working so a transport can drain trailing input.
     pub fn close(&self) -> Result<(), String> {
         let mut guard = self
@@ -112,6 +124,15 @@ impl CellSessionResource {
             .lock()
             .map_err(|_| "cell session terminal lock poisoned".to_string())?;
         *guard = None;
+
+        // The cached diff baseline is meaningless once the terminal is
+        // gone — wipe it so the resource doesn't carry a now-orphaned
+        // Buffer until the BEAM garbage collector catches up. Lock
+        // failures here are non-fatal; the resource is being torn down
+        // and the BEAM heap will reclaim it regardless.
+        if let Ok(mut prev_guard) = self.prev_buffer.lock() {
+            *prev_guard = None;
+        }
         Ok(())
     }
 
@@ -255,33 +276,96 @@ fn encode_cell<'a>(env: Env<'a>, x: u16, y: u16, cell: &Cell) -> Term<'a> {
     (x, y, symbol, fg, bg, mods, skip).encode(env)
 }
 
-/// Encodes an entire `Buffer` as a `%{width, height, cells}` map ready to
-/// hand to Elixir. Cells are emitted in row-major (y then x) order so the
-/// list is stable and consumers can rely on the ordering, though they're
-/// also free to read coordinates from each tuple.
-fn encode_buffer<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
+/// Walks every cell in `buffer` in row-major order and returns a `Vec` of
+/// already-encoded cell tuples. Used as the full-buffer payload for both
+/// `take_cells` and the first/post-resize call to `take_cells_diff`.
+fn collect_all_cells<'a>(env: Env<'a>, buffer: &Buffer) -> Vec<Term<'a>> {
     let width = buffer.area.width;
-    let height = buffer.area.height;
-    let cell_count = (width as usize).saturating_mul(height as usize);
+    let cell_count = (width as usize).saturating_mul(buffer.area.height as usize);
+    let row_width = (width as usize).max(1);
 
-    let mut cells_terms: Vec<Term<'a>> = Vec::with_capacity(cell_count);
-    let row_width = width as usize;
+    let mut cells: Vec<Term<'a>> = Vec::with_capacity(cell_count);
     for (i, cell) in buffer.content().iter().enumerate() {
         // Row-major flat array: index i corresponds to (i % w, i / w).
-        let x = (i % row_width.max(1)) as u16;
-        let y = (i / row_width.max(1)) as u16;
-        cells_terms.push(encode_cell(env, x, y, cell));
+        let x = (i % row_width) as u16;
+        let y = (i / row_width) as u16;
+        cells.push(encode_cell(env, x, y, cell));
     }
+    cells
+}
 
-    // map_put on a freshly-constructed map cannot fail (it errors only
-    // when called on a non-map term), so unwrap is safe and avoids
-    // bubbling impossible errors up the NIF boundary.
+/// Returns the row-major flat-array indices of every cell that differs
+/// between `prev` and `curr`. Pure function — no `Env`, no encoding,
+/// trivially testable from cargo.
+///
+/// Caller MUST guarantee `prev.area == curr.area`; with mismatched areas
+/// the zip silently truncates to the shorter content slice and the
+/// returned indices would be meaningless. The single callsite in
+/// `cell_session_take_cells_diff` checks the area before reaching here.
+///
+/// Cells are compared with `Cell`'s derived `PartialEq` — that includes
+/// symbol, fg, bg, underline color, modifier bits, and the `skip` flag.
+/// Equality is structural: two cells with identical visual output never
+/// appear in the diff.
+fn diff_indices(prev: &Buffer, curr: &Buffer) -> Vec<usize> {
+    curr.content()
+        .iter()
+        .zip(prev.content().iter())
+        .enumerate()
+        .filter_map(|(i, (c, p))| if c != p { Some(i) } else { None })
+        .collect()
+}
+
+/// Encodes only the cells that differ between `prev` and `curr` using the
+/// same per-cell tuple shape `collect_all_cells` produces.
+fn collect_changed_cells<'a>(env: Env<'a>, prev: &Buffer, curr: &Buffer) -> Vec<Term<'a>> {
+    let row_width = (curr.area.width as usize).max(1);
+    let indices = diff_indices(prev, curr);
+
+    // Heuristic capacity: we now know exactly how many ops we'll emit.
+    let mut ops: Vec<Term<'a>> = Vec::with_capacity(indices.len());
+    let content = curr.content();
+    for i in indices {
+        let cell = &content[i];
+        let x = (i % row_width) as u16;
+        let y = (i / row_width) as u16;
+        ops.push(encode_cell(env, x, y, cell));
+    }
+    ops
+}
+
+/// Wraps a Vec of cell tuples into the `%{width, height, cells: [...]}`
+/// map shape `take_cells` returns. Map keys are atoms; everything else
+/// is whatever `collect_all_cells` produced. `map_put` on a freshly
+/// constructed map cannot fail (the only failure mode is calling it on
+/// a non-map term), so the unwraps are safe.
+fn encode_full_payload<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
+    let width = buffer.area.width;
+    let height = buffer.area.height;
+    let cells = collect_all_cells(env, buffer);
+
     Term::map_new(env)
         .map_put(atoms::width().encode(env), width.encode(env))
         .expect("map_put on fresh map cannot fail")
         .map_put(atoms::height().encode(env), height.encode(env))
         .expect("map_put on fresh map cannot fail")
-        .map_put(atoms::cells().encode(env), cells_terms.encode(env))
+        .map_put(atoms::cells().encode(env), cells.encode(env))
+        .expect("map_put on fresh map cannot fail")
+}
+
+/// Wraps a Vec of cell tuples into the `%{width, height, ops: [...]}` map
+/// shape `take_cells_diff` returns. The shape mirrors `encode_full_payload`
+/// except for the `:ops` field name, which signals "these are deltas, not
+/// the full grid." Width/height are still the FULL terminal dimensions —
+/// consumers need them to size their viewport regardless of how many ops
+/// fit in the diff.
+fn encode_diff_payload<'a>(env: Env<'a>, width: u16, height: u16, ops: Vec<Term<'a>>) -> Term<'a> {
+    Term::map_new(env)
+        .map_put(atoms::width().encode(env), width.encode(env))
+        .expect("map_put on fresh map cannot fail")
+        .map_put(atoms::height().encode(env), height.encode(env))
+        .expect("map_put on fresh map cannot fail")
+        .map_put(atoms::ops().encode(env), ops.encode(env))
         .expect("map_put on fresh map cannot fail")
 }
 
@@ -348,8 +432,60 @@ fn cell_session_take_cells<'a>(
     resource: ResourceArc<CellSessionResource>,
 ) -> Result<Term<'a>, Error> {
     resource
-        .with_buffer(|buffer| encode_buffer(env, buffer))
+        .with_buffer(|buffer| encode_full_payload(env, buffer))
         .map_err(nif_error)
+}
+
+#[rustler::nif]
+fn cell_session_take_cells_diff<'a>(
+    env: Env<'a>,
+    resource: ResourceArc<CellSessionResource>,
+) -> Result<Term<'a>, Error> {
+    // Lock both the terminal and the diff baseline up front. Order matters:
+    // we take the terminal lock first (matching the rest of the module), then
+    // the prev_buffer lock. Every NIF that touches both follows this order
+    // so we cannot deadlock against a concurrent caller.
+    let term_guard = resource
+        .terminal
+        .lock()
+        .map_err(|_| nif_error("cell session terminal lock poisoned".to_string()))?;
+    let terminal = term_guard
+        .as_ref()
+        .ok_or_else(|| nif_error("cell session is closed".to_string()))?;
+    let curr_buffer = terminal.backend().buffer();
+
+    let mut prev_guard = resource
+        .prev_buffer
+        .lock()
+        .map_err(|_| nif_error("cell session prev_buffer lock poisoned".to_string()))?;
+
+    // Decide what to emit. Three cases:
+    //   1. No prior baseline → first call after construction (or after a
+    //      buffer-area change). Emit the full grid as ops so the consumer
+    //      can paint a complete picture.
+    //   2. Prior baseline at the same area → real diff. Emit only the
+    //      cells that changed.
+    //   3. Prior baseline at a different area → resize between calls.
+    //      Same handling as case 1: the prior baseline is no longer a
+    //      valid comparison reference.
+    let ops = match prev_guard.as_ref() {
+        Some(prev) if prev.area == curr_buffer.area => {
+            collect_changed_cells(env, prev, curr_buffer)
+        }
+        _ => collect_all_cells(env, curr_buffer),
+    };
+
+    let width = curr_buffer.area.width;
+    let height = curr_buffer.area.height;
+
+    // Snapshot the current buffer for the next diff call. Cloning a
+    // ratatui Buffer is a deep clone of its `Vec<Cell>`; for an 80x24
+    // grid that's a sub-millisecond memcpy. Done while we still hold
+    // both locks so the snapshot reflects exactly the state we just
+    // diffed against.
+    *prev_guard = Some(curr_buffer.clone());
+
+    Ok(encode_diff_payload(env, width, height, ops))
 }
 
 #[cfg(test)]
@@ -658,6 +794,101 @@ mod tests {
                 assert_eq!(buf.cell((2, 0)).unwrap().symbol(), "a");
             })
             .unwrap();
+    }
+
+    #[test]
+    fn fresh_session_has_no_diff_baseline() {
+        // The diff baseline is `None` until the first `take_cells_diff`
+        // call. Construction must NOT pre-snapshot a buffer — that would
+        // flip the first diff call from "send full" to "send empty",
+        // breaking new clients that need the initial paint.
+        let session = CellSessionResource::new(10, 5).unwrap();
+        let prev = session.prev_buffer.lock().unwrap();
+        assert!(prev.is_none());
+    }
+
+    #[test]
+    fn close_clears_diff_baseline() {
+        // Once the terminal is dropped, the cached buffer references a
+        // resource that no longer exists. Holding it would also waste
+        // memory until BEAM GC reaps the resource. `close` wipes it.
+        let session = CellSessionResource::new(10, 5).unwrap();
+
+        // Force a baseline by hand (we can't call the Env-bound NIF
+        // from cargo).
+        {
+            let mut prev = session.prev_buffer.lock().unwrap();
+            *prev = Some(ratatui::buffer::Buffer::empty(Rect::new(0, 0, 10, 5)));
+            assert!(prev.is_some());
+        }
+
+        session.close().unwrap();
+
+        let prev = session.prev_buffer.lock().unwrap();
+        assert!(prev.is_none(), "close must clear prev_buffer");
+    }
+
+    #[test]
+    fn diff_indices_returns_empty_when_buffers_are_identical() {
+        let area = Rect::new(0, 0, 4, 2);
+        let prev = Buffer::empty(area);
+        let curr = Buffer::empty(area);
+        assert!(diff_indices(&prev, &curr).is_empty());
+    }
+
+    #[test]
+    fn diff_indices_returns_only_changed_indices() {
+        // Two empty 4x2 buffers, then mutate a single cell on `curr`.
+        // The diff must report exactly that index — one op, not zero,
+        // not all eight cells.
+        let area = Rect::new(0, 0, 4, 2);
+        let prev = Buffer::empty(area);
+        let mut curr = Buffer::empty(area);
+
+        // Mutate (col=2, row=1) → flat index 1*4 + 2 = 6.
+        curr.cell_mut((2, 1))
+            .unwrap()
+            .set_symbol("X")
+            .set_style(ratatui::style::Style::default().fg(ratatui::style::Color::Red));
+
+        assert_eq!(diff_indices(&prev, &curr), vec![6]);
+    }
+
+    #[test]
+    fn diff_indices_returns_all_indices_when_everything_changes() {
+        // A buffer-wide background color change touches every cell.
+        // The diff length must equal the cell count.
+        let area = Rect::new(0, 0, 3, 2);
+        let prev = Buffer::empty(area);
+        let mut curr = Buffer::empty(area);
+        let blue_bg = ratatui::style::Style::default().bg(ratatui::style::Color::Blue);
+        for y in 0..area.height {
+            for x in 0..area.width {
+                curr.cell_mut((x, y)).unwrap().set_style(blue_bg);
+            }
+        }
+
+        let indices = diff_indices(&prev, &curr);
+        assert_eq!(indices.len(), 3 * 2);
+        assert_eq!(indices, vec![0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn diff_indices_distinguishes_style_only_changes_from_no_change() {
+        // Same symbol, different fg color — must show up in the diff.
+        // This is the test that catches a regression where someone
+        // compares only the symbol field.
+        let area = Rect::new(0, 0, 2, 1);
+        let mut prev = Buffer::empty(area);
+        let mut curr = Buffer::empty(area);
+
+        prev.cell_mut((0, 0)).unwrap().set_symbol("a");
+        curr.cell_mut((0, 0))
+            .unwrap()
+            .set_symbol("a")
+            .set_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green));
+
+        assert_eq!(diff_indices(&prev, &curr), vec![0]);
     }
 
     #[test]

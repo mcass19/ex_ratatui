@@ -31,6 +31,7 @@ defmodule ExRatatui.Native do
     cell_session_close: 1,
     cell_session_draw: 2,
     cell_session_take_cells: 1,
+    cell_session_take_cells_diff: 1,
     cell_session_feed_input: 2,
     cell_session_reset_parser: 1,
     cell_session_resize: 3,
