@@ -73,6 +73,12 @@ defmodule ExRatatui.CellSession do
        app.
     3. Calling `resize/3` when the remote viewport changes size.
     4. Calling `close/1` when the connection ends.
+
+  See [`guides/cell_session.md`](guides/cell_session.md) for end-to-end
+  examples (LiveView, framebuffer, screenshot tools) and
+  [`guides/custom_transports.md`](guides/custom_transports.md) for the
+  `ExRatatui.Transport` contract a `CellSession`-backed transport plugs
+  into.
   """
 
   alias ExRatatui.CellSession.{Diff, Snapshot}

@@ -41,6 +41,13 @@ defmodule ExRatatui.Session do
     4. Calling `close/1` when the connection ends.
 
   See `ExRatatui.SSH` for an OTP `:ssh_server_channel`-based transport.
+
+  If your consumer is **not** a terminal — a Phoenix LiveView painting
+  `<span>` cells, an embedded framebuffer, a screenshot tool —
+  `ExRatatui.CellSession` is the cell-buffer sibling. Same widget tree,
+  same input parser, same lifecycle; `take_output/1` is replaced by
+  `take_cells/1` and `take_cells_diff/1`. See
+  [`guides/cell_session.md`](guides/cell_session.md).
   """
 
   alias ExRatatui.Event

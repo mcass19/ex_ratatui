@@ -123,6 +123,7 @@ defmodule ExRatatui.MixProject do
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "guides/custom_transports.md": [title: "Custom Transports"],
+        "guides/cell_session.md": [title: "Rendering to Non-Terminal Surfaces"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
@@ -134,7 +135,11 @@ defmodule ExRatatui.MixProject do
       groups_for_modules: [
         Core: [
           ExRatatui,
-          ExRatatui.Session
+          ExRatatui.Session,
+          ExRatatui.CellSession,
+          ExRatatui.CellSession.Cell,
+          ExRatatui.CellSession.Snapshot,
+          ExRatatui.CellSession.Diff
         ],
         Observability: [
           ExRatatui.Telemetry

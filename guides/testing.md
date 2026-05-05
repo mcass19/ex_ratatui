@@ -230,8 +230,25 @@ A single app module runs over local, SSH, or distribution transports. To verify 
 
 **Rust NIF rebuilds.** If you're editing the Rust side too, prepend `EX_RATATUI_BUILD=1` and clean `_build/` first — stale precompiled binaries mask your changes. See [Debugging](debugging.md#rust-nif-rebuilds).
 
+## Asserting on structured cells
+
+`get_buffer_content/1` strips styling. When you need to assert on **per-cell colors, modifiers, or exact positions** — visual regression suites, snapshot tests for non-terminal renderers — `ExRatatui.CellSession` exposes the rendered cells as Elixir structs:
+
+```elixir
+session = ExRatatui.CellSession.new(40, 10)
+:ok = ExRatatui.CellSession.draw(session, [{widget, %Rect{x: 0, y: 0, width: 40, height: 10}}])
+%ExRatatui.CellSession.Snapshot{cells: cells} = ExRatatui.CellSession.take_cells(session)
+
+styled = Enum.find(cells, &(&1.symbol == "H"))
+assert styled.fg == :green
+assert :bold in styled.modifiers
+```
+
+See [Rendering to Non-Terminal Surfaces](cell_session.md) for the full cell shape and the diff path.
+
 ## Where to go next
 
 - **[Debugging](debugging.md)** — `Runtime.enable_trace/2`, buffer inspection during development.
 - **[Performance](performance.md)** — how `render?: false` affects render counts in tests.
+- **[Rendering to Non-Terminal Surfaces](cell_session.md)** — `CellSession` for tests that need structured cells.
 - **`ExRatatui.Runtime`** module docs — full shape of `snapshot/1`, `enable_trace/2`, `inject_event/2`.

@@ -2,6 +2,8 @@
 
 An ExRatatui "transport" is any module that decides **where the bytes go** for a running `ExRatatui.App`. The library ships three built-in transports — `:local` for the host tty via `ExRatatui.run/1`, `ExRatatui.SSH.Daemon` + `ExRatatui.SSH` for serving the same App over OTP `:ssh`, and `ExRatatui.Distributed.Listener` for serving the App to remote BEAM nodes. If none of those fits — you want to serve an App over a raw TCP socket, a Livebook widget, a WebSocket, whatever — you can plug in your own. This guide walks through the contract and a small TCP example.
 
+If your consumer is **not** a terminal — a Phoenix LiveView painting `<span>` cells, a Nerves device rasterising into a framebuffer, a screenshot tool — see [Rendering to Non-Terminal Surfaces](cell_session.md). `ExRatatui.CellSession` is the ANSI-free sibling of `Session`, and the patterns in this guide (acceptor + per-connection worker, runtime-server monitoring, alt-screen lifecycle for byte streams) still apply with a cell buffer in place of the byte writer.
+
 ## The contract
 
 `ExRatatui.Transport` is the shared behaviour. It declares one optional callback (`child_spec/1`) and — more importantly — documents the two-way protocol every transport speaks with the internal Server runtime:
@@ -170,5 +172,6 @@ Every transport automatically participates in the runtime telemetry events — s
 
 - [Running TUIs over SSH](ssh_transport.md) — reference implementation of a byte-stream transport, backed by OTP `:ssh`.
 - [Running TUIs over Erlang Distribution](distributed_transport.md) — the non-byte-stream transport.
+- [Rendering to Non-Terminal Surfaces](cell_session.md) — `CellSession` for transports whose consumers don't speak ANSI (LiveView, framebuffers, screenshots).
 - `ExRatatui.Transport` — behaviour, typespecs, and `start_server/1`
 - `ExRatatui.Transport.ByteStream` — the two helpers used above

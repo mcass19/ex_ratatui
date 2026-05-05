@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ExRatatui.CellSession` — non-terminal rendering primitive** — sibling of `ExRatatui.Session` for consumers that aren't terminals (Phoenix LiveView painting `<span>` cells, embedded framebuffers, screenshot tools, headless tests). Backed by ratatui's `TestBackend`, it exposes the cell buffer directly instead of ANSI bytes. Same widget tree, input parser, and `draw/2` / `resize/3` / `feed_input/2` / `close/1` lifecycle as `Session`; the only API divergence is `take_output/1` being replaced by `take_cells/1` (full snapshot) and `take_cells_diff/1` (cells that changed since the last diff call). Cells are `%{row, col, symbol, fg, bg, modifiers, skip}` in row-major order, with colors and modifiers using the same `ExRatatui.Style` vocabulary as the rest of the library. `take_cells_diff/1` returns a full payload on its first call, after `resize/3`, and after reconstruction; otherwise only cells that differ structurally. Adds 9 NIFs, the `ExRatatui.CellSession{,.Cell,.Snapshot,.Diff}` modules, a [Rendering to Non-Terminal Surfaces guide](guides/cell_session.md), and a headless [`cell_dump.exs`](examples/cell_dump.exs) example.
+
 ## [0.8.2] - 2026-04-29
 
 ### Fixed

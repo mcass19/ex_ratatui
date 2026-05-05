@@ -20,6 +20,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Reducer runtime: for command/subscription driven apps via `use ExRatatui.App, runtime: :reducer`
 - Built-in SSH transport: serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
 - Erlang distribution transport: attach to a remote TUI over Erlang distribution with zero NIF on the app node
+- Non-terminal rendering via `ExRatatui.CellSession`: expose the rendered cell buffer (snapshots and diffs) for Phoenix LiveView, embedded framebuffers, screenshot tools, and other consumers that don't speak ANSI
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - Rich text on text-bearing widget fields (`Paragraph.text`, `List.items`, `Table` cells, `Tabs.titles`, `Block.title`): per-span colors and modifiers via `ExRatatui.Text.Span`/`Line`
@@ -158,6 +159,7 @@ All transports serve the same `ExRatatui.App` module — switch by changing a si
 | [Running TUIs over SSH](guides/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs over Erlang Distribution](guides/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/custom_transports.md) | Plug in your own transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
+| [Rendering to Non-Terminal Surfaces](guides/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers |
 | [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |
 
 ## How It Works

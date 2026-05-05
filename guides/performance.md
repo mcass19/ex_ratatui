@@ -195,11 +195,13 @@ If that's fast and the render is slow, the time's in the NIF — likely a giant 
 - **Local transport** — render cost is whatever `render/2` takes plus the Rust diff, which writes only changed cells to the PTY. Cheap.
 - **SSH transport** — every frame's diff crosses the SSH stream. Over slow links, prefer `render?: false` where possible and keep animated elements (throbbers, sparklines) small.
 - **Distribution transport** — the app node encodes the widget list as BEAM terms and ships them to the client node. Large widget lists cost network bandwidth per frame. Same mitigation: skip renders, keep trees tight.
+- **Cell-based consumers (`CellSession`)** — non-terminal renderers (LiveView, framebuffers) ship cells, not bytes. Use `take_cells_diff/1` instead of `take_cells/1` so steady-state frames carry only changed cells, and keep styled rects tight (a styled `Paragraph` paints its style across the whole rect — every cell counts as changed). See [Rendering to Non-Terminal Surfaces](cell_session.md).
 
-The same app module runs on all three without changes; you tune the transport-specific knobs (`poll_interval`, subscription cadence) at `start_link`.
+The same app module runs on all of them without changes; you tune the transport-specific knobs (`poll_interval`, subscription cadence) at `start_link`.
 
 ## Where to go next
 
 - **[Debugging](debugging.md)** — `enable_trace/2` for timing, `snapshot/1` for render counts.
 - **[Reducer Runtime](reducer_runtime.md)** — full `Command` and `Subscription` API.
 - **[Testing](testing.md)** — asserting `render_count` stays flat under `render?: false`.
+- **[Rendering to Non-Terminal Surfaces](cell_session.md)** — diff-based cell shipping for LiveView and framebuffer consumers.
