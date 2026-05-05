@@ -34,18 +34,24 @@
 use std::sync::Mutex;
 
 use ratatui::backend::TestBackend;
+use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::Rect;
 use ratatui::Terminal;
 
-use rustler::{Atom, Binary, Error, ResourceArc, Term};
+use rustler::{Atom, Binary, Encoder, Env, Error, ResourceArc, Term};
 
 use crate::events::NifEvent;
 use crate::rendering::{decode_render_commands, render_widget_data, RenderCommand};
 use crate::session_input::InputParser;
+use crate::style::{encode_color, encode_modifiers};
 
 mod atoms {
     rustler::atoms! {
         ok,
+        // Map keys for take_cells / take_cells_diff payloads.
+        width,
+        height,
+        cells,
     }
 }
 
@@ -207,6 +213,76 @@ impl CellSessionResource {
         *parser = InputParser::new();
         Ok(())
     }
+
+    /// Locks the terminal and runs `f` with a borrowed reference to the
+    /// post-render `Buffer`. The buffer is the same one ratatui filled in
+    /// during the most recent `draw` (or the empty default if no draw has
+    /// happened yet).
+    ///
+    /// Returns the closure's result, or an error if the session is closed
+    /// or the terminal lock is poisoned. Used by the NIF entry points
+    /// that surface cells to Elixir, and exposed `pub(crate)` so unit
+    /// tests can poke the buffer directly without needing a NIF env.
+    pub(crate) fn with_buffer<F, R>(&self, f: F) -> Result<R, String>
+    where
+        F: FnOnce(&Buffer) -> R,
+    {
+        let guard = self
+            .terminal
+            .lock()
+            .map_err(|_| "cell session terminal lock poisoned".to_string())?;
+        let terminal = guard
+            .as_ref()
+            .ok_or_else(|| "cell session is closed".to_string())?;
+        Ok(f(terminal.backend().buffer()))
+    }
+}
+
+/// Encodes one ratatui `Cell` at position `(x, y)` as a tagged tuple
+/// `{x, y, symbol, fg, bg, modifiers, skip}` — the on-the-wire shape for
+/// every per-cell payload returned to Elixir.
+///
+/// The Elixir wrapper transforms these tuples into `%CellSession.Cell{}`
+/// structs; keeping the NIF return shape as a flat tuple per cell avoids
+/// a hash-map allocation per cell on the hot path (a 200x60 grid is
+/// 12_000 cells per full-buffer call).
+fn encode_cell<'a>(env: Env<'a>, x: u16, y: u16, cell: &Cell) -> Term<'a> {
+    let symbol = cell.symbol().to_string();
+    let fg = encode_color(env, cell.fg);
+    let bg = encode_color(env, cell.bg);
+    let mods = encode_modifiers(env, cell.modifier);
+    let skip = cell.skip;
+    (x, y, symbol, fg, bg, mods, skip).encode(env)
+}
+
+/// Encodes an entire `Buffer` as a `%{width, height, cells}` map ready to
+/// hand to Elixir. Cells are emitted in row-major (y then x) order so the
+/// list is stable and consumers can rely on the ordering, though they're
+/// also free to read coordinates from each tuple.
+fn encode_buffer<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
+    let width = buffer.area.width;
+    let height = buffer.area.height;
+    let cell_count = (width as usize).saturating_mul(height as usize);
+
+    let mut cells_terms: Vec<Term<'a>> = Vec::with_capacity(cell_count);
+    let row_width = width as usize;
+    for (i, cell) in buffer.content().iter().enumerate() {
+        // Row-major flat array: index i corresponds to (i % w, i / w).
+        let x = (i % row_width.max(1)) as u16;
+        let y = (i / row_width.max(1)) as u16;
+        cells_terms.push(encode_cell(env, x, y, cell));
+    }
+
+    // map_put on a freshly-constructed map cannot fail (it errors only
+    // when called on a non-map term), so unwrap is safe and avoids
+    // bubbling impossible errors up the NIF boundary.
+    Term::map_new(env)
+        .map_put(atoms::width().encode(env), width.encode(env))
+        .expect("map_put on fresh map cannot fail")
+        .map_put(atoms::height().encode(env), height.encode(env))
+        .expect("map_put on fresh map cannot fail")
+        .map_put(atoms::cells().encode(env), cells_terms.encode(env))
+        .expect("map_put on fresh map cannot fail")
 }
 
 /// Converts a domain error string into a `rustler::Error::Term` carrying a
@@ -264,6 +340,16 @@ fn cell_session_resize(
 #[rustler::nif]
 fn cell_session_size(resource: ResourceArc<CellSessionResource>) -> Result<(u16, u16), Error> {
     resource.current_size().map_err(nif_error)
+}
+
+#[rustler::nif]
+fn cell_session_take_cells<'a>(
+    env: Env<'a>,
+    resource: ResourceArc<CellSessionResource>,
+) -> Result<Term<'a>, Error> {
+    resource
+        .with_buffer(|buffer| encode_buffer(env, buffer))
+        .map_err(nif_error)
 }
 
 #[cfg(test)]
@@ -409,6 +495,169 @@ mod tests {
             NifEvent::Key(code, _, _) => assert_eq!(code, "a"),
             _ => panic!("expected Key event"),
         }
+    }
+
+    #[test]
+    fn with_buffer_returns_default_grid_for_fresh_session() {
+        // Before any draw, ratatui's `Terminal` already owns an empty
+        // backend buffer at the construction dimensions. with_buffer
+        // surfaces it so the take_cells NIF never has to special-case
+        // "session has not yet drawn anything".
+        let session = CellSessionResource::new(5, 3).unwrap();
+        session
+            .with_buffer(|buf| {
+                assert_eq!(buf.area.width, 5);
+                assert_eq!(buf.area.height, 3);
+                assert_eq!(buf.content().len(), 5 * 3);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn with_buffer_after_close_errors() {
+        let session = CellSessionResource::new(10, 5).unwrap();
+        session.close().unwrap();
+        let result = session.with_buffer(|_| ());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("closed"));
+    }
+
+    #[test]
+    fn with_buffer_after_resize_reports_new_dimensions() {
+        let session = CellSessionResource::new(20, 5).unwrap();
+        session.resize(40, 10).unwrap();
+        // A draw is needed for autoresize to settle the front buffer at
+        // the new dimensions; until then `with_buffer` would still see
+        // the old size from the unmodified backend buffer.
+        session.draw(Vec::new()).unwrap();
+        session
+            .with_buffer(|buf| {
+                assert_eq!(buf.area.width, 40);
+                assert_eq!(buf.area.height, 10);
+                assert_eq!(buf.content().len(), 40 * 10);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn with_buffer_observes_content_painted_via_terminal_draw() {
+        // Paint "hi" directly using ratatui's set_string and verify that
+        // with_buffer sees the resulting cells. We bypass the
+        // RenderCommand pipeline here on purpose: the test covers the
+        // cell-extraction path, not widget-decoding (which is tested
+        // exhaustively elsewhere).
+        let session = CellSessionResource::new(10, 1).unwrap();
+        {
+            let mut guard = session.terminal.lock().unwrap();
+            let terminal = guard.as_mut().unwrap();
+            terminal
+                .draw(|frame| {
+                    let buf = frame.buffer_mut();
+                    buf.set_string(0, 0, "hi", ratatui::style::Style::default());
+                })
+                .unwrap();
+        }
+
+        session
+            .with_buffer(|buf| {
+                assert_eq!(buf.cell((0, 0)).unwrap().symbol(), "h");
+                assert_eq!(buf.cell((1, 0)).unwrap().symbol(), "i");
+                // Cells past the painted range remain at the default
+                // single-space symbol — verify a couple to lock in the
+                // "rest of the buffer is untouched" guarantee.
+                assert_eq!(buf.cell((2, 0)).unwrap().symbol(), " ");
+                assert_eq!(buf.cell((9, 0)).unwrap().symbol(), " ");
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn with_buffer_observes_styled_content_painted_via_terminal_draw() {
+        // Paint a single styled cell and verify both the symbol and the
+        // style fields round-trip through the buffer. This is the test
+        // that catches a regression where the buffer is read from the
+        // wrong source (front vs back, or before autoresize lands).
+        let session = CellSessionResource::new(5, 1).unwrap();
+        {
+            let mut guard = session.terminal.lock().unwrap();
+            let terminal = guard.as_mut().unwrap();
+            terminal
+                .draw(|frame| {
+                    let buf = frame.buffer_mut();
+                    buf.set_string(
+                        0,
+                        0,
+                        "X",
+                        ratatui::style::Style::default()
+                            .fg(ratatui::style::Color::Red)
+                            .bg(ratatui::style::Color::Blue)
+                            .add_modifier(ratatui::style::Modifier::BOLD),
+                    );
+                })
+                .unwrap();
+        }
+
+        session
+            .with_buffer(|buf| {
+                let cell = buf.cell((0, 0)).unwrap();
+                assert_eq!(cell.symbol(), "X");
+                assert_eq!(cell.fg, ratatui::style::Color::Red);
+                assert_eq!(cell.bg, ratatui::style::Color::Blue);
+                assert!(cell.modifier.contains(ratatui::style::Modifier::BOLD));
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn with_buffer_observes_wide_grapheme_in_leading_cell_only() {
+        // A two-cell-wide grapheme (CJK ideograph) lands entirely in its
+        // leading cell — `Cell::symbol()` returns the full multi-byte
+        // grapheme cluster ("中"), not a half. The continuation cell
+        // stays at the buffer's default symbol (" ") because ratatui's
+        // `set_string` doesn't explicitly overwrite it.
+        //
+        // Consumers reconstructing a faithful display (HTML grid, font
+        // rasteriser, screenshot tool) MUST detect wide-char layout
+        // themselves by inspecting the leading cell's symbol width
+        // (`unicode-width` crate or equivalent) and treating the next
+        // `width - 1` cells as covered. The cell extraction path
+        // surfaces what's in the buffer verbatim and does not synthesise
+        // a continuation marker — that would mask information consumers
+        // may want (the trailing cell still holds its prior style).
+        let session = CellSessionResource::new(4, 1).unwrap();
+        {
+            let mut guard = session.terminal.lock().unwrap();
+            let terminal = guard.as_mut().unwrap();
+            terminal
+                .draw(|frame| {
+                    let buf = frame.buffer_mut();
+                    buf.set_string(0, 0, "中a", ratatui::style::Style::default());
+                })
+                .unwrap();
+        }
+
+        session
+            .with_buffer(|buf| {
+                // Cell (0, 0) carries the full ideograph as a single
+                // grapheme — multi-byte symbol, single cell index.
+                let leading = buf.cell((0, 0)).unwrap();
+                assert_eq!(leading.symbol(), "中");
+                assert!(
+                    leading.symbol().chars().count() >= 1,
+                    "leading cell must hold the wide grapheme verbatim"
+                );
+
+                // Cell (1, 0) is the continuation slot — ratatui leaves
+                // it at the default space, NOT an empty string. This is
+                // the contract documented above.
+                assert_eq!(buf.cell((1, 0)).unwrap().symbol(), " ");
+
+                // Cell (2, 0) holds the trailing ASCII char (set_string
+                // advances by the full grapheme width, so 'a' lands at
+                // col 2 not col 1).
+                assert_eq!(buf.cell((2, 0)).unwrap().symbol(), "a");
+            })
+            .unwrap();
     }
 
     #[test]

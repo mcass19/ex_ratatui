@@ -1,6 +1,46 @@
 use ratatui::style::{Color, Modifier, Style};
-use rustler::{Error, Term};
+use rustler::{Encoder, Env, Error, Term};
 use std::collections::HashMap;
+
+/// Atoms used by the encoder side (Rust → Elixir) when surfacing styles
+/// extracted from a rendered buffer.
+///
+/// Kept in their own module so it's obvious which atoms are part of the
+/// public on-the-wire vocabulary. They match `ExRatatui.Style`'s
+/// vocabulary verbatim — named colors as atoms, RGB/indexed as tagged
+/// tuples, modifiers as a list of atoms.
+mod style_atoms {
+    rustler::atoms! {
+        // Named colors (mirror of the parse_named_color cases below).
+        black,
+        red,
+        green,
+        yellow,
+        blue,
+        magenta,
+        cyan,
+        gray,
+        dark_gray,
+        light_red,
+        light_green,
+        light_yellow,
+        light_blue,
+        light_magenta,
+        light_cyan,
+        white,
+        reset,
+        // Tagged-tuple discriminators for RGB/indexed colors.
+        rgb,
+        indexed,
+        // Modifier names (mirror of parse_modifier).
+        bold,
+        dim,
+        italic,
+        underlined,
+        crossed_out,
+        reversed,
+    }
+}
 
 /// Decode an Elixir style map into a ratatui Style.
 ///
@@ -94,6 +134,71 @@ pub fn parse_named_color(name: &str) -> Result<Color, Error> {
         "reset" => Ok(Color::Reset),
         other => Err(Error::Term(Box::new(format!("unknown color: {other}")))),
     }
+}
+
+/// Encode a ratatui [`Color`] into a `Term` using the same shape
+/// `ExRatatui.Style` colors take in Elixir:
+///
+///   * `Color::Reset` and the 16 named colors → atoms (`:reset`, `:red`, ...)
+///   * `Color::Rgb(r, g, b)` → `{:rgb, r, g, b}` tagged tuple
+///   * `Color::Indexed(i)` → `{:indexed, i}` tagged tuple
+///
+/// This is the inverse of [`decode_color`] for the named/Rgb/Indexed cases.
+/// It is **not** a perfect round-trip: `decode_color` accepts string keys
+/// (e.g. `"red"`) for cross-language compatibility, while we always emit
+/// atoms here because that's what the rest of the Elixir API uses.
+pub fn encode_color<'a>(env: Env<'a>, color: Color) -> Term<'a> {
+    match color {
+        Color::Reset => style_atoms::reset().encode(env),
+        Color::Black => style_atoms::black().encode(env),
+        Color::Red => style_atoms::red().encode(env),
+        Color::Green => style_atoms::green().encode(env),
+        Color::Yellow => style_atoms::yellow().encode(env),
+        Color::Blue => style_atoms::blue().encode(env),
+        Color::Magenta => style_atoms::magenta().encode(env),
+        Color::Cyan => style_atoms::cyan().encode(env),
+        Color::Gray => style_atoms::gray().encode(env),
+        Color::DarkGray => style_atoms::dark_gray().encode(env),
+        Color::LightRed => style_atoms::light_red().encode(env),
+        Color::LightGreen => style_atoms::light_green().encode(env),
+        Color::LightYellow => style_atoms::light_yellow().encode(env),
+        Color::LightBlue => style_atoms::light_blue().encode(env),
+        Color::LightMagenta => style_atoms::light_magenta().encode(env),
+        Color::LightCyan => style_atoms::light_cyan().encode(env),
+        Color::White => style_atoms::white().encode(env),
+        Color::Rgb(r, g, b) => (style_atoms::rgb(), r, g, b).encode(env),
+        Color::Indexed(i) => (style_atoms::indexed(), i).encode(env),
+    }
+}
+
+/// Encode a ratatui [`Modifier`] bitflag set into a list of atoms in a
+/// stable, sorted-by-name order so consumers can compare two encoded
+/// modifier lists for equality without normalising first.
+///
+/// The order matches the way modifiers are listed in `ExRatatui.Style`'s
+/// docs (`:bold, :dim, :italic, :underlined, :crossed_out, :reversed`),
+/// which is the order ratatui's own [`Modifier`] bitflag definitions use.
+pub fn encode_modifiers<'a>(env: Env<'a>, modifier: Modifier) -> Term<'a> {
+    let mut mods: Vec<rustler::Atom> = Vec::with_capacity(6);
+    if modifier.contains(Modifier::BOLD) {
+        mods.push(style_atoms::bold());
+    }
+    if modifier.contains(Modifier::DIM) {
+        mods.push(style_atoms::dim());
+    }
+    if modifier.contains(Modifier::ITALIC) {
+        mods.push(style_atoms::italic());
+    }
+    if modifier.contains(Modifier::UNDERLINED) {
+        mods.push(style_atoms::underlined());
+    }
+    if modifier.contains(Modifier::CROSSED_OUT) {
+        mods.push(style_atoms::crossed_out());
+    }
+    if modifier.contains(Modifier::REVERSED) {
+        mods.push(style_atoms::reversed());
+    }
+    mods.encode(env)
 }
 
 /// Parse a modifier name string into a ratatui Modifier.
