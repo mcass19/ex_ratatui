@@ -54,6 +54,20 @@ defmodule ExRatatui.Transport do
   @type writer_fn :: (iodata() -> :ok)
 
   @typedoc """
+  Callback a cell-stream transport hands to the runtime server so it
+  can ship the rendered cell delta to a non-terminal consumer (a
+  Phoenix LiveView painting `<span>` cells, an embedded device
+  rasterising glyphs to a framebuffer, an SVG/PNG exporter). Called
+  from the server process on every render with an
+  `t:ExRatatui.CellSession.Diff.t/0` carrying only the cells that
+  changed since the last render (or the full grid on the first call,
+  after a resize, or after close+reopen — see
+  [`CellSession`'s docs](`ExRatatui.CellSession`)). Must be fast and
+  non-blocking.
+  """
+  @type cell_writer_fn :: (ExRatatui.CellSession.Diff.t() -> :ok)
+
+  @typedoc """
   Variants accepted by the runtime server's `:transport` option at
   init time.
 
@@ -61,6 +75,13 @@ defmodule ExRatatui.Transport do
     * `{:session, session, writer_fn}` — the server renders into the
       given `ExRatatui.Session` and calls `writer_fn` with the
       resulting bytes. Used by SSH today and by Kino in the future.
+    * `{:cell_session, cell_session, cell_writer_fn}` — the server
+      renders into the given `ExRatatui.CellSession` and calls
+      `cell_writer_fn` with a `t:ExRatatui.CellSession.Diff.t/0` of
+      cells that changed since the last render. Used by
+      `phoenix_ex_ratatui` (browser DOM) and the Nerves
+      [name_badge](https://github.com/protolux-electronics/name_badge)
+      project (1bpp framebuffer rasteriser).
     * `{:distributed_server, client_pid, width, height}` — the server
       ships widget trees to a remote renderer (see
       `ExRatatui.Distributed.Listener`) that renders them locally.
@@ -68,6 +89,7 @@ defmodule ExRatatui.Transport do
   @type server_transport ::
           :local
           | {:session, ExRatatui.Session.t(), writer_fn()}
+          | {:cell_session, ExRatatui.CellSession.t(), cell_writer_fn()}
           | {:distributed_server, pid(), pos_integer(), pos_integer()}
 
   @typedoc """

@@ -5,6 +5,7 @@ defmodule ExRatatui.Server do
 
   require Logger
 
+  alias ExRatatui.CellSession
   alias ExRatatui.Command
   alias ExRatatui.Frame
   alias ExRatatui.Native
@@ -19,6 +20,7 @@ defmodule ExRatatui.Server do
     :terminal_ref,
     :terminal_size_fn,
     :session,
+    :cell_session,
     :writer_fn,
     :client_pid,
     :task_supervisor,
@@ -75,6 +77,9 @@ defmodule ExRatatui.Server do
 
       {:session, %Session{} = session, writer_fn} when is_function(writer_fn, 1) ->
         continue_init_session(session, writer_fn, opts)
+
+      {:cell_session, %CellSession{} = cell_session, writer_fn} when is_function(writer_fn, 1) ->
+        continue_init_cell_session(cell_session, writer_fn, opts)
 
       {:distributed_server, client_pid, width, height}
       when is_pid(client_pid) and is_integer(width) and is_integer(height) ->
@@ -198,6 +203,72 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
+  # Cell-stream session transport init: the CellSession is created
+  # externally by the transport (Phoenix LiveView, Nerves badge,
+  # custom non-terminal renderer) which knows how to ship cell diffs
+  # back to the consumer. Same shape as `continue_init_session` —
+  # different session type, different render output. Telemetry tags
+  # the lifecycle events with `transport: :cell_session` so handlers
+  # can route browser/embedded sessions to their own dashboards.
+  def continue_init_cell_session(%CellSession{} = cell_session, writer_fn, opts) do
+    mod = Keyword.fetch!(opts, :mod)
+
+    {w, h} =
+      Telemetry.span([:transport, :connect], %{mod: mod, transport: :cell_session}, fn ->
+        CellSession.size(cell_session)
+      end)
+
+    Telemetry.execute(
+      [:session, :lifecycle, :open],
+      %{},
+      %{mod: mod, transport: :cell_session, width: w, height: h}
+    )
+
+    augmented_opts = augment_cell_session_mount_opts(opts, w, h)
+
+    mount_result =
+      Telemetry.span([:runtime, :init], %{mod: mod, transport: :cell_session}, fn ->
+        mod.mount(augmented_opts)
+      end)
+
+    case normalize_mount_result(mount_result) do
+      {:ok, user_state, runtime_opts} ->
+        state = %__MODULE__{
+          mod: mod,
+          user_state: user_state,
+          transport: :cell_session,
+          cell_session: cell_session,
+          writer_fn: writer_fn,
+          task_supervisor: Keyword.fetch!(opts, :task_supervisor),
+          width: w,
+          height: h,
+          terminal_initialized: true,
+          runtime_mode: runtime_mode(mod)
+        }
+
+        state =
+          state
+          |> maybe_set_trace(runtime_opts)
+          |> reconcile_subscriptions()
+          |> queue_commands(runtime_opts)
+          |> do_render_if(runtime_opts)
+
+        state = flush_pending_commands(state)
+        {:ok, state}
+
+      {:error, reason} ->
+        Telemetry.execute(
+          [:session, :lifecycle, :close],
+          %{},
+          %{mod: mod, transport: :cell_session, reason: reason}
+        )
+
+        CellSession.close(cell_session)
+        {:stop, reason}
+    end
+  end
+
+  @doc false
   # Distribution-attach server init: the remote client rendered locally,
   # so no Rust resource is needed here. We send widget lists as BEAM
   # terms and the client draws them with its own TerminalResource.
@@ -270,6 +341,18 @@ defmodule ExRatatui.Server do
     |> Keyword.put(:height, height)
   end
 
+  @doc false
+  # Cell-stream analogue of `augment_session_mount_opts`. `opts[:transport]`
+  # is set to `:cell_session` so user code in `mount/1` can distinguish
+  # "I'm running in a browser/embedded surface" from "I'm running in a
+  # terminal." Apps that don't care can ignore it.
+  def augment_cell_session_mount_opts(opts, width, height) do
+    opts
+    |> Keyword.put(:transport, :cell_session)
+    |> Keyword.put(:width, width)
+    |> Keyword.put(:height, height)
+  end
+
   @impl true
   def handle_info(:poll, %__MODULE__{transport: :local, polling_enabled?: false} = state),
     do: {:noreply, state}
@@ -297,14 +380,14 @@ defmodule ExRatatui.Server do
   end
 
   def handle_info({:ex_ratatui_event, event}, %__MODULE__{transport: transport} = state)
-      when transport in [:session, :distributed_server] do
+      when transport in [:session, :cell_session, :distributed_server] do
     state
     |> dispatch_event(event)
     |> process_event_result()
   end
 
   def handle_info({:ex_ratatui_resize, w, h}, %__MODULE__{transport: transport} = state)
-      when transport in [:session, :distributed_server] do
+      when transport in [:session, :cell_session, :distributed_server] do
     # Update the cached size *before* dispatching so the render that
     # follows the App's handle_event/2 callback (inside dispatch_event)
     # uses the new dimensions. Without this, an App that adjusts state
@@ -378,6 +461,21 @@ defmodule ExRatatui.Server do
     )
 
     Session.close(state.session)
+    state.mod.terminate(reason, state.user_state)
+    emit_transport_disconnect(state, reason)
+    :ok
+  end
+
+  def terminate(reason, %__MODULE__{transport: :cell_session, terminal_initialized: true} = state) do
+    cancel_subscription_timers(state)
+
+    Telemetry.execute(
+      [:session, :lifecycle, :close],
+      %{},
+      %{mod: state.mod, transport: state.transport, reason: reason}
+    )
+
+    CellSession.close(state.cell_session)
     state.mod.terminate(reason, state.user_state)
     emit_transport_disconnect(state, reason)
     :ok
@@ -534,6 +632,7 @@ defmodule ExRatatui.Server do
   # today; future work should add a scheduling gate in process_poll_result/1.
 
   defp current_size(%__MODULE__{transport: :session, width: w, height: h}), do: {w, h}
+  defp current_size(%__MODULE__{transport: :cell_session, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :distributed_server, width: w, height: h}), do: {w, h}
 
   defp current_size(%__MODULE__{transport: :local, test_mode: tm, terminal_size_fn: size_fn}) do
@@ -566,6 +665,34 @@ defmodule ExRatatui.Server do
       {:error, reason} ->
         emit_render_dropped(state, reason)
         Logger.error("ExRatatui session draw error: #{inspect(reason)}")
+    end
+  end
+
+  # Cell-stream analogue of the byte-stream `:session` clause. The
+  # writer_fn receives a `%CellSession.Diff{}` instead of bytes — only
+  # cells that changed since the last render — keeping the per-frame
+  # payload small. The first call after construction (and the first
+  # call after any resize) returns the full grid as ops; consumers
+  # that need a complete picture from a single frame can reach for
+  # `CellSession.take_cells/1` directly via the bare session reference,
+  # but the Server itself never needs to.
+  defp draw_widgets(
+         %__MODULE__{
+           transport: :cell_session,
+           cell_session: cell_session,
+           writer_fn: writer_fn
+         } = state,
+         widgets
+       ) do
+    case CellSession.draw(cell_session, widgets) do
+      :ok ->
+        diff = CellSession.take_cells_diff(cell_session)
+        writer_fn.(diff)
+        :ok
+
+      {:error, reason} ->
+        emit_render_dropped(state, reason)
+        Logger.error("ExRatatui cell session draw error: #{inspect(reason)}")
     end
   end
 
