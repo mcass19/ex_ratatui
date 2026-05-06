@@ -100,4 +100,65 @@ defmodule ExRatatui.Test.ServerApps do
     @impl true
     def handle_event(_event, state), do: {:noreply, state}
   end
+
+  defmodule Intents do
+    @moduledoc """
+    Emits intents in `mount/1`, `handle_event/2`, and `handle_info/2`
+    transitions to exercise the runtime's intent plumbing.
+
+    Mount opts:
+      * `:mount_intents` — list of intents the runtime should ship after mount
+      * `:test_pid` — required for lifecycle tracing
+
+    Events:
+      * `%Key{code: "navigate"}` — emit `{:navigate, "/dashboard"}` and continue
+      * `%Key{code: "stop_with_intent"}` — emit `{:redirect, "/login"}` and stop
+      * any other event — continue with no intents
+    """
+
+    use ExRatatui.App
+
+    alias ExRatatui.Event.Key
+
+    @impl true
+    def mount(opts) do
+      test_pid = Keyword.fetch!(opts, :test_pid)
+      mount_intents = Keyword.get(opts, :mount_intents, [])
+      send(test_pid, {:mounted, opts})
+      {:ok, %{test_pid: test_pid}, intents: mount_intents}
+    end
+
+    @impl true
+    def render(_state, frame) do
+      alias ExRatatui.Layout.Rect
+      alias ExRatatui.Widgets.Paragraph
+
+      [
+        {%Paragraph{text: "intents fixture"},
+         %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}
+      ]
+    end
+
+    @impl true
+    def handle_event(%Key{code: "navigate"}, state) do
+      {:noreply, state, intents: [{:navigate, "/dashboard"}]}
+    end
+
+    def handle_event(%Key{code: "stop_with_intent"}, state) do
+      {:stop, state, intents: [{:redirect, "/login"}]}
+    end
+
+    def handle_event(%Key{code: "bogus_intents"}, state) do
+      {:noreply, state, intents: :not_a_list}
+    end
+
+    def handle_event(_event, state), do: {:noreply, state}
+
+    @impl true
+    def handle_info({:emit_intents, intents}, state) do
+      {:noreply, state, intents: intents}
+    end
+
+    def handle_info(_msg, state), do: {:noreply, state}
+  end
 end

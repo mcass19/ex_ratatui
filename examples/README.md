@@ -23,7 +23,7 @@ Some terminal examples also work over SSH (`--ssh`) or Erlang distribution (`--d
 | [`task_manager.exs`](task_manager.exs) | `mix run examples/task_manager.exs` | Full task manager — tabs, table, scrollbar, line gauge. In-memory state; a good end-to-end reducer example. |
 | [`task_manager/`](task_manager/) | See the [subdir README](task_manager/README.md) | Supervised Ecto + SQLite CRUD app. Also runs over SSH where multiple clients share one DB. |
 | [`system_monitor.exs`](system_monitor.exs) | `mix run examples/system_monitor.exs` | Linux system dashboard: CPU, memory, disk, network, BEAM stats. Linux/Nerves only. Also supports `--ssh` and `--distributed` (see below). |
-| [`cell_dump.exs`](cell_dump.exs) | `mix run examples/cell_dump.exs` | **Headless.** Renders a styled paragraph in a bordered block into a `CellSession`, then prints the buffer to stdout with ANSI escapes derived from each cell's `fg`/`bg`/`modifiers`. Visual sanity check for the cell-extraction pipeline; starting point for non-terminal renderers (browser, framebuffer, SVG). |
+| [`cell_dump.exs`](cell_dump.exs) | `mix run examples/cell_dump.exs` | **Headless.** Renders a styled paragraph in a bordered block into a `CellSession`, then prints the buffer to stdout. Visual sanity check for the cell-extraction pipeline; starting point for non-terminal renderers (browser, framebuffer, SVG). |
 
 The [Getting Started](../guides/getting_started.md) guide builds a todo app from scratch using the same patterns.
 

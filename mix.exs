@@ -40,6 +40,7 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Test.ServerApps.Echo,
           ExRatatui.Test.ServerApps.FailingMount,
           ExRatatui.Test.ServerApps.StopOnAnyEvent,
+          ExRatatui.Test.ServerApps.Intents,
           ExRatatui.Test.SshHelper
         ]
       ],

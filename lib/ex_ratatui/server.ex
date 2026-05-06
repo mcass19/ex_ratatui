@@ -22,12 +22,14 @@ defmodule ExRatatui.Server do
     :session,
     :cell_session,
     :writer_fn,
+    :intent_writer_fn,
     :client_pid,
     :task_supervisor,
     :width,
     :height,
     polling_enabled?: false,
     pending_commands: [],
+    pending_intents: [],
     subscriptions: %{},
     trace_enabled?: false,
     trace_limit: 200,
@@ -79,7 +81,11 @@ defmodule ExRatatui.Server do
         continue_init_session(session, writer_fn, opts)
 
       {:cell_session, %CellSession{} = cell_session, writer_fn} when is_function(writer_fn, 1) ->
-        continue_init_cell_session(cell_session, writer_fn, opts)
+        continue_init_cell_session(cell_session, writer_fn, nil, opts)
+
+      {:cell_session, %CellSession{} = cell_session, writer_fn, intent_writer_fn}
+      when is_function(writer_fn, 1) and is_function(intent_writer_fn, 1) ->
+        continue_init_cell_session(cell_session, writer_fn, intent_writer_fn, opts)
 
       {:distributed_server, client_pid, width, height}
       when is_pid(client_pid) and is_integer(width) and is_integer(height) ->
@@ -123,11 +129,13 @@ defmodule ExRatatui.Server do
           |> maybe_set_trace(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
+          |> queue_intents(runtime_opts)
           |> do_render_if(runtime_opts)
 
         state =
           state
           |> flush_pending_commands()
+          |> flush_pending_intents()
           |> maybe_rearm_poll()
 
         {:ok, state}
@@ -185,9 +193,14 @@ defmodule ExRatatui.Server do
           |> maybe_set_trace(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
+          |> queue_intents(runtime_opts)
           |> do_render_if(runtime_opts)
 
-        state = flush_pending_commands(state)
+        state =
+          state
+          |> flush_pending_commands()
+          |> flush_pending_intents()
+
         {:ok, state}
 
       {:error, reason} ->
@@ -210,7 +223,7 @@ defmodule ExRatatui.Server do
   # different session type, different render output. Telemetry tags
   # the lifecycle events with `transport: :cell_session` so handlers
   # can route browser/embedded sessions to their own dashboards.
-  def continue_init_cell_session(%CellSession{} = cell_session, writer_fn, opts) do
+  def continue_init_cell_session(%CellSession{} = cell_session, writer_fn, intent_writer_fn, opts) do
     mod = Keyword.fetch!(opts, :mod)
 
     {w, h} =
@@ -239,6 +252,7 @@ defmodule ExRatatui.Server do
           transport: :cell_session,
           cell_session: cell_session,
           writer_fn: writer_fn,
+          intent_writer_fn: intent_writer_fn,
           task_supervisor: Keyword.fetch!(opts, :task_supervisor),
           width: w,
           height: h,
@@ -251,9 +265,14 @@ defmodule ExRatatui.Server do
           |> maybe_set_trace(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
+          |> queue_intents(runtime_opts)
           |> do_render_if(runtime_opts)
 
-        state = flush_pending_commands(state)
+        state =
+          state
+          |> flush_pending_commands()
+          |> flush_pending_intents()
+
         {:ok, state}
 
       {:error, reason} ->
@@ -307,9 +326,14 @@ defmodule ExRatatui.Server do
           |> maybe_set_trace(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
+          |> queue_intents(runtime_opts)
           |> do_render_if(runtime_opts)
 
-        state = flush_pending_commands(state)
+        state =
+          state
+          |> flush_pending_commands()
+          |> flush_pending_intents()
+
         {:ok, state}
 
       {:error, reason} ->
@@ -535,13 +559,17 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
-  def process_poll_result({:stop, state}), do: {:stop, :normal, state}
+  def process_poll_result({:stop, state}) do
+    state = flush_pending_intents(state)
+    {:stop, :normal, state}
+  end
 
   def process_poll_result({:continue, state, render?}) do
     state =
       state
       |> maybe_render(render?)
       |> flush_pending_commands()
+      |> flush_pending_intents()
       |> maybe_rearm_poll()
 
     {:noreply, state}
@@ -550,13 +578,17 @@ defmodule ExRatatui.Server do
   @doc false
   # SSH/distributed analogue of process_poll_result that does not re-arm a
   # poll loop — non-local transports get the next event from the mailbox.
-  def process_event_result({:stop, state}), do: {:stop, :normal, state}
+  def process_event_result({:stop, state}) do
+    state = flush_pending_intents(state)
+    {:stop, :normal, state}
+  end
 
   def process_event_result({:continue, state, render?}) do
     state =
       state
       |> maybe_render(render?)
       |> flush_pending_commands()
+      |> flush_pending_intents()
 
     {:noreply, state}
   end
@@ -765,7 +797,7 @@ defmodule ExRatatui.Server do
   end
 
   defp default_runtime_opts do
-    %{commands: [], render?: true, trace?: nil}
+    %{commands: [], intents: [], render?: true, trace?: nil}
   end
 
   defp normalize_runtime_opts(runtime_opts) when is_list(runtime_opts) do
@@ -777,6 +809,7 @@ defmodule ExRatatui.Server do
   defp normalize_runtime_opts(runtime_opts) when is_map(runtime_opts) do
     %{
       commands: Command.normalize(Map.get(runtime_opts, :commands)),
+      intents: normalize_intents(Map.get(runtime_opts, :intents)),
       render?: Map.get(runtime_opts, :render?, true),
       trace?: Map.get(runtime_opts, :trace?)
     }
@@ -786,6 +819,16 @@ defmodule ExRatatui.Server do
     raise ArgumentError, "invalid runtime opts: #{inspect(other)}"
   end
 
+  # Intents are opaque to ex_ratatui — they're consumer-defined directives
+  # (e.g. phoenix_ex_ratatui maps `{:navigate, "/path"}` to push_navigate).
+  # Normalisation is just shape validation: must be a list, nil → [].
+  defp normalize_intents(nil), do: []
+  defp normalize_intents(list) when is_list(list), do: list
+
+  defp normalize_intents(other) do
+    raise ArgumentError, "invalid intents (must be a list): #{inspect(other)}"
+  end
+
   defp apply_transition({:continue, user_state, runtime_opts}, state) do
     next_state =
       state
@@ -793,6 +836,7 @@ defmodule ExRatatui.Server do
       |> maybe_set_trace(runtime_opts)
       |> reconcile_subscriptions()
       |> queue_commands(runtime_opts)
+      |> queue_intents(runtime_opts)
 
     {:continue, next_state, runtime_opts.render?}
   end
@@ -804,6 +848,7 @@ defmodule ExRatatui.Server do
       |> maybe_set_trace(runtime_opts)
       |> reconcile_subscriptions()
       |> queue_commands(runtime_opts)
+      |> queue_intents(runtime_opts)
 
     {:stop, next_state}
   end
@@ -830,6 +875,28 @@ defmodule ExRatatui.Server do
   defp flush_pending_commands(%__MODULE__{pending_commands: commands} = state) do
     state = %{state | pending_commands: []}
     Enum.reduce(commands, state, &run_command/2)
+  end
+
+  defp queue_intents(state, %{intents: intents}) do
+    %{state | pending_intents: intents}
+  end
+
+  # Intents are forwarded to the transport's intent_writer_fn (when set)
+  # in the order they were emitted. Transports that don't ship an intent
+  # writer (local/SSH/distributed) silently drop them — apps can return
+  # intents safely regardless of where they're running.
+  defp flush_pending_intents(%__MODULE__{pending_intents: []} = state), do: state
+
+  defp flush_pending_intents(%__MODULE__{pending_intents: _, intent_writer_fn: nil} = state) do
+    %{state | pending_intents: []}
+  end
+
+  defp flush_pending_intents(
+         %__MODULE__{pending_intents: intents, intent_writer_fn: writer} = state
+       )
+       when is_function(writer, 1) do
+    Enum.each(intents, writer)
+    %{state | pending_intents: []}
   end
 
   defp run_command(%Command{kind: :message, message: message}, state) do
