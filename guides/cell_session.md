@@ -131,6 +131,52 @@ length(diff.ops)
 
 This is the same behaviour you'd get on an ANSI terminal — ratatui clears each cell in the rect to the paragraph's style. It just shows up directly in the diff payload here.
 
+## Driving an `ExRatatui.App` over a CellSession
+
+The runtime server accepts a `:cell_session` transport tag in two shapes — a 3-tuple for transports that only need to ship rendered diffs, and a 4-tuple that adds an `intent_writer_fn` channel for transports that consume App-emitted intents (LiveView navigation, custom workflows, …).
+
+```elixir
+# 3-tuple — frame-only transport. Intents from the App are silently dropped.
+{:cell_session, %CellSession{} = cell_session, cell_writer_fn}
+
+# 4-tuple — frame + intent transport.
+{:cell_session, %CellSession{} = cell_session, cell_writer_fn, intent_writer_fn}
+```
+
+Both are 1-arity functions:
+
+```elixir
+cell_writer_fn = fn %CellSession.Diff{} = diff ->
+  # Ship the diff to wherever your renderer lives — a LiveView socket,
+  # a websocket, an in-process callback, etc.
+  send(target_pid, {:render, diff})
+  :ok
+end
+
+intent_writer_fn = fn intent ->
+  # Map App-emitted intents to consumer-side actions. Vocabulary is
+  # entirely up to you; the runtime forwards verbatim.
+  send(target_pid, {:intent, intent})
+  :ok
+end
+```
+
+Then start the runtime:
+
+```elixir
+{:ok, server} =
+  ExRatatui.Transport.start_server(
+    mod: MyTUI,
+    transport: {:cell_session, cell_session, cell_writer_fn, intent_writer_fn}
+  )
+```
+
+On every render the runtime server calls `CellSession.draw/2`, then `CellSession.take_cells_diff/1`, then hands the resulting `%Diff{}` to `cell_writer_fn`. On every state transition where the App returned `intents: [...]`, the runtime walks the list and calls `intent_writer_fn` once per intent, in emission order. Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so a TUI returning `{:stop, state, intents: [{:redirect, "/login"}]}` reliably reaches the consumer before the linked-server EXIT propagates.
+
+Apps stay portable across transports: a TUI that emits `{:redirect, path}` from a callback runs unchanged over both a 4-tuple `:cell_session` (intent dispatched) and a `:local` tty (intent silently dropped — there's nothing to navigate).
+
+See [Runtime opts](`ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for the App-side return-shape, and `phoenix_ex_ratatui` for a working consumer that turns intents into `Phoenix.LiveView` actions.
+
 ## Performance notes
 
   - **`take_cells/1` allocates one `%Cell{}` per cell.** For an 80×24 grid that's ~1920 structs per call. Modern BEAM handles this in a few hundred microseconds. For tight loops, prefer the diff path.

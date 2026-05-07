@@ -51,11 +51,34 @@ defmodule ExRatatui.App do
       `subscriptions/1`
 
   Reducer apps receive all terminal input as `{:event, event}` and all
-  mailbox messages as `{:info, msg}` through `update/2`. They can return:
+  mailbox messages as `{:info, msg}` through `update/2`.
 
-    * `commands: [...]` to schedule side effects after the state transition
-    * `render?: false` to skip the immediate render
-    * `trace?: true | false` to toggle runtime trace collection
+  ## Runtime opts
+
+  Every state-transition callback (`mount/1`, `init/1`, `handle_event/2`,
+  `handle_info/2`, `update/2`) can return a third element — a keyword
+  list of runtime opts that adjust the runtime's behaviour for that
+  transition without polluting your domain state.
+
+      def handle_event(%Event.Key{code: "q"}, state) do
+        {:stop, state, intents: [{:redirect, "/login"}]}
+      end
+
+      def mount(_opts) do
+        {:ok, %{n: 0}, commands: [Command.message(:boot)], trace?: true}
+      end
+
+  | Key | Default | Description |
+  | --- | ------- | ----------- |
+  | `commands: [...]` | `[]` | Side effects to execute after the state transition. Reducer-specific — no-op under the callback runtime. See `ExRatatui.Command`. |
+  | `intents: [...]` | `[]` | Opaque directives forwarded verbatim to the transport's `intent_writer_fn` in the order they were emitted. ex_ratatui defines no vocabulary — consumers do. `phoenix_ex_ratatui` consumes `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}` to dispatch LV navigation, for example. Transports that don't supply an intent writer (the existing 3-tuple `:cell_session` shape, plus `:local` / `:session` / `:distributed_server`) silently drop intents — apps stay portable across transports. |
+  | `render?: bool` | `true` | Whether to re-render after this transition. Reducer-specific. |
+  | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing. |
+
+  Intents emitted from a `{:stop, state, intents: ...}` transition fire
+  **before** the server exits, so a "logout" key returning
+  `{:stop, state, intents: [{:redirect, "/login"}]}` reliably reaches
+  the consumer before the linked-server EXIT propagates.
 
   ## Options
 
@@ -119,8 +142,22 @@ defmodule ExRatatui.App do
       Use this to stop the VM with `System.stop(0)` in standalone apps.
   """
 
+  @typedoc "User-defined application state. ex_ratatui never inspects it."
   @type state :: term()
+
+  @typedoc """
+  Runtime opts returned as the third element of a `mount/1` / `handle_event/2`
+  / `handle_info/2` / `init/1` / `update/2` result. Keys: `:commands`,
+  `:intents`, `:render?`, `:trace?`. See [Runtime opts](#module-runtime-opts).
+  """
   @type callback_opts :: keyword()
+
+  @typedoc """
+  An intent — opaque to ex_ratatui, defined by the consumer. Returned via
+  `callback_opts`'s `:intents` key and forwarded to the transport's
+  `intent_writer_fn` in emission order.
+  """
+  @type intent :: term()
 
   alias ExRatatui.Distributed.Listener
   alias ExRatatui.SSH.Daemon
@@ -155,21 +192,32 @@ defmodule ExRatatui.App do
   @doc """
   Called when a terminal event (key, mouse, or resize) arrives.
 
-  Return `{:noreply, new_state}` to continue or `{:stop, state}` to
-  shut down the application.
+  Return `{:noreply, new_state}` to continue or `{:stop, state}` to shut
+  down the application. Either form accepts an optional third element —
+  see [Runtime opts](#module-runtime-opts) — to attach commands,
+  intents, suppress the next render, or toggle tracing for this
+  transition only.
   """
   @callback handle_event(
               ExRatatui.Event.Key.t() | ExRatatui.Event.Mouse.t() | ExRatatui.Event.Resize.t(),
               state()
             ) ::
-              {:noreply, state()} | {:stop, state()}
+              {:noreply, state()}
+              | {:noreply, state(), callback_opts()}
+              | {:stop, state()}
+              | {:stop, state(), callback_opts()}
 
   @doc """
   Called for non-terminal messages (e.g. PubSub broadcasts, `send/2`).
 
-  Optional — the default implementation returns `{:noreply, state}`.
+  Same return shape as `c:handle_event/2`. Optional — the default
+  implementation returns `{:noreply, state}`.
   """
-  @callback handle_info(msg :: term(), state()) :: {:noreply, state()} | {:stop, state()}
+  @callback handle_info(msg :: term(), state()) ::
+              {:noreply, state()}
+              | {:noreply, state(), callback_opts()}
+              | {:stop, state()}
+              | {:stop, state(), callback_opts()}
 
   @doc """
   Reducer runtime message handler.

@@ -153,6 +153,30 @@ def handle_info({:new_message, msg}, state) do
 end
 ```
 
+## Runtime opts
+
+Every transition callback (`mount/1`, `handle_event/2`, `handle_info/2`) can return a third element — a keyword list of runtime opts that adjust the runtime's behaviour for that transition without polluting your domain state:
+
+```elixir
+def handle_event(%Event.Key{code: "q"}, state) do
+  # Emit an intent for the consumer (e.g. phoenix_ex_ratatui's LV) before exiting.
+  {:stop, state, intents: [{:redirect, "/login"}]}
+end
+
+def mount(_opts) do
+  {:ok, %{n: 0}, trace?: true}
+end
+```
+
+| Key | Default | Description |
+| --- | ------- | ----------- |
+| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. ex_ratatui defines no vocabulary — consumers do. Transports without an intent writer (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop them, so apps stay portable. See [Cell sessions](cell_session.md) for how a transport wires the writer up. |
+| `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](debugging.md#runtime-traces). |
+| `commands: [...]` | `[]` | Reducer-runtime feature; no-op under the callback runtime. Use `Process.send_after/3` or spawn a `Task` from a callback instead. |
+| `render?: bool` | `true` | Reducer-runtime feature; no-op under the callback runtime. |
+
+Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so the example above guarantees the redirect reaches the consumer before the linked-server EXIT propagates. Without that ordering the consumer would see the EXIT first and never get the directive.
+
 ## Error Handling and Supervision
 
 ExRatatui apps are supervised GenServers — standard OTP fault tolerance applies:

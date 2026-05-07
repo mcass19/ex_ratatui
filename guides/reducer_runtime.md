@@ -102,13 +102,29 @@ end
 def update({:info, :background_work}, state) do
   {:noreply, state, render?: false, commands: [Command.async(fn -> do_work() end, &handle_result/1)]}
 end
+
+def update({:event, %Event.Key{code: "q"}}, state) do
+  # Tell the transport's consumer we want to navigate away. Opaque to
+  # ex_ratatui — the consumer (e.g. phoenix_ex_ratatui) decides what
+  # `{:redirect, _}` means.
+  {:stop, state, intents: [{:redirect, "/login"}]}
+end
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `commands: [...]` | `[]` | Side effects to execute after the state transition |
+| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. See [Intents](#intents) below. |
 | `render?: bool` | `true` | Whether to re-render after this transition |
 | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing |
+
+### Intents
+
+An intent is an arbitrary term — ex_ratatui never inspects it. The runtime forwards each intent your callbacks emit to the transport's `intent_writer_fn` in the order they were emitted. The vocabulary is consumer-defined: `phoenix_ex_ratatui` recognises `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}`, and `{:redirect, [external: url]}`, dispatching them to the equivalent `Phoenix.LiveView` action.
+
+Transports that don't supply an `intent_writer_fn` (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop intents. That's deliberate — the same App can run unchanged over an SSH tty (no consumer to navigate, drop) and a LiveView (consumer dispatches the intent). See [Cell sessions](cell_session.md) for how a transport author wires the writer up.
+
+Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so the example above guarantees the `:redirect` reaches the consumer before the linked-server EXIT propagates.
 
 ## Commands
 
