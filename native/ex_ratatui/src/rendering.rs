@@ -6,6 +6,7 @@ use crate::decode::{
     decode_map, decode_optional, decode_required, error_message, invalid_field, optional_term,
     TermMap,
 };
+use crate::image::{self, ImageRenderData, ImageResource};
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
@@ -52,6 +53,7 @@ pub enum WidgetData {
     Textarea(TextareaRenderData),
     Popup(PopupData),
     WidgetList(WidgetListData),
+    Image(ImageRenderData),
     Clear,
 }
 
@@ -112,6 +114,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "textarea" => Ok(WidgetData::Textarea(decode_textarea(widget_map)?)),
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
+        "image" => Ok(WidgetData::Image(decode_image(widget_map)?)),
         "clear" => Ok(WidgetData::Clear),
         other => Err(error_message(format!(
             "widget.type: unsupported widget type '{other}'"
@@ -838,6 +841,15 @@ fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     })
 }
 
+fn decode_image(map: &TermMap<'_>) -> Result<ImageRenderData, Error> {
+    let state_term = optional_term(map, "state")
+        .ok_or_else(|| crate::decode::missing_field("image", "state"))?;
+    let resource = state_term
+        .decode::<ResourceArc<ImageResource>>()
+        .map_err(|_| invalid_field("image", "state", "expected an ImageResource reference"))?;
+    Ok(ImageRenderData { resource })
+}
+
 fn decode_text_input(map: &TermMap<'_>) -> Result<TextInputRenderData, Error> {
     let resource = decode_text_input_state(map)?;
 
@@ -1263,6 +1275,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Textarea(data) => textarea::render(buf, data, area),
         WidgetData::Popup(data) => popup::render(buf, data, area),
         WidgetData::WidgetList(data) => widget_list::render(buf, data, area),
+        WidgetData::Image(data) => image::render(buf, data, area),
         WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }
