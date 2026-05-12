@@ -235,6 +235,28 @@ defmodule ExRatatui do
   def validate_terminal_size({:error, _} = err), do: err
 
   @doc """
+  Sets the image protocol hint on a terminal reference.
+
+  When an image widget is rendered with `protocol: :auto`, this hint
+  decides which terminal protocol (Kitty / Sixel / iTerm2 / Halfblocks)
+  the render path uses. Pass `:auto` to clear the hint and fall back to
+  halfblocks.
+
+  Used by `ExRatatui.Distributed.attach/3` to thread the user's chosen
+  protocol from the remote node's `attach` opts onto the local terminal,
+  which is where the render actually happens for distributed sessions.
+
+  Explicit per-image protocol selections at `ExRatatui.Image.new/2` are
+  always honored regardless of this setting.
+  """
+  @spec set_image_protocol(reference(), ExRatatui.Image.protocol()) :: :ok
+  def set_image_protocol(terminal_ref, protocol)
+      when is_reference(terminal_ref) and
+             protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2] do
+    Native.terminal_set_image_protocol(terminal_ref, protocol)
+  end
+
+  @doc """
   Initializes a headless test terminal with the given dimensions.
 
   Takes `width` (columns) and `height` (rows) for the virtual terminal.

@@ -173,12 +173,15 @@ defmodule ExRatatui.SSH.Daemon do
   # profile, ...) keep working.
   def build_daemon_opts(mod, opts) do
     app_opts = Keyword.get(opts, :app_opts, [])
+    image_protocol = Keyword.get(opts, :image_protocol)
 
     # `ssh_cli: {M, Args}` replaces OTP's default shell channel handler
     # with ours, so shell requests flow through
     # ExRatatui.SSH.handle_ssh_msg/2 — this path waits for pty_req +
     # shell_req to start the server, so `subsystem: false` is correct.
-    cli_args = [mod: mod, app_opts: app_opts]
+    cli_args =
+      [mod: mod, app_opts: app_opts]
+      |> maybe_put_image_protocol(image_protocol)
 
     # The subsystem entry is registered under the app module's atom
     # name, so `ssh -s Elixir.MyApp.TUI host` reaches the same channel
@@ -205,11 +208,24 @@ defmodule ExRatatui.SSH.Daemon do
       :daemon_starter,
       :daemon_stopper,
       :app_opts,
+      :image_protocol,
       :transport,
       :auto_host_key
     ])
     |> normalize_system_dir()
     |> Keyword.merge(base)
+  end
+
+  defp maybe_put_image_protocol(args, nil), do: args
+
+  defp maybe_put_image_protocol(args, protocol)
+       when protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2],
+       do: Keyword.put(args, :image_protocol, protocol)
+
+  defp maybe_put_image_protocol(_args, protocol) do
+    raise ArgumentError,
+          "ExRatatui.SSH.Daemon: invalid :image_protocol — expected one of " <>
+            ":auto, :halfblocks, :kitty, :sixel, :iterm2, got #{inspect(protocol)}"
   end
 
   @doc false

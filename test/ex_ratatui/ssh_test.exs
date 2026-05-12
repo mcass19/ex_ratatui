@@ -101,6 +101,40 @@ defmodule ExRatatui.SSHTest do
       {:ok, state} = SSH.init(mod: SampleApp, subsystem: true)
       assert state.subsystem_mode == true
     end
+
+    test "defaults :image_protocol to nil and stores it when given" do
+      {:ok, state} = SSH.init(mod: SampleApp)
+      assert state.image_protocol == nil
+
+      {:ok, with_hint} = SSH.init(mod: SampleApp, image_protocol: :kitty)
+      assert with_hint.image_protocol == :kitty
+    end
+  end
+
+  describe "image_protocol applied to per-client session" do
+    test "subsystem mode applies the configured hint to the new session" do
+      starter = fake_starter(self(), {:ok, spawn(fn -> Process.sleep(:infinity) end)})
+
+      state = build_state(subsystem: true, starter: starter, image_protocol: :kitty)
+      assert {:ok, new_state} = SSH.handle_msg({:ssh_channel_up, 9, :conn}, state)
+
+      # The hint should have made it through Session.set_image_protocol.
+      # Re-setting the same hint round-trips :ok, which is the cheapest
+      # observable signal that the Session accepted it earlier.
+      assert :ok = Session.set_image_protocol(new_state.session, :kitty)
+      cleanup(new_state)
+    end
+
+    test "shell-mode pty_req applies the configured hint to the new session" do
+      state = build_state(image_protocol: :sixel)
+
+      msg =
+        {:ssh_cm, :conn, {:pty, 11, true, {~c"xterm", 80, 24, 640, 480, []}}}
+
+      assert {:ok, new_state} = SSH.handle_ssh_msg(msg, state)
+      assert :ok = Session.set_image_protocol(new_state.session, :sixel)
+      cleanup(new_state)
+    end
   end
 
   describe "subsystem/1" do

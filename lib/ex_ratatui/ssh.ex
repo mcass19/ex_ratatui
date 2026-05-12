@@ -178,6 +178,7 @@ defmodule ExRatatui.SSH do
     :sender,
     :replier,
     :starter,
+    image_protocol: nil,
     rendering: false,
     subsystem_mode: false,
     esc_timer: nil
@@ -193,6 +194,7 @@ defmodule ExRatatui.SSH do
           sender: (term(), non_neg_integer(), iodata() -> :ok | {:error, term()}),
           replier: (term(), boolean(), :success | :failure, non_neg_integer() -> :ok),
           starter: (keyword() -> {:ok, pid()} | {:error, term()}),
+          image_protocol: ExRatatui.Image.protocol() | nil,
           rendering: boolean(),
           subsystem_mode: boolean(),
           esc_timer: reference() | nil
@@ -233,6 +235,7 @@ defmodule ExRatatui.SSH do
     replier = Keyword.get(args, :replier, @default_replier)
     starter = Keyword.get(args, :starter, @default_starter)
     subsystem_mode = Keyword.get(args, :subsystem, false)
+    image_protocol = Keyword.get(args, :image_protocol)
 
     state = %__MODULE__{
       mod: mod,
@@ -240,7 +243,8 @@ defmodule ExRatatui.SSH do
       sender: sender,
       replier: replier,
       starter: starter,
-      subsystem_mode: subsystem_mode
+      subsystem_mode: subsystem_mode,
+      image_protocol: image_protocol
     }
 
     {:ok, state}
@@ -273,7 +277,7 @@ defmodule ExRatatui.SSH do
     # resize + a `{:ex_ratatui_resize, w, h}` notification to the
     # server. `{:window_change, ...}` still correctly resizes after
     # that if the user drags their terminal window.
-    session = Session.new(80, 24)
+    session = Session.new(80, 24) |> apply_image_protocol(state.image_protocol)
     primed = %{state | session: session, conn: conn, channel_id: channel_id}
 
     case start_server(primed) do
@@ -338,7 +342,7 @@ defmodule ExRatatui.SSH do
     # doesn't exist until the client sends pty_req (followed by
     # shell_req, which starts the server).
     {w, h} = normalize_pty_size(width, height)
-    session = Session.new(w, h)
+    session = Session.new(w, h) |> apply_image_protocol(state.image_protocol)
     state.replier.(conn, want_reply, :success, channel_id)
     {:ok, %{state | session: session, conn: conn, channel_id: channel_id}}
   end
@@ -536,6 +540,13 @@ defmodule ExRatatui.SSH do
     end
 
     %{state | esc_timer: nil}
+  end
+
+  defp apply_image_protocol(%Session{} = session, nil), do: session
+
+  defp apply_image_protocol(%Session{} = session, protocol) do
+    :ok = Session.set_image_protocol(session, protocol)
+    session
   end
 
   defp maybe_leave_screen(%__MODULE__{rendering: false}), do: :ok

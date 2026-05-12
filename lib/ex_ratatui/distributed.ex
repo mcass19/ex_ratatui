@@ -63,6 +63,11 @@ defmodule ExRatatui.Distributed do
     * `:poll_interval` — local event polling interval in ms (default: 16).
     * `:test_mode` — `{width, height}` for a headless test terminal. In this
       mode the local client does not poll the live terminal for input.
+    * `:image_protocol` — terminal image protocol hint for the local
+      terminal: one of `:halfblocks` (default behavior, also the safe
+      fallback), `:kitty`, `:sixel`, `:iterm2`, or `:auto` (clears the
+      hint). Drives how `protocol: :auto` images are rendered. Explicit
+      protocol picks at `ExRatatui.Image.new/2` are always honored.
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """
@@ -129,7 +134,9 @@ defmodule ExRatatui.Distributed do
 
   @doc false
   def start_local_client(opts) do
-    client_opts = Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal])
+    client_opts =
+      Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal, :image_protocol])
+
     Client.start_link(client_opts)
   end
 end

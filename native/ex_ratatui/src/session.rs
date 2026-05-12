@@ -103,6 +103,11 @@ pub struct SessionResource {
     pub(crate) writer: SharedWriter,
     pub(crate) input: Mutex<InputParser>,
     pub(crate) size: Mutex<(u16, u16)>,
+    // Set via `session_set_image_protocol/2`. When `Some(_)` it becomes the
+    // hint inside `TransportCaps::RawTerminal { hint: ... }` used by the
+    // image render path, so `:auto` resolves to the user-chosen protocol
+    // instead of falling back to halfblocks.
+    pub(crate) image_protocol: Mutex<Option<crate::image::ProtocolKind>>,
 }
 
 #[rustler::resource_impl]
@@ -138,6 +143,7 @@ impl SessionResource {
             writer,
             input: Mutex::new(InputParser::new()),
             size: Mutex::new((width, height)),
+            image_protocol: Mutex::new(None),
         })
     }
 
@@ -169,11 +175,12 @@ impl SessionResource {
             .ok_or_else(|| "session is closed".to_string())?;
 
         // Byte-stream session (SSH / Distributed / custom transport): the
-        // client terminal's protocol capabilities aren't probed here. Chunk
-        // 6 introduces a `:image_protocol` session opt that surfaces a
-        // user-provided hint; for now, leave `hint: None` so `:auto`
-        // resolves to halfblocks and explicit choices are honored.
-        let caps = TransportCaps::RawTerminal { hint: None };
+        // client terminal isn't probed here. The session-level
+        // `:image_protocol` opt (set via `session_set_image_protocol/2`)
+        // surfaces a user-provided hint; otherwise `:auto` resolves to
+        // halfblocks and explicit per-image protocol choices are honored.
+        let hint = self.image_protocol.lock().map(|g| *g).unwrap_or(None);
+        let caps = TransportCaps::RawTerminal { hint };
 
         terminal
             .draw(|frame| {
@@ -267,6 +274,20 @@ impl SessionResource {
         *parser = InputParser::new();
         Ok(())
     }
+
+    /// Sets the image-protocol hint used by `:auto` resolution during render.
+    /// Pass `None` to clear (back to halfblocks fallback).
+    pub fn set_image_protocol(
+        &self,
+        kind: Option<crate::image::ProtocolKind>,
+    ) -> Result<(), String> {
+        let mut guard = self
+            .image_protocol
+            .lock()
+            .map_err(|_| "session image_protocol lock poisoned".to_string())?;
+        *guard = kind;
+        Ok(())
+    }
 }
 
 /// Converts a domain error string into a `rustler::Error::Term` carrying a
@@ -305,6 +326,22 @@ fn session_feed_input(
 #[rustler::nif]
 fn session_reset_parser(resource: ResourceArc<SessionResource>) -> Result<Atom, Error> {
     resource.reset_parser().map_err(nif_error)?;
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn session_set_image_protocol(
+    resource: ResourceArc<SessionResource>,
+    kind: crate::image::ProtocolKind,
+) -> Result<Atom, Error> {
+    // `:auto` clears the hint (back to halfblocks fallback). Anything
+    // else is stored as an explicit hint so `:auto` per-image resolves
+    // to the user-chosen terminal protocol.
+    let hint = match kind {
+        crate::image::ProtocolKind::Auto => None,
+        explicit => Some(explicit),
+    };
+    resource.set_image_protocol(hint).map_err(nif_error)?;
     Ok(atoms::ok())
 }
 

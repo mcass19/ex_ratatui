@@ -65,10 +65,12 @@ pub(crate) struct RenderCommand {
 #[rustler::nif(schedule = "DirtyIo")]
 fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result<Atom, Error> {
     let render_commands = decode_render_commands(commands)?;
-    // Local terminal: until chunk 7 caches a probed Picker, behave like an
-    // un-hinted raw terminal — explicit protocol opts are honored and
-    // `:auto` resolves to halfblocks.
-    let caps = TransportCaps::RawTerminal { hint: None };
+    // Until chunk 7 introduces a cached `Picker::from_query_stdio` probe,
+    // the local terminal behaves like a raw byte stream. A user hint set
+    // via `terminal_set_image_protocol/2` (used by Distributed.attach and
+    // the public `ExRatatui.set_image_protocol/2`) flows in here.
+    let hint = resource.image_protocol.lock().map(|g| *g).unwrap_or(None);
+    let caps = TransportCaps::RawTerminal { hint };
 
     with_terminal_draw(&resource, |frame| {
         for cmd in &render_commands {

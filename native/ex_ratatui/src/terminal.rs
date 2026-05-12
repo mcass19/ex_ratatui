@@ -24,6 +24,10 @@ pub(crate) enum AnyTerminal {
 pub struct TerminalResource {
     pub terminal: Mutex<Option<AnyTerminal>>,
     is_crossterm: bool,
+    // Set via `terminal_set_image_protocol/2`. Drives the image render path
+    // when `:auto` is requested; falls back to halfblocks when None.
+    // Read by `draw_frame` (in `rendering.rs`).
+    pub image_protocol: Mutex<Option<crate::image::ProtocolKind>>,
 }
 
 #[rustler::resource_impl]
@@ -89,6 +93,7 @@ fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
     Ok(ResourceArc::new(TerminalResource {
         terminal: Mutex::new(Some(AnyTerminal::Crossterm(terminal))),
         is_crossterm: true,
+        image_protocol: Mutex::new(None),
     }))
 }
 
@@ -130,7 +135,26 @@ fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalRes
     Ok(ResourceArc::new(TerminalResource {
         terminal: Mutex::new(Some(AnyTerminal::Test(terminal))),
         is_crossterm: false,
+        image_protocol: Mutex::new(None),
     }))
+}
+
+#[rustler::nif]
+fn terminal_set_image_protocol(
+    resource: ResourceArc<TerminalResource>,
+    kind: crate::image::ProtocolKind,
+) -> Result<Atom, Error> {
+    let mut guard = resource
+        .image_protocol
+        .lock()
+        .map_err(|_| Error::Term(Box::new("terminal image_protocol lock poisoned")))?;
+    // `:auto` clears the hint (back to halfblocks fallback). Anything else
+    // becomes the explicit hint for the render path's resolve_protocol.
+    *guard = match kind {
+        crate::image::ProtocolKind::Auto => None,
+        explicit => Some(explicit),
+    };
+    Ok(atoms::ok())
 }
 
 #[rustler::nif]

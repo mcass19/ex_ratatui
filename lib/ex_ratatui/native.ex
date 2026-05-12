@@ -44,7 +44,9 @@ defmodule ExRatatui.Native do
     textarea_snapshot: 1,
     textarea_line_count: 1,
     image_new: 2,
-    image_dimensions: 1
+    image_dimensions: 1,
+    session_set_image_protocol: 2,
+    terminal_set_image_protocol: 2
   ]
 
   version = Mix.Project.config()[:version]

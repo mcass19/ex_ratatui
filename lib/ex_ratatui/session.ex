@@ -227,4 +227,33 @@ defmodule ExRatatui.Session do
   def close(%__MODULE__{ref: ref}) do
     Native.session_close(ref)
   end
+
+  @doc """
+  Sets the terminal image protocol hint for this session.
+
+  When an `%ExRatatui.Widgets.Image{}` is rendered with `protocol: :auto`,
+  the renderer needs to know which terminal protocol the client supports
+  (Kitty, Sixel, iTerm2, or Halfblocks). For a `Session` — which is what
+  SSH and Distributed transports use under the hood — we can't probe the
+  client terminal, so the caller declares it once with this function.
+
+  Passing `:auto` clears the hint, restoring the default halfblocks
+  fallback. Any other value is honored as the explicit protocol used to
+  resolve `:auto` per image.
+
+  This setting only affects images rendered with `protocol: :auto`.
+  Explicit per-image protocol selections at `ExRatatui.Image.new/2` are
+  always honored.
+
+  ## Examples
+
+      iex> session = ExRatatui.Session.new(20, 5)
+      iex> ExRatatui.Session.set_image_protocol(session, :kitty)
+      :ok
+  """
+  @spec set_image_protocol(t(), ExRatatui.Image.protocol()) :: :ok
+  def set_image_protocol(%__MODULE__{ref: ref}, protocol)
+      when protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2] do
+    Native.session_set_image_protocol(ref, protocol)
+  end
 end

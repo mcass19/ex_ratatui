@@ -58,6 +58,7 @@ defmodule ExRatatui.Distributed.Client do
     test_mode = Keyword.get(opts, :test_mode)
 
     init_fn = Keyword.get(opts, :init_terminal, &default_init_terminal/1)
+    image_protocol = Keyword.get(opts, :image_protocol)
 
     case init_fn.(test_mode) do
       {:error, reason} ->
@@ -65,6 +66,7 @@ defmodule ExRatatui.Distributed.Client do
 
       terminal_ref ->
         polling_enabled? = polling_enabled?(test_mode)
+        if image_protocol, do: ExRatatui.set_image_protocol(terminal_ref, image_protocol)
 
         state = %__MODULE__{
           terminal_ref: terminal_ref,
