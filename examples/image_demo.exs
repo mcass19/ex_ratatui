@@ -65,14 +65,37 @@ defmodule ImageDemo do
     area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
 
     [image_area, status_area, help_area] =
-      Layout.split(area, :vertical, [{:min, 0}, {:length, 3}, {:length, 3}])
+      Layout.split(area, :vertical, [{:min, 0}, {:length, 4}, {:length, 3}])
 
     {iw, ih} = state.image_size
     {fw, fh} = state.probe
 
+    # render_size expects positive integers; the probe falls back to
+    # {0, 0} when probing fails. Substitute the Picker::halfblocks
+    # default (10, 20) so the math stays meaningful in either case.
+    font_size = if fw > 0 and fh > 0, do: state.probe, else: {10, 20}
+
+    {rw, rh} =
+      Image.render_size(
+        state.image_size,
+        {image_area.width, image_area.height},
+        font_size,
+        state.resize
+      )
+
+    upscale_tag =
+      cond do
+        # No-upscale clamp kicked in (source < target on both axes).
+        state.resize in [:fit, :crop] and rw == iw and rh == ih -> " (clamped to source)"
+        # :scale always upscales when source < target.
+        true -> ""
+      end
+
     status = %Paragraph{
-      text:
-        "  protocol: #{inspect(state.protocol)}   resize: #{inspect(state.resize)}   image: #{iw}x#{ih}   tty: #{fw}x#{fh}",
+      text: """
+        protocol: #{inspect(state.protocol)}   resize: #{inspect(state.resize)}   tty: #{fw}x#{fh}
+        image: #{iw}x#{ih} px   area: #{image_area.width}x#{image_area.height} cells   render: #{rw}x#{rh} px#{upscale_tag}\
+      """,
       style: %Style{fg: :light_cyan, modifiers: [:bold]},
       block: %Block{borders: [:all], border_type: :rounded}
     }

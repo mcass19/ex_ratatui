@@ -177,6 +177,65 @@ defmodule ExRatatui.ImageTest do
     send(probe, {:tel, event, measurements, metadata})
   end
 
+  describe "render_size/4" do
+    # The full Fit/Crop/Scale matrix matters here — these are the
+    # functions that drive demo status displays and any layout code
+    # that needs to know where an image will actually paint.
+
+    test ":scale upscales aspect-preservingly to fill the target" do
+      # 400x300 source, 80x24 cells, 10x20 font → 800x480 target px
+      # Image aspect 1.333, target aspect 1.667 → height-limited
+      # height = 480, width = 480 * (400/300) = 640
+      assert {640, 480} = Image.render_size({400, 300}, {80, 24}, {10, 20}, :scale)
+    end
+
+    test ":fit clamps to source dimensions when source < target on both axes" do
+      # Same inputs as above, but :fit refuses to upscale.
+      assert {400, 300} = Image.render_size({400, 300}, {80, 24}, {10, 20}, :fit)
+    end
+
+    test ":crop also clamps to source dimensions in that case" do
+      # The bug-of-the-day from the user: :fit and :crop produce the
+      # same output when source is smaller than target on both axes.
+      assert {400, 300} = Image.render_size({400, 300}, {80, 24}, {10, 20}, :crop)
+    end
+
+    test ":fit downscales aspect-preservingly when source exceeds target" do
+      # 2000x1000 source, 80x24 cells, 10x20 font → 800x480 target
+      # Image aspect 2.0, target aspect 1.667 → width-limited
+      # width = 800, height = 800 / 2 = 400
+      assert {800, 400} = Image.render_size({2000, 1000}, {80, 24}, {10, 20}, :fit)
+    end
+
+    test ":crop snaps to target dimensions when source exceeds target" do
+      # Same overflowing source — :crop returns target dims (will crop)
+      assert {800, 480} = Image.render_size({2000, 1000}, {80, 24}, {10, 20}, :crop)
+    end
+
+    test ":scale also handles oversized sources by downscaling" do
+      assert {800, 400} = Image.render_size({2000, 1000}, {80, 24}, {10, 20}, :scale)
+    end
+
+    test "respects custom font sizes" do
+      # 8x16 font (default ratatui-image fallback) instead of 10x20
+      # 400x300 source, 80x24 cells, 8x16 font → 640x384 target px
+      # Image aspect 1.333, target aspect 1.667 → height-limited
+      # height = 384, width = 384 * (400/300) = 512
+      assert {512, 384} = Image.render_size({400, 300}, {80, 24}, {8, 16}, :scale)
+    end
+
+    test "1×1 cell area is well-defined for every mode" do
+      # 1000×1000 source, 1×1 cell, {10, 20} font → target {10, 20} px.
+      # Image aspect 1.0 into rect aspect 0.5 → width-limited everywhere.
+      # :fit  → fit_area(1000, 1000, min(10, 1000), min(20, 1000)) → (10, 10)
+      # :crop → (min(1000, 10), min(1000, 20)) → (10, 20)
+      # :scale → fit_area(1000, 1000, 10, 20) → (10, 10)
+      assert {10, 10} = Image.render_size({1000, 1000}, {1, 1}, {10, 20}, :fit)
+      assert {10, 20} = Image.render_size({1000, 1000}, {1, 1}, {10, 20}, :crop)
+      assert {10, 10} = Image.render_size({1000, 1000}, {1, 1}, {10, 20}, :scale)
+    end
+  end
+
   describe "telemetry [:ex_ratatui, :image, :decode]" do
     setup do
       ref = make_ref()

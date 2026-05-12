@@ -236,4 +236,79 @@ defmodule ExRatatui.Image do
         err
     end
   end
+
+  @doc """
+  Predicts the rendered output pixel dimensions for an image, given the
+  cell area it'll be drawn into.
+
+  Mirrors ratatui-image's `Resize::needs_resize_pixels` + the
+  `fit_area_proportionally` helper byte-for-byte (no drift). Useful for
+  status panels in demos, layout decisions where you want to size sibling
+  widgets relative to where the image will actually render, or
+  understanding *why* `:fit` and `:crop` produce identical output when the
+  source image is smaller than the target area on both axes.
+
+  ## Inputs
+
+    * `source` — the source image's pixel dimensions as `{width, height}`
+      (same as `dimensions/1` returns).
+    * `cell_area` — the render area in **cells**, as `{cols, rows}`.
+    * `font_size` — the terminal's cell pixel size, as `{width, height}`.
+      Get this from `probe_terminal/0` or default to `{10, 20}` (which
+      matches `Picker::halfblocks`).
+    * `resize` — one of `:fit` / `:crop` / `:scale`.
+
+  Returns `{width_px, height_px}` for the rendered pixel size.
+
+  ## The Fit/Crop no-upscale clamp
+
+  Both `:fit` and `:crop` clamp output to the source image's natural
+  pixel size — they never upscale. This means a 400×300 source rendered
+  into an 800×500 target stays at 400×300 anchored at the corner. Only
+  `:scale` upscales aspect-preservingly to fill the area. See the
+  [Images guide](images.md) for the full rationale.
+
+      iex> ExRatatui.Image.render_size({400, 300}, {80, 24}, {10, 20}, :fit)
+      {400, 300}
+      iex> ExRatatui.Image.render_size({400, 300}, {80, 24}, {10, 20}, :scale)
+      {640, 480}
+      iex> ExRatatui.Image.render_size({2000, 1000}, {80, 24}, {10, 20}, :fit)
+      {800, 400}
+  """
+  @spec render_size(
+          {pos_integer(), pos_integer()},
+          {pos_integer(), pos_integer()},
+          {pos_integer(), pos_integer()},
+          resize()
+        ) :: {pos_integer(), pos_integer()}
+  def render_size({img_w, img_h}, {cols, rows}, {fw, fh}, resize)
+      when img_w > 0 and img_h > 0 and cols > 0 and rows > 0 and fw > 0 and fh > 0 do
+    target_w = cols * fw
+    target_h = rows * fh
+
+    case resize do
+      :fit ->
+        fit_area_proportionally(img_w, img_h, min(target_w, img_w), min(target_h, img_h))
+
+      :crop ->
+        {min(img_w, target_w), min(img_h, target_h)}
+
+      :scale ->
+        fit_area_proportionally(img_w, img_h, target_w, target_h)
+    end
+  end
+
+  # Verbatim translation of ratatui-image's fit_area_proportionally.
+  # Picks the largest aspect-preserving rect that fits inside
+  # (nwidth, nheight). u16::MAX clamping omitted — Elixir doesn't have
+  # the same overflow concern.
+  defp fit_area_proportionally(width, height, nwidth, nheight) do
+    wratio = nwidth / width
+    hratio = nheight / height
+    ratio = min(wratio, hratio)
+
+    nw = max(round(width * ratio), 1)
+    nh = max(round(height * ratio), 1)
+    {nw, nh}
+  end
 end

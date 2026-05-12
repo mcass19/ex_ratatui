@@ -114,9 +114,26 @@ Each `ExRatatui.Image.new/2` call emits a `[:ex_ratatui, :image, :decode]` span:
 
 Per-render encode timing (Kitty / Sixel / iTerm2 payload generation) is rolled into the existing `[:ex_ratatui, :render, :frame]` span — they happen inside the same NIF render pass.
 
+## `:fit` and `:crop` do not upscale — this is intentional
+
+This is the single most common point of confusion, so it gets its own section.
+
+Both `:fit` and `:crop` clamp output to the **source image's natural pixel size**. They never upscale. If you give a 400×300 picsum photo to a render area sized 800×500 target pixels:
+
+| Mode | Render output | Visible result |
+|---|---|---|
+| `:fit` | 400×300 | Image at natural size, anchored top-left, ~50% empty area |
+| `:crop` | 400×300 | Identical to `:fit` here — both clamp to source dimensions |
+| `:scale` | ~640×480 (aspect-preserving fill) | Image fills the area |
+
+The difference between `:fit` and `:crop` only manifests when the **source is *larger* than the target** on at least one axis: `:fit` shrinks to fit (whole image visible, letterboxed); `:crop` keeps natural size and shows a window into the source corner.
+
+This is upstream ratatui-image behavior in `Resize::needs_resize_pixels`, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
+
+If you want "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
+
 ## Known limitations (v1)
 
 * **No animated GIFs.** First frame only. Frame-by-frame animation needs render-loop integration that isn't here yet.
 * **No SVG.** The underlying `image` crate doesn't include an SVG decoder.
 * **No streaming / progressive decode.** Bytes are decoded all at once at `new/2`.
-* **`Resize::Fit` doesn't upscale beyond natural pixel size.** A small image in a big rect anchors top-left rather than stretching. Use `:scale` if you want it to fill regardless of source size.
