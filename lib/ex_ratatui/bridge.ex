@@ -22,6 +22,7 @@ defmodule ExRatatui.Bridge do
     Checkbox,
     Clear,
     Gauge,
+    Image,
     LineGauge,
     List,
     Markdown,
@@ -297,6 +298,22 @@ defmodule ExRatatui.Bridge do
     |> maybe_put("checked_symbol", checkbox.checked_symbol)
     |> maybe_put("unchecked_symbol", checkbox.unchecked_symbol)
     |> maybe_put_block(checkbox.block, "checkbox.block")
+  end
+
+  defp encode_widget(%Image{state: nil}) do
+    raise ArgumentError, "image.state is required and must be a reference"
+  end
+
+  defp encode_widget(%Image{state: state}) when not is_reference(state) do
+    raise ArgumentError,
+          "image.state must be a reference returned by ExRatatui.Image.new/2, got: #{inspect(state)}"
+  end
+
+  defp encode_widget(%Image{} = image) do
+    %{
+      "type" => "image",
+      "state" => image.state
+    }
   end
 
   defp encode_widget(%TextInput{state: nil}) do
