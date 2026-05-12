@@ -169,4 +169,75 @@ defmodule ExRatatui.ImageTest do
     :ok = ExRatatui.Native.restore_terminal(terminal)
     content
   end
+
+  describe "telemetry [:ex_ratatui, :image, :decode]" do
+    setup do
+      ref = make_ref()
+      probe = self()
+
+      :telemetry.attach_many(
+        ref,
+        [
+          [:ex_ratatui, :image, :decode, :start],
+          [:ex_ratatui, :image, :decode, :stop]
+        ],
+        fn event, meas, meta, _ ->
+          send(probe, {:tel, event, meas, meta})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+      :ok
+    end
+
+    test "successful new/2 emits start + stop with format and dimensions" do
+      assert {:ok, _} = Image.new(@valid_png)
+
+      assert_receive {:tel, [:ex_ratatui, :image, :decode, :start], start_meas,
+                      %{format: :png, bytes: bytes}}
+
+      assert is_integer(start_meas.monotonic_time)
+      assert bytes == byte_size(@valid_png)
+
+      assert_receive {:tel, [:ex_ratatui, :image, :decode, :stop], stop_meas,
+                      %{format: :png, bytes: ^bytes, width: 1, height: 1}}
+
+      assert is_integer(stop_meas.duration)
+    end
+
+    test "failed new/2 emits start + stop with :error metadata and no width/height" do
+      assert {:error, {:decode_failed, _}} = Image.new("not an image")
+
+      assert_receive {:tel, [:ex_ratatui, :image, :decode, :start], _, %{format: :unknown}}
+
+      assert_receive {:tel, [:ex_ratatui, :image, :decode, :stop], _, stop_meta}
+      assert {:decode_failed, _} = stop_meta.error
+      refute Map.has_key?(stop_meta, :width)
+      refute Map.has_key?(stop_meta, :height)
+    end
+
+    test "detects every supported format from magic bytes" do
+      # Build tiny payloads with the right magic bytes for each format.
+      # Decoding may still fail (we only seed the magic), but the
+      # format-detection branch is what we're covering here — telemetry
+      # `:format` reflects whatever the byte prefix matched.
+      cases = [
+        {:jpeg, <<0xFF, 0xD8, 0xFF, 0x00>>},
+        {:gif, "GIF87a\0"},
+        {:gif, "GIF89a\0"},
+        {:webp, "RIFF" <> :binary.copy(<<0>>, 4) <> "WEBP" <> :binary.copy(<<0>>, 4)},
+        {:bmp, "BM" <> :binary.copy(<<0>>, 10)}
+      ]
+
+      for {expected_format, bytes} <- cases do
+        _ = Image.new(bytes)
+
+        assert_receive {:tel, [:ex_ratatui, :image, :decode, :start], _,
+                        %{format: ^expected_format}}
+
+        assert_receive {:tel, [:ex_ratatui, :image, :decode, :stop], _, _}
+      end
+    end
+  end
 end

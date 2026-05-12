@@ -36,6 +36,21 @@ defmodule ExRatatui.Image do
   `new/2` returns `{:ok, widget}` on success, or
   `{:error, {:decode_failed, message}}` when the bytes can't be decoded
   as a supported image format.
+
+  ## Telemetry
+
+  Each `new/2` call emits a `[:ex_ratatui, :image, :decode]` span:
+
+    * `:start` metadata — `%{format: atom, bytes: non_neg_integer}`.
+      `:format` is one of `:png`, `:jpeg`, `:gif`, `:webp`, `:bmp`, or
+      `:unknown` (sniffed from the magic bytes).
+    * `:stop` metadata — adds `:width` and `:height` on success, or
+      `:error` (reason) on failure.
+
+  Per-render encode timing (Kitty / Sixel / iTerm2 payload generation)
+  isn't emitted as its own event — it happens inside the Rust render
+  NIF; the existing `[:ex_ratatui, :render, :frame]` span covers total
+  frame time, which includes image encode.
   """
 
   alias ExRatatui.Native
@@ -71,11 +86,39 @@ defmodule ExRatatui.Image do
       background: validate_background(Keyword.get(opts, :background))
     }
 
-    case Native.image_new(bytes, nif_opts) do
-      ref when is_reference(ref) -> {:ok, %Widget{state: ref}}
-      {:error, _reason} = err -> err
-    end
+    format = detect_format(bytes)
+    start_meta = %{format: format, bytes: byte_size(bytes)}
+
+    # `:telemetry.span/3` lets us enrich the `:stop` metadata with the
+    # decoded image dimensions on success, while keeping `:start` lean.
+    # Failure cases fall through with just `format` and `bytes` (no
+    # width/height to report) plus an `:error` metadata key.
+    :telemetry.span([:ex_ratatui, :image, :decode], start_meta, fn ->
+      case Native.image_new(bytes, nif_opts) do
+        ref when is_reference(ref) ->
+          {w, h} = Native.image_dimensions(ref)
+          stop_meta = Map.merge(start_meta, %{width: w, height: h})
+          {{:ok, %Widget{state: ref}}, stop_meta}
+
+        {:error, reason} = err ->
+          stop_meta = Map.put(start_meta, :error, reason)
+          {err, stop_meta}
+      end
+    end)
   end
+
+  # Detect the image format from magic bytes. Returns one of `:png`,
+  # `:jpeg`, `:gif`, `:webp`, `:bmp`, or `:unknown`. We do this in Elixir
+  # rather than asking the NIF so telemetry has the format atom even
+  # when decode fails further down. The five names match what the
+  # `image` crate's auto-format detector accepts.
+  defp detect_format(<<137, 80, 78, 71, 13, 10, 26, 10, _::binary>>), do: :png
+  defp detect_format(<<0xFF, 0xD8, 0xFF, _::binary>>), do: :jpeg
+  defp detect_format(<<"GIF87a", _::binary>>), do: :gif
+  defp detect_format(<<"GIF89a", _::binary>>), do: :gif
+  defp detect_format(<<"RIFF", _::4-binary, "WEBP", _::binary>>), do: :webp
+  defp detect_format(<<"BM", _::binary>>), do: :bmp
+  defp detect_format(_), do: :unknown
 
   @doc """
   Return the `{width, height}` of the decoded source image in pixels.
