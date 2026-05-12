@@ -116,4 +116,81 @@ defmodule ExRatatui.Image do
     raise ArgumentError,
           "expected :background to be nil or a {r, g, b} tuple in 0..255, got: #{inspect(other)}"
   end
+
+  @type probe_result :: %{protocol: protocol(), font_size: {pos_integer(), pos_integer()}}
+
+  @doc """
+  Queries the local terminal for image-protocol capabilities and font size.
+
+  Sends a small escape-sequence probe to stdout and waits for the
+  terminal's reply on stdin (ratatui-image's `Picker::from_query_stdio`).
+  Runs on a dirty IO scheduler so it doesn't block the BEAM main run
+  queue. Returns the detected protocol and cell pixel size on success, or
+  `{:error, reason}` if the terminal didn't respond, isn't a TTY, or the
+  probe timed out.
+
+  Use this when you want to decide your own fallback policy. Most apps
+  should call `auto_local_protocol/1` instead, which caches the result
+  on a terminal reference so `protocol: :auto` images render with the
+  detected protocol automatically.
+  """
+  @spec probe_terminal() :: {:ok, probe_result()} | {:error, term()}
+  def probe_terminal do
+    probe_with(&Native.image_probe_terminal/0)
+  end
+
+  @doc false
+  # Test seam — accepts any 0-arity function that returns the same shape
+  # the NIF does (`{protocol_atom, {w, h}}` on success or `{:error, _}`
+  # on failure). Production callers should use `probe_terminal/0`.
+  @spec probe_with((-> term())) :: {:ok, probe_result()} | {:error, term()}
+  def probe_with(probe_fn) when is_function(probe_fn, 0) do
+    case probe_fn.() do
+      {protocol, {w, h}} when is_atom(protocol) and is_integer(w) and is_integer(h) ->
+        {:ok, %{protocol: protocol, font_size: {w, h}}}
+
+      {:error, _reason} = err ->
+        err
+    end
+  end
+
+  @doc """
+  Probes the local terminal and caches the result on `terminal_ref`.
+
+  When the probe succeeds, the cached protocol and font size are used for
+  every `protocol: :auto` image rendered through `terminal_ref` — Kitty
+  on a Kitty terminal, halfblocks on a basic terminal, etc. When it
+  fails (no TTY, no response), the cache stays empty and `:auto` images
+  fall back to halfblocks. Either way this is a one-shot opt-in: call it
+  once at app start, typically right after acquiring the terminal
+  reference.
+
+      ExRatatui.run(fn terminal ->
+        ExRatatui.Image.auto_local_protocol(terminal)
+        # ...
+      end)
+
+  Returns `:ok` on success, `{:error, reason}` if the probe failed (the
+  cache is untouched in that case). Per-image explicit protocol choices
+  at `ExRatatui.Image.new/2` are always honored regardless of the probe.
+  """
+  @spec auto_local_protocol(reference()) :: :ok | {:error, term()}
+  def auto_local_protocol(terminal_ref) when is_reference(terminal_ref) do
+    auto_local_protocol_with(terminal_ref, &Native.image_probe_terminal/0)
+  end
+
+  @doc false
+  # Test seam mirroring `probe_with/1`.
+  @spec auto_local_protocol_with(reference(), (-> term())) :: :ok | {:error, term()}
+  def auto_local_protocol_with(terminal_ref, probe_fn)
+      when is_reference(terminal_ref) and is_function(probe_fn, 0) do
+    case probe_with(probe_fn) do
+      {:ok, %{protocol: protocol, font_size: {w, h}}} ->
+        Native.terminal_set_local_probe(terminal_ref, protocol, {w, h})
+        :ok
+
+      {:error, _} = err ->
+        err
+    end
+  end
 end

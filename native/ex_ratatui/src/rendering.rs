@@ -65,12 +65,24 @@ pub(crate) struct RenderCommand {
 #[rustler::nif(schedule = "DirtyIo")]
 fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result<Atom, Error> {
     let render_commands = decode_render_commands(commands)?;
-    // Until chunk 7 introduces a cached `Picker::from_query_stdio` probe,
-    // the local terminal behaves like a raw byte stream. A user hint set
-    // via `terminal_set_image_protocol/2` (used by Distributed.attach and
-    // the public `ExRatatui.set_image_protocol/2`) flows in here.
-    let hint = resource.image_protocol.lock().map(|g| *g).unwrap_or(None);
-    let caps = TransportCaps::RawTerminal { hint };
+    // Prefer the cached `image_probe_terminal` result if the caller ran
+    // it via `terminal_set_local_probe/3` — that lets `:auto` per image
+    // resolve to the real detected protocol AND picks up the correct
+    // font size for Kitty / Sixel / iTerm2 scaling. Otherwise fall back
+    // to the `image_protocol` hint (set by Distributed.attach or
+    // `ExRatatui.set_image_protocol/2`), and if neither is set behave
+    // like an un-hinted raw terminal where `:auto` → halfblocks.
+    let probe = resource.local_probe.lock().map(|g| *g).unwrap_or(None);
+    let caps = match probe {
+        Some((picker_protocol, font_size)) => TransportCaps::Local {
+            picker_protocol,
+            font_size,
+        },
+        None => {
+            let hint = resource.image_protocol.lock().map(|g| *g).unwrap_or(None);
+            TransportCaps::RawTerminal { hint }
+        }
+    };
 
     with_terminal_draw(&resource, |frame| {
         for cmd in &render_commands {

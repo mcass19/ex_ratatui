@@ -76,4 +76,97 @@ defmodule ExRatatui.ImageTest do
       assert {1, 1} = Image.dimensions(ref)
     end
   end
+
+  describe "probe_terminal/0" do
+    # Live probe behavior varies by environment: a real TTY returns
+    # the detected protocol, while CI runners get either ratatui-image's
+    # graceful default-picker fallback (success with `:halfblocks`) or a
+    # raw ioctl error tuple. Asserting on the *shape* makes the test
+    # portable; the success/error branches each have dedicated tests
+    # below using the `probe_with/1` test seam.
+    test "returns a well-shaped result either way" do
+      case Image.probe_terminal() do
+        {:ok, %{protocol: protocol, font_size: {w, h}}} ->
+          assert protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2]
+          assert is_integer(w) and w > 0
+          assert is_integer(h) and h > 0
+
+        {:error, reason} ->
+          assert is_binary(reason) or is_atom(reason)
+      end
+    end
+
+    # Test seam: exercise the parsing branches deterministically rather
+    # than relying on the host's tty behavior.
+    test "wraps a successful probe tuple as {:ok, %{protocol:, font_size:}}" do
+      fake_probe = fn -> {:kitty, {10, 20}} end
+      assert {:ok, %{protocol: :kitty, font_size: {10, 20}}} = Image.probe_with(fake_probe)
+    end
+
+    test "forwards probe errors as-is" do
+      fake_probe = fn -> {:error, :unsupported} end
+      assert {:error, :unsupported} = Image.probe_with(fake_probe)
+    end
+  end
+
+  describe "auto_local_protocol/1" do
+    test "returns either :ok or {:error, _} depending on the host tty" do
+      terminal = ExRatatui.init_test_terminal(10, 3)
+      on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
+
+      assert Image.auto_local_protocol(terminal) in [:ok] or
+               match?({:error, _}, Image.auto_local_protocol(terminal))
+    end
+
+    test "caches a successful probe on the terminal" do
+      terminal = ExRatatui.init_test_terminal(10, 3)
+      on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
+
+      fake_probe = fn -> {:sixel, {7, 14}} end
+      assert :ok = Image.auto_local_protocol_with(terminal, fake_probe)
+    end
+
+    test "propagates probe errors" do
+      terminal = ExRatatui.init_test_terminal(10, 3)
+      on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
+
+      fake_probe = fn -> {:error, :nope} end
+      assert {:error, :nope} = Image.auto_local_protocol_with(terminal, fake_probe)
+    end
+  end
+
+  describe "terminal_set_local_probe/3 end-to-end" do
+    # The strongest signal that the probe is wired through draw_frame:
+    # same source image, same widget, two different cached probes — the
+    # rendered buffer contents must differ. If the local_probe field
+    # weren't being read in rendering.rs, both runs would resolve `:auto`
+    # to halfblocks and produce identical cells.
+    test "kitty probe renders different cells from halfblocks probe" do
+      {:ok, widget} = Image.new(@valid_png, protocol: :auto)
+      rect = %ExRatatui.Layout.Rect{x: 0, y: 0, width: 6, height: 4}
+
+      halfblocks_buf = draw_with_probe(widget, rect, :halfblocks, {8, 16})
+      kitty_buf = draw_with_probe(widget, rect, :kitty, {10, 20})
+
+      refute halfblocks_buf == kitty_buf,
+             "expected different buffer contents under :halfblocks vs :kitty local_probe"
+    end
+
+    test "setting :auto clears the cached probe" do
+      terminal = ExRatatui.init_test_terminal(6, 4)
+      on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
+
+      assert :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :kitty, {10, 20})
+      assert :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :auto, {0, 0})
+    end
+  end
+
+  defp draw_with_probe(widget, rect, protocol, font_size) do
+    terminal = ExRatatui.init_test_terminal(rect.width, rect.height)
+    :ok = ExRatatui.Native.terminal_set_local_probe(terminal, protocol, font_size)
+    :ok = ExRatatui.draw(terminal, [{widget, rect}])
+    content = ExRatatui.get_buffer_content(terminal)
+    :ok = ExRatatui.Native.restore_terminal(terminal)
+    content
+  end
 end

@@ -28,6 +28,12 @@ pub struct TerminalResource {
     // when `:auto` is requested; falls back to halfblocks when None.
     // Read by `draw_frame` (in `rendering.rs`).
     pub image_protocol: Mutex<Option<crate::image::ProtocolKind>>,
+    // Set via `terminal_set_local_probe/3` after running the
+    // `image_probe_terminal/0` NIF. When `Some(_)`, `draw_frame` uses
+    // `TransportCaps::Local { picker_protocol, font_size }` so `:auto`
+    // images render with the detected protocol AND correct font size for
+    // Kitty / Sixel / iTerm2 scaling.
+    pub local_probe: Mutex<Option<(crate::image::ProtocolKind, (u16, u16))>>,
 }
 
 #[rustler::resource_impl]
@@ -94,6 +100,7 @@ fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
         terminal: Mutex::new(Some(AnyTerminal::Crossterm(terminal))),
         is_crossterm: true,
         image_protocol: Mutex::new(None),
+        local_probe: Mutex::new(None),
     }))
 }
 
@@ -136,6 +143,7 @@ fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalRes
         terminal: Mutex::new(Some(AnyTerminal::Test(terminal))),
         is_crossterm: false,
         image_protocol: Mutex::new(None),
+        local_probe: Mutex::new(None),
     }))
 }
 
@@ -153,6 +161,25 @@ fn terminal_set_image_protocol(
     *guard = match kind {
         crate::image::ProtocolKind::Auto => None,
         explicit => Some(explicit),
+    };
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn terminal_set_local_probe(
+    resource: ResourceArc<TerminalResource>,
+    protocol: crate::image::ProtocolKind,
+    font_size: (u16, u16),
+) -> Result<Atom, Error> {
+    let mut guard = resource
+        .local_probe
+        .lock()
+        .map_err(|_| Error::Term(Box::new("terminal local_probe lock poisoned")))?;
+    // `:auto` clears the cached probe — the render path will then fall
+    // back to the `image_protocol` hint (if any) or halfblocks.
+    *guard = match protocol {
+        crate::image::ProtocolKind::Auto => None,
+        kind => Some((kind, font_size)),
     };
     Ok(atoms::ok())
 }

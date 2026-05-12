@@ -45,13 +45,13 @@ pub struct ImageOpts {
 /// `Picker::from_query_stdio` probe in chunk 7. `RawTerminal` is what
 /// `SSH`/`Distributed` use, carrying an optional hint from a session-level
 /// opt. For chunk 3 the render path uses the conservative
-/// `RawTerminal { hint: None }` default — chunk 5 wires the real caps in.
+/// `RawTerminal { hint }` is the default for byte-stream transports
+/// (SSH / Distributed / custom). `Local` is set by the local terminal
+/// once `image_probe_terminal/0` has cached a `Picker::from_query_stdio`
+/// result via `terminal_set_local_probe/3`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransportCaps {
     CellOnly,
-    // Populated by the local terminal session in chunk 7 once we cache
-    // the `Picker::from_query_stdio` probe result.
-    #[allow(dead_code)]
     Local {
         picker_protocol: ProtocolKind,
         font_size: (u16, u16),
@@ -94,6 +94,15 @@ fn to_protocol_type(kind: ProtocolKind) -> ProtocolType {
         ProtocolKind::Kitty => ProtocolType::Kitty,
         ProtocolKind::Sixel => ProtocolType::Sixel,
         ProtocolKind::Iterm2 => ProtocolType::Iterm2,
+    }
+}
+
+pub fn from_protocol_type(t: ProtocolType) -> ProtocolKind {
+    match t {
+        ProtocolType::Halfblocks => ProtocolKind::Halfblocks,
+        ProtocolType::Kitty => ProtocolKind::Kitty,
+        ProtocolType::Sixel => ProtocolKind::Sixel,
+        ProtocolType::Iterm2 => ProtocolKind::Iterm2,
     }
 }
 
@@ -211,6 +220,24 @@ fn image_dimensions(resource: ResourceArc<ImageResource>) -> Result<(u32, u32), 
         .lock()
         .map_err(|_| Error::Term(Box::new("image lock poisoned")))?;
     Ok((state.source.width(), state.source.height()))
+}
+
+/// Queries the local terminal for image-protocol capabilities and font
+/// size via `Picker::from_query_stdio()`. Runs on a dirty IO scheduler
+/// because it writes a query escape sequence to stdout and waits for the
+/// terminal's response on stdin. Returns the detected protocol and
+/// `{width, height}` cell pixel size on success, or an error tuple when
+/// the probe couldn't complete (no TTY, no response, etc.).
+///
+/// Callers can pipe the result into `terminal_set_local_probe/3` to make
+/// `protocol: :auto` images render using the detected protocol.
+#[rustler::nif(schedule = "DirtyIo")]
+fn image_probe_terminal() -> Result<(ProtocolKind, (u16, u16)), Error> {
+    let picker = Picker::from_query_stdio()
+        .map_err(|e| Error::Term(Box::new(format!("probe failed: {e:?}"))))?;
+    let proto = from_protocol_type(picker.protocol_type());
+    let fs = picker.font_size();
+    Ok((proto, (fs.width, fs.height)))
 }
 
 #[cfg(test)]
