@@ -17,6 +17,8 @@ ratatui-textarea = "0.9"
 tui-markdown = "0.3"
 unicode-width = "0.2"
 vte = "0.15"
+ratatui-image = { version = "11.0.2", default-features = false, features = ["crossterm"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 
 [features]
 default = ["nif_version_2_16"]
