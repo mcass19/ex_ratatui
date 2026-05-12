@@ -41,6 +41,7 @@ use ratatui::Terminal;
 use rustler::{Atom, Binary, Encoder, Env, Error, ResourceArc, Term};
 
 use crate::events::NifEvent;
+use crate::image::TransportCaps;
 use crate::rendering::{decode_render_commands, render_widget_data, RenderCommand};
 use crate::session_input::InputParser;
 use crate::style::{encode_color, encode_modifiers};
@@ -153,7 +154,16 @@ impl CellSessionResource {
         terminal
             .draw(|frame| {
                 for command in &commands {
-                    render_widget_data(frame.buffer_mut(), &command.widget, command.area);
+                    // CellSession only emits cells — terminal escape sequences
+                    // (Kitty / Sixel / iTerm2) cannot survive cell diffing, so
+                    // images are forced down the halfblocks path regardless of
+                    // the user's requested protocol.
+                    render_widget_data(
+                        frame.buffer_mut(),
+                        &command.widget,
+                        command.area,
+                        TransportCaps::CellOnly,
+                    );
                 }
             })
             .map_err(|e| format!("cell session draw: {e}"))?;

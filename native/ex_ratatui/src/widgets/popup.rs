@@ -2,6 +2,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Clear, Widget};
 
+use crate::image::TransportCaps;
 use crate::rendering::{render_widget_data, WidgetData};
 use crate::widgets::block::BlockData;
 
@@ -28,7 +29,7 @@ fn centered_rect(area: Rect, data: &PopupData) -> Rect {
     Rect::new(x, y, width, height)
 }
 
-pub fn render(buf: &mut Buffer, data: &PopupData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &PopupData, area: Rect, caps: TransportCaps) {
     let popup_area = centered_rect(area, data);
 
     // Clear the background under the popup
@@ -45,7 +46,7 @@ pub fn render(buf: &mut Buffer, data: &PopupData, area: Rect) {
     };
 
     // Render the inner content widget
-    render_widget_data(buf, &data.content, content_area);
+    render_widget_data(buf, &data.content, content_area, caps);
 }
 
 #[cfg(test)]
@@ -191,7 +192,12 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 40, 10),
+                    TransportCaps::RawTerminal { hint: None },
+                );
             })
             .unwrap();
 
@@ -219,7 +225,12 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 40, 10),
+                    TransportCaps::RawTerminal { hint: None },
+                );
             })
             .unwrap();
 
@@ -251,7 +262,12 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                render(frame.buffer_mut(), &data, Rect::new(0, 0, 40, 10));
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 40, 10),
+                    TransportCaps::RawTerminal { hint: None },
+                );
             })
             .unwrap();
 

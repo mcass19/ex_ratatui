@@ -24,6 +24,7 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 use rustler::{Atom, Binary, Env, Error, OwnedBinary, Resource, ResourceArc, Term};
 
 use crate::events::NifEvent;
+use crate::image::TransportCaps;
 use crate::rendering::{decode_render_commands, render_widget_data, RenderCommand};
 use crate::session_input::InputParser;
 
@@ -167,10 +168,17 @@ impl SessionResource {
             .as_mut()
             .ok_or_else(|| "session is closed".to_string())?;
 
+        // Byte-stream session (SSH / Distributed / custom transport): the
+        // client terminal's protocol capabilities aren't probed here. Chunk
+        // 6 introduces a `:image_protocol` session opt that surfaces a
+        // user-provided hint; for now, leave `hint: None` so `:auto`
+        // resolves to halfblocks and explicit choices are honored.
+        let caps = TransportCaps::RawTerminal { hint: None };
+
         terminal
             .draw(|frame| {
                 for command in &commands {
-                    render_widget_data(frame.buffer_mut(), &command.widget, command.area);
+                    render_widget_data(frame.buffer_mut(), &command.widget, command.area, caps);
                 }
             })
             .map_err(|e| format!("session draw: {e}"))?;

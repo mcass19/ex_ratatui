@@ -6,7 +6,7 @@ use crate::decode::{
     decode_map, decode_optional, decode_required, error_message, invalid_field, optional_term,
     TermMap,
 };
-use crate::image::{self, ImageRenderData, ImageResource};
+use crate::image::{self, ImageRenderData, ImageResource, TransportCaps};
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
@@ -65,10 +65,14 @@ pub(crate) struct RenderCommand {
 #[rustler::nif(schedule = "DirtyIo")]
 fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result<Atom, Error> {
     let render_commands = decode_render_commands(commands)?;
+    // Local terminal: until chunk 7 caches a probed Picker, behave like an
+    // un-hinted raw terminal — explicit protocol opts are honored and
+    // `:auto` resolves to halfblocks.
+    let caps = TransportCaps::RawTerminal { hint: None };
 
     with_terminal_draw(&resource, |frame| {
         for cmd in &render_commands {
-            render_widget(frame, cmd);
+            render_widget(frame, cmd, caps);
         }
     })
 }
@@ -1249,11 +1253,11 @@ pub fn decode_rect(term: Term) -> Result<Rect, Error> {
     })
 }
 
-fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand) {
-    render_widget_data(frame.buffer_mut(), &cmd.widget, cmd.area);
+fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand, caps: TransportCaps) {
+    render_widget_data(frame.buffer_mut(), &cmd.widget, cmd.area, caps);
 }
 
-pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
+pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, caps: TransportCaps) {
     match widget {
         WidgetData::Paragraph(data) => paragraph::render(buf, data, area),
         WidgetData::Block(data) => block::render(buf, data, area),
@@ -1273,9 +1277,9 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect) {
         WidgetData::Throbber(data) => throbber::render(buf, data, area),
         WidgetData::Markdown(data) => markdown::render(buf, data, area),
         WidgetData::Textarea(data) => textarea::render(buf, data, area),
-        WidgetData::Popup(data) => popup::render(buf, data, area),
-        WidgetData::WidgetList(data) => widget_list::render(buf, data, area),
-        WidgetData::Image(data) => image::render(buf, data, area),
+        WidgetData::Popup(data) => popup::render(buf, data, area, caps),
+        WidgetData::WidgetList(data) => widget_list::render(buf, data, area, caps),
+        WidgetData::Image(data) => image::render(buf, data, area, caps),
         WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }

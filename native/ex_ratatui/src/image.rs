@@ -48,10 +48,8 @@ pub struct ImageOpts {
 /// `RawTerminal { hint: None }` default — chunk 5 wires the real caps in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransportCaps {
-    // Constructed by CellSession-style transports in chunk 5.
-    #[allow(dead_code)]
     CellOnly,
-    // Constructed by the local terminal session in chunk 7 once we cache
+    // Populated by the local terminal session in chunk 7 once we cache
     // the `Picker::from_query_stdio` probe result.
     #[allow(dead_code)]
     Local {
@@ -131,20 +129,12 @@ pub struct ImageRenderData {
     pub resource: ResourceArc<ImageResource>,
 }
 
-pub fn render(buf: &mut Buffer, data: &ImageRenderData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &ImageRenderData, area: Rect, caps: TransportCaps) {
     let mut state = match data.resource.state.lock() {
         Ok(s) => s,
         Err(_) => return,
     };
-    // Chunk 5 will thread real `TransportCaps` through the render command;
-    // until then we assume `RawTerminal { hint: None }` which honors any
-    // explicit protocol the user set and resolves `:auto` to halfblocks.
-    render_state(
-        buf,
-        &mut state,
-        area,
-        TransportCaps::RawTerminal { hint: None },
-    );
+    render_state(buf, &mut state, area, caps);
 }
 
 pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: TransportCaps) {

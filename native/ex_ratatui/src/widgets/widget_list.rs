@@ -3,6 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Widget;
 
+use crate::image::TransportCaps;
 use crate::rendering::{render_widget_data, WidgetData};
 use crate::widgets::block::BlockData;
 
@@ -20,7 +21,7 @@ pub struct WidgetListData {
     pub style: Style,
 }
 
-pub fn render(buf: &mut Buffer, data: &WidgetListData, area: Rect) {
+pub fn render(buf: &mut Buffer, data: &WidgetListData, area: Rect, caps: TransportCaps) {
     // Render block and get inner area
     let inner_area = if let Some(ref block_data) = data.block {
         let block = block_data.to_block();
@@ -74,10 +75,10 @@ pub fn render(buf: &mut Buffer, data: &WidgetListData, area: Rect) {
             let full = Rect::new(0, 0, inner_area.width, item.height);
             let mut tmp = Buffer::empty(full);
             tmp.set_style(full, data.style);
-            render_widget_data(&mut tmp, &item.widget, full);
+            render_widget_data(&mut tmp, &item.widget, full, caps);
             blit_rows(&tmp, top_clip, buf, dst);
         } else {
-            render_widget_data(buf, &item.widget, dst);
+            render_widget_data(buf, &item.widget, dst, caps);
         }
     }
 }
@@ -130,7 +131,14 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 5),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line = buffer_line(&terminal, 0, 30);
@@ -165,7 +173,14 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 5),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -200,7 +215,14 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -221,7 +243,14 @@ mod tests {
 
         data.scroll_offset = 1;
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -242,7 +271,14 @@ mod tests {
 
         data.scroll_offset = 2;
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -263,7 +299,14 @@ mod tests {
 
         data.scroll_offset = 3;
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -281,7 +324,14 @@ mod tests {
 
         data.scroll_offset = 4;
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -296,7 +346,14 @@ mod tests {
 
         data.scroll_offset = 5;
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 3),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
 
         let line0 = buffer_line(&terminal, 0, 30);
@@ -322,7 +379,14 @@ mod tests {
         };
 
         terminal
-            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 5)))
+            .draw(|frame| {
+                render(
+                    frame.buffer_mut(),
+                    &data,
+                    Rect::new(0, 0, 30, 5),
+                    TransportCaps::RawTerminal { hint: None },
+                )
+            })
             .unwrap();
         // Should not panic
     }
