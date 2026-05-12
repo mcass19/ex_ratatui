@@ -29,11 +29,11 @@ defmodule ExRatatui.Server.ProbeImageProtocolTest do
     end
 
     test "soft-runs the probe when the opt is true and test_mode is nil" do
-      # Use a real test terminal so auto_local_protocol/1 has a valid
-      # ResourceArc to operate on. The probe itself will either succeed
-      # (probe returns the default halfblocks picker in some headless
-      # environments) or fail with an IO error — both branches result
-      # in `:ok` from this wrapper.
+      # The Application-configured probe fake (`test_helper.exs`) makes
+      # this fire the wrapper without touching real stdio; the wrapper
+      # always returns `:ok` regardless of whether the inner probe
+      # succeeded or failed (errors are swallowed by design — the cache
+      # just stays empty).
       terminal = ExRatatui.init_test_terminal(20, 5)
       on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
 

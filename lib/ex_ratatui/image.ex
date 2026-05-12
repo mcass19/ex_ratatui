@@ -179,7 +179,15 @@ defmodule ExRatatui.Image do
   """
   @spec probe_terminal() :: {:ok, probe_result()} | {:error, term()}
   def probe_terminal do
-    probe_with(&Native.image_probe_terminal/0)
+    probe_with(probe_fn())
+  end
+
+  # Production callers get the live NIF probe. Test environments override
+  # this via `config :ex_ratatui, :image_probe_fn, fn -> ... end` (see
+  # `test/test_helper.exs`) so unit tests don't queue up on the
+  # 2-second `Picker::from_query_stdio` timeout fighting for stdin.
+  defp probe_fn do
+    Application.get_env(:ex_ratatui, :image_probe_fn, &Native.image_probe_terminal/0)
   end
 
   @doc false
@@ -219,7 +227,7 @@ defmodule ExRatatui.Image do
   """
   @spec auto_local_protocol(reference()) :: :ok | {:error, term()}
   def auto_local_protocol(terminal_ref) when is_reference(terminal_ref) do
-    auto_local_protocol_with(terminal_ref, &Native.image_probe_terminal/0)
+    auto_local_protocol_with(terminal_ref, probe_fn())
   end
 
   @doc false

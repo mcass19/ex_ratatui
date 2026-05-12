@@ -63,10 +63,12 @@ end
 bytes = HeadlessImage.load_bytes()
 {:ok, image} = Image.new(bytes, resize: :fit)
 
-# 40 columns × 20 rows leaves enough vertical resolution for halfblocks
-# to give a recognizable preview of the source image.
-session = CellSession.new(40, 20)
-:ok = CellSession.draw(session, [{image, %Rect{x: 0, y: 0, width: 40, height: 20}}])
+# 80×40 cells × halfblocks → 80×80 image-pixels of effective output
+# resolution, which is the practical ceiling for what halfblocks can
+# convey from a 200×100 source. Smaller grids look more obviously
+# blocky; larger ones run off the bottom of most terminal windows.
+session = CellSession.new(80, 40)
+:ok = CellSession.draw(session, [{image, %Rect{x: 0, y: 0, width: 80, height: 40}}])
 
 %Snapshot{width: w, cells: cells} = CellSession.take_cells(session)
 :ok = CellSession.close(session)

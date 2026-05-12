@@ -78,26 +78,15 @@ defmodule ExRatatui.ImageTest do
   end
 
   describe "probe_terminal/0" do
-    # Live probe behavior varies by environment: a real TTY returns
-    # the detected protocol, while CI runners get either ratatui-image's
-    # graceful default-picker fallback (success with `:halfblocks`) or a
-    # raw ioctl error tuple. Asserting on the *shape* makes the test
-    # portable; the success/error branches each have dedicated tests
-    # below using the `probe_with/1` test seam.
-    test "returns a well-shaped result either way" do
-      case Image.probe_terminal() do
-        {:ok, %{protocol: protocol, font_size: {w, h}}} ->
-          assert protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2]
-          assert is_integer(w) and w > 0
-          assert is_integer(h) and h > 0
-
-        {:error, reason} ->
-          assert is_binary(reason) or is_atom(reason)
-      end
+    # The live NIF probe (Picker::from_query_stdio) writes to stdout
+    # and waits up to 2s for the terminal's reply on stdin. Tests
+    # default to a fast `:error` fake via test_helper.exs so we don't
+    # queue dirty-IO scheduler threads. Branch behavior is covered
+    # exhaustively through the `probe_with/1` test seam below.
+    test "honors the Application config override" do
+      assert {:error, :no_probe_in_tests} = Image.probe_terminal()
     end
 
-    # Test seam: exercise the parsing branches deterministically rather
-    # than relying on the host's tty behavior.
     test "wraps a successful probe tuple as {:ok, %{protocol:, font_size:}}" do
       fake_probe = fn -> {:kitty, {10, 20}} end
       assert {:ok, %{protocol: :kitty, font_size: {10, 20}}} = Image.probe_with(fake_probe)
@@ -110,12 +99,11 @@ defmodule ExRatatui.ImageTest do
   end
 
   describe "auto_local_protocol/1" do
-    test "returns either :ok or {:error, _} depending on the host tty" do
+    test "honors the Application config override and soft-fails" do
       terminal = ExRatatui.init_test_terminal(10, 3)
       on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
 
-      assert Image.auto_local_protocol(terminal) in [:ok] or
-               match?({:error, _}, Image.auto_local_protocol(terminal))
+      assert {:error, :no_probe_in_tests} = Image.auto_local_protocol(terminal)
     end
 
     test "caches a successful probe on the terminal" do
