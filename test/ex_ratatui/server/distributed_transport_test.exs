@@ -72,18 +72,27 @@ defmodule ExRatatui.Server.DistributedTransportTest do
   # An Echo variant that renders a TextInput + Textarea so the "stateful
   # widgets are snapshot before distribution" test can verify the server
   # snapshots NIF references into plain tuples.
+  # 67-byte smallest-valid PNG used by the stateful-widgets snapshot test
+  # so an Image alongside TextInput/Textarea also exercises the snapshot
+  # path in Server.snapshot_stateful_widgets.
+  @valid_png Base.decode64!(
+               "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+             )
+
   defmodule DistStatefulApp do
     use ExRatatui.App
 
     @impl true
     def mount(opts) do
       test_pid = Keyword.fetch!(opts, :test_pid)
+      png = Keyword.fetch!(opts, :valid_png)
       ti_state = ExRatatui.text_input_new()
       ExRatatui.text_input_set_value(ti_state, "hello")
       ta_state = ExRatatui.textarea_new()
       ExRatatui.textarea_set_value(ta_state, "line1\nline2")
+      {:ok, image} = ExRatatui.Image.new(png, protocol: :halfblocks, resize: :fit)
       send(test_pid, {:mounted, opts})
-      {:ok, %{test_pid: test_pid, ti: ti_state, ta: ta_state}}
+      {:ok, %{test_pid: test_pid, ti: ti_state, ta: ta_state, image: image}}
     end
 
     @impl true
@@ -94,7 +103,8 @@ defmodule ExRatatui.Server.DistributedTransportTest do
         {%ExRatatui.Widgets.TextInput{state: state.ti},
          %Rect{x: 0, y: 0, width: frame.width, height: 1}},
         {%ExRatatui.Widgets.Textarea{state: state.ta},
-         %Rect{x: 0, y: 1, width: frame.width, height: frame.height - 1}}
+         %Rect{x: 0, y: 1, width: frame.width, height: frame.height - 2}},
+        {state.image, %Rect{x: 0, y: frame.height - 1, width: frame.width, height: 1}}
       ]
     end
 
@@ -370,6 +380,7 @@ defmodule ExRatatui.Server.DistributedTransportTest do
           mod: DistStatefulApp,
           name: nil,
           test_pid: self(),
+          valid_png: @valid_png,
           transport: {:distributed_server, self(), 40, 10}
         )
 
@@ -377,12 +388,23 @@ defmodule ExRatatui.Server.DistributedTransportTest do
       assert_receive :rendered, 1000
       assert_receive {:ex_ratatui_draw, widgets}, 1000
 
-      # TextInput state must be a snapshot tuple, not a NIF reference.
+      # Each stateful widget's `state` must be a plain tuple (snapshot),
+      # never a NIF reference — references can't cross node boundaries.
       [
         {%ExRatatui.Widgets.TextInput{state: ti_state}, _},
-        {%ExRatatui.Widgets.Textarea{state: ta_state}, _}
+        {%ExRatatui.Widgets.Textarea{state: ta_state}, _},
+        {%ExRatatui.Widgets.Image{state: img_state}, _}
       ] =
         widgets
+
+      assert is_tuple(img_state), "expected Image state to be a snapshot tuple"
+      refute is_reference(img_state)
+      assert {bytes, protocol, resize, background} = img_state
+      assert is_binary(bytes)
+      assert byte_size(bytes) == byte_size(@valid_png)
+      assert protocol == :halfblocks
+      assert resize == :fit
+      assert background == nil
 
       assert is_tuple(ti_state), "expected TextInput state to be a snapshot tuple"
       refute is_reference(ti_state)

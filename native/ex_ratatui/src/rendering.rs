@@ -6,7 +6,7 @@ use crate::decode::{
     decode_map, decode_optional, decode_required, error_message, invalid_field, optional_term,
     TermMap,
 };
-use crate::image::{self, ImageRenderData, ImageResource, TransportCaps};
+use crate::image::{self, ImageRenderData, ImageResource, ImageState, TransportCaps};
 use crate::layout::decode_constraint;
 use crate::style::decode_style;
 use crate::terminal::{with_terminal_draw, TerminalResource};
@@ -859,12 +859,65 @@ fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
     })
 }
 
+/// Decodes the `:state` field for an Image widget.
+///
+/// Accepts either a `ResourceArc<ImageResource>` (the fast path used for
+/// local / SSH / CellSession renders where the resource lives on the
+/// same node as the renderer) or a snapshot tuple
+/// `{bytes, protocol_atom, resize_atom, background_or_nil}` produced by
+/// `image_snapshot/1` (used by the distributed transport where NIF refs
+/// can't cross node boundaries). The snapshot path re-decodes the bytes
+/// into a fresh `ImageResource` so the rest of the render pipeline
+/// stays uniform.
 fn decode_image(map: &TermMap<'_>) -> Result<ImageRenderData, Error> {
     let state_term = optional_term(map, "state")
         .ok_or_else(|| crate::decode::missing_field("image", "state"))?;
-    let resource = state_term
-        .decode::<ResourceArc<ImageResource>>()
-        .map_err(|_| invalid_field("image", "state", "expected an ImageResource reference"))?;
+
+    // Fast path: local ResourceArc.
+    if let Ok(resource) = state_term.decode::<ResourceArc<ImageResource>>() {
+        return Ok(ImageRenderData { resource });
+    }
+
+    // Distributed snapshot: {bytes, protocol, resize, background}.
+    let snapshot = state_term
+        .decode::<(
+            rustler::Binary<'_>,
+            image::ProtocolKind,
+            image::ResizeKind,
+            Option<(u8, u8, u8)>,
+        )>()
+        .map_err(|_| {
+            invalid_field(
+                "image",
+                "state",
+                "expected an ImageResource reference or a {bytes, protocol, resize, background} snapshot tuple",
+            )
+        })?;
+
+    let (bytes, protocol, resize, background) = snapshot;
+    let raw = bytes.as_slice();
+    // `::image::` so the compiler picks the external `image` crate
+    // rather than our `crate::image` module (which is in scope as
+    // `image::` via `use crate::image::{self, ...}`).
+    let source = ::image::load_from_memory(raw).map_err(|e| {
+        invalid_field(
+            "image",
+            "state",
+            &format!("snapshot bytes failed to decode: {e}"),
+        )
+    })?;
+
+    let resource = ResourceArc::new(ImageResource {
+        state: std::sync::Mutex::new(ImageState {
+            source,
+            source_bytes: raw.to_vec(),
+            requested_protocol: protocol,
+            resize,
+            background,
+            cache: None,
+        }),
+    });
+
     Ok(ImageRenderData { resource })
 }
 

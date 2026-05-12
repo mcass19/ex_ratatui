@@ -68,6 +68,11 @@ defmodule ExRatatui.Distributed do
       fallback), `:kitty`, `:sixel`, `:iterm2`, or `:auto` (clears the
       hint). Drives how `protocol: :auto` images are rendered. Explicit
       protocol picks at `ExRatatui.Image.new/2` are always honored.
+    * `:image_font_size` — `{cell_width_px, cell_height_px}` for the
+      local terminal. When set alongside `:image_protocol`, the render
+      path uses the supplied dimensions for Kitty / Sixel / iTerm2
+      scaling instead of ratatui-image's `(8, 16)` default. Pass values
+      that match your terminal (typically `(10, 20)` for Kitty/Ghostty).
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """
@@ -135,7 +140,13 @@ defmodule ExRatatui.Distributed do
   @doc false
   def start_local_client(opts) do
     client_opts =
-      Keyword.take(opts, [:poll_interval, :test_mode, :init_terminal, :image_protocol])
+      Keyword.take(opts, [
+        :poll_interval,
+        :test_mode,
+        :init_terminal,
+        :image_protocol,
+        :image_font_size
+      ])
 
     Client.start_link(client_opts)
   end

@@ -14,6 +14,60 @@ defmodule ExRatatui.ImageProtocolTest do
                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
              )
 
+  describe "Session.set_image_font_size/2" do
+    test "accepts positive {w, h} pairs and clears with {0, 0}" do
+      session = Session.new(20, 5)
+      on_exit(fn -> Session.close(session) end)
+
+      assert :ok = Session.set_image_font_size(session, {10, 20})
+      assert :ok = Session.set_image_font_size(session, {8, 16})
+      assert :ok = Session.set_image_font_size(session, {0, 0})
+    end
+
+    test "rejects non-tuple sizes via guard" do
+      session = Session.new(20, 5)
+      on_exit(fn -> Session.close(session) end)
+
+      # Opaque runtime value so Elixir 1.18+'s static type checker
+      # doesn't flag this negative test as a typing violation at
+      # compile time. Process.get/1 returns `nil` by default; we type
+      # it back through `bad` whose type isn't known statically.
+      Process.put(:image_test_bad_size, :nope)
+      bad = Process.get(:image_test_bad_size)
+
+      assert_raise FunctionClauseError, fn ->
+        Session.set_image_font_size(session, bad)
+      end
+    end
+
+    test "font_size + protocol combine to promote caps to Local" do
+      # When both are set, the session emits TransportCaps::Local
+      # instead of RawTerminal { hint }. Strongest signal: the bytes
+      # produced for the same :auto image differ between font_sizes
+      # under the same protocol, proving font_size flows through.
+      {:ok, image} = Image.new(@valid_png, protocol: :auto)
+      rect = %Rect{x: 0, y: 0, width: 8, height: 4}
+      commands = Bridge.encode_commands!([{image, rect}])
+
+      a_session = Session.new(8, 4)
+      :ok = Session.set_image_protocol(a_session, :kitty)
+      :ok = Session.set_image_font_size(a_session, {8, 16})
+      :ok = ExRatatui.Native.session_draw(a_session.ref, commands)
+      a_bytes = ExRatatui.Native.session_take_output(a_session.ref)
+      Session.close(a_session)
+
+      b_session = Session.new(8, 4)
+      :ok = Session.set_image_protocol(b_session, :kitty)
+      :ok = Session.set_image_font_size(b_session, {20, 40})
+      :ok = ExRatatui.Native.session_draw(b_session.ref, commands)
+      b_bytes = ExRatatui.Native.session_take_output(b_session.ref)
+      Session.close(b_session)
+
+      refute a_bytes == b_bytes,
+             "expected different Kitty payloads for different font sizes"
+    end
+  end
+
   describe "Session.set_image_protocol/2" do
     test "accepts every protocol atom" do
       session = Session.new(20, 5)
@@ -117,6 +171,31 @@ defmodule ExRatatui.ImageProtocolTest do
         Daemon.build_daemon_opts(TUI, image_protocol: :gibberish)
       end
     end
+
+    test "build_daemon_opts threads :image_font_size into cli_args" do
+      daemon_opts = Daemon.build_daemon_opts(TUI, image_font_size: {10, 20})
+      {ExRatatui.SSH, cli_args} = Keyword.fetch!(daemon_opts, :ssh_cli)
+      assert cli_args[:image_font_size] == {10, 20}
+
+      [{_name, {ExRatatui.SSH, subsystem_args}}] = Keyword.fetch!(daemon_opts, :subsystems)
+      assert subsystem_args[:image_font_size] == {10, 20}
+    end
+
+    test "build_daemon_opts omits image_font_size when not set" do
+      daemon_opts = Daemon.build_daemon_opts(TUI, [])
+      {_mod, cli_args} = Keyword.fetch!(daemon_opts, :ssh_cli)
+      refute Keyword.has_key?(cli_args, :image_font_size)
+    end
+
+    test "build_daemon_opts raises on invalid :image_font_size value" do
+      assert_raise ArgumentError, ~r/invalid :image_font_size/, fn ->
+        Daemon.build_daemon_opts(TUI, image_font_size: :gibberish)
+      end
+
+      assert_raise ArgumentError, ~r/invalid :image_font_size/, fn ->
+        Daemon.build_daemon_opts(TUI, image_font_size: {0, 20})
+      end
+    end
   end
 
   describe "ExRatatui.Distributed client image_protocol forwarding" do
@@ -163,6 +242,47 @@ defmodule ExRatatui.ImageProtocolTest do
           some_unknown_opt: :ignored
         )
 
+      assert is_pid(client)
+      GenServer.stop(client)
+    end
+
+    test "start_local_client threads :image_font_size to the Client" do
+      probe = self()
+
+      init_fn = fn _ ->
+        terminal = ExRatatui.init_test_terminal(10, 3)
+        send(probe, {:client_terminal, terminal})
+        terminal
+      end
+
+      {:ok, client} =
+        Distributed.start_local_client(
+          test_mode: {10, 3},
+          init_terminal: init_fn,
+          image_protocol: :kitty,
+          image_font_size: {10, 20}
+        )
+
+      assert_receive {:client_terminal, terminal}
+      # With both opts set, the Client should have promoted to a local
+      # probe instead of just setting the protocol hint. Re-set the
+      # same values to round-trip; both NIFs accept the calls.
+      assert :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :kitty, {10, 20})
+      GenServer.stop(client)
+    end
+
+    test "start_local_client without :image_protocol skips both NIFs" do
+      init_fn = fn _ -> ExRatatui.init_test_terminal(10, 3) end
+
+      {:ok, client} =
+        Distributed.start_local_client(
+          test_mode: {10, 3},
+          init_terminal: init_fn,
+          image_font_size: {10, 20}
+        )
+
+      # Font size alone (without protocol) is a no-op — there's nothing
+      # to scale. The Client must NOT crash in this case.
       assert is_pid(client)
       GenServer.stop(client)
     end

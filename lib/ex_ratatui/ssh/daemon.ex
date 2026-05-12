@@ -174,6 +174,7 @@ defmodule ExRatatui.SSH.Daemon do
   def build_daemon_opts(mod, opts) do
     app_opts = Keyword.get(opts, :app_opts, [])
     image_protocol = Keyword.get(opts, :image_protocol)
+    image_font_size = Keyword.get(opts, :image_font_size)
 
     # `ssh_cli: {M, Args}` replaces OTP's default shell channel handler
     # with ours, so shell requests flow through
@@ -182,6 +183,7 @@ defmodule ExRatatui.SSH.Daemon do
     cli_args =
       [mod: mod, app_opts: app_opts]
       |> maybe_put_image_protocol(image_protocol)
+      |> maybe_put_image_font_size(image_font_size)
 
     # The subsystem entry is registered under the app module's atom
     # name, so `ssh -s Elixir.MyApp.TUI host` reaches the same channel
@@ -209,6 +211,7 @@ defmodule ExRatatui.SSH.Daemon do
       :daemon_stopper,
       :app_opts,
       :image_protocol,
+      :image_font_size,
       :transport,
       :auto_host_key
     ])
@@ -226,6 +229,18 @@ defmodule ExRatatui.SSH.Daemon do
     raise ArgumentError,
           "ExRatatui.SSH.Daemon: invalid :image_protocol — expected one of " <>
             ":auto, :halfblocks, :kitty, :sixel, :iterm2, got #{inspect(protocol)}"
+  end
+
+  defp maybe_put_image_font_size(args, nil), do: args
+
+  defp maybe_put_image_font_size(args, {w, h})
+       when is_integer(w) and w > 0 and is_integer(h) and h > 0,
+       do: Keyword.put(args, :image_font_size, {w, h})
+
+  defp maybe_put_image_font_size(_args, size) do
+    raise ArgumentError,
+          "ExRatatui.SSH.Daemon: invalid :image_font_size — expected " <>
+            "{width, height} with positive integers, got #{inspect(size)}"
   end
 
   @doc false

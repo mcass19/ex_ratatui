@@ -776,6 +776,9 @@ defmodule ExRatatui.Server do
       {%ExRatatui.Widgets.Textarea{state: ref} = widget, rect} when is_reference(ref) ->
         {%{widget | state: ExRatatui.Native.textarea_snapshot(ref)}, rect}
 
+      {%ExRatatui.Widgets.Image{state: ref} = widget, rect} when is_reference(ref) ->
+        {%{widget | state: ExRatatui.Native.image_snapshot(ref)}, rect}
+
       other ->
         other
     end)

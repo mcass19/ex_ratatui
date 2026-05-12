@@ -7,7 +7,7 @@ use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{FontSize, Resize, ResizeEncodeRender};
 
-use rustler::{Error, NifTaggedEnum, Resource, ResourceArc};
+use rustler::{Env, Error, NifTaggedEnum, OwnedBinary, Resource, ResourceArc};
 
 mod atoms {
     rustler::atoms! {
@@ -116,6 +116,12 @@ fn to_resize(kind: ResizeKind) -> Resize {
 
 pub struct ImageState {
     pub source: DynamicImage,
+    // Original encoded bytes, retained so `image_snapshot/1` can ship
+    // them across a BEAM distribution boundary for re-decoding on the
+    // receiving node. Adds ~PNG-size memory per image (typically much
+    // smaller than the decoded `source` RGB buffer); without this we
+    // couldn't render images over `ExRatatui.Distributed`.
+    pub source_bytes: Vec<u8>,
     pub requested_protocol: ProtocolKind,
     pub resize: ResizeKind,
     pub background: Option<(u8, u8, u8)>,
@@ -197,11 +203,13 @@ fn build_stateful_protocol(
 
 #[rustler::nif]
 fn image_new(bytes: rustler::Binary, opts: ImageOpts) -> Result<ResourceArc<ImageResource>, Error> {
-    let source = image::load_from_memory(bytes.as_slice())
+    let raw = bytes.as_slice();
+    let source = image::load_from_memory(raw)
         .map_err(|e| Error::Term(Box::new((atoms::decode_failed(), format!("{e}")))))?;
 
     let state = ImageState {
         source,
+        source_bytes: raw.to_vec(),
         requested_protocol: opts.protocol,
         resize: opts.resize,
         background: opts.background,
@@ -220,6 +228,46 @@ fn image_dimensions(resource: ResourceArc<ImageResource>) -> Result<(u32, u32), 
         .lock()
         .map_err(|_| Error::Term(Box::new("image lock poisoned")))?;
     Ok((state.source.width(), state.source.height()))
+}
+
+/// Returns the data needed to reconstruct this image on another BEAM
+/// node: a flat tuple `{bytes, protocol_atom, resize_atom, background}`
+/// where `background` is either `nil` or `{r, g, b}`. The receiving
+/// node decodes the bytes into a fresh `ImageResource` via the snapshot
+/// branch of `decode_image`. Used by `ExRatatui.Distributed` — a NIF
+/// resource ref can't cross node boundaries, so the runtime snapshots
+/// stateful widgets before sending the render tree over the wire.
+// Tuple shape returned by `image_snapshot/1` and accepted by the
+// distributed branch of `decode_image`. Aliased so the NIF's return
+// type isn't flagged as "very complex" by clippy.
+pub type ImageSnapshot<'a> = (
+    rustler::Binary<'a>,
+    ProtocolKind,
+    ResizeKind,
+    Option<(u8, u8, u8)>,
+);
+
+#[rustler::nif]
+fn image_snapshot<'a>(
+    env: Env<'a>,
+    resource: ResourceArc<ImageResource>,
+) -> Result<ImageSnapshot<'a>, Error> {
+    let state = resource
+        .state
+        .lock()
+        .map_err(|_| Error::Term(Box::new("image lock poisoned")))?;
+    let mut owned = OwnedBinary::new(state.source_bytes.len()).unwrap_or_else(|| {
+        OwnedBinary::new(0).expect("zero-length OwnedBinary allocation cannot fail")
+    });
+    if !state.source_bytes.is_empty() {
+        owned.as_mut_slice().copy_from_slice(&state.source_bytes);
+    }
+    Ok((
+        rustler::Binary::from_owned(owned, env),
+        state.requested_protocol,
+        state.resize,
+        state.background,
+    ))
 }
 
 /// Queries the local terminal for image-protocol capabilities and font
@@ -338,6 +386,7 @@ mod tests {
         let source = image::load_from_memory(&bytes).unwrap();
         ImageState {
             source,
+            source_bytes: bytes,
             requested_protocol: protocol,
             resize,
             background: None,

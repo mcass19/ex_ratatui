@@ -256,4 +256,28 @@ defmodule ExRatatui.Session do
       when protocol in [:auto, :halfblocks, :kitty, :sixel, :iterm2] do
     Native.session_set_image_protocol(ref, protocol)
   end
+
+  @doc """
+  Sets the client terminal's cell pixel dimensions for image rendering.
+
+  Used together with `set_image_protocol/2` over byte-stream transports
+  (SSH, Distributed) where we can't probe the client. With both set,
+  Kitty / Sixel / iTerm2 encoders get the correct scaling math; without
+  it, the render path falls back to ratatui-image's `(8, 16)` default
+  which mis-scales on most modern terminals (Kitty/Ghostty default near
+  `(10, 20)`).
+
+  Pass `{0, 0}` to clear.
+
+  ## Examples
+
+      iex> session = ExRatatui.Session.new(20, 5)
+      iex> ExRatatui.Session.set_image_font_size(session, {10, 20})
+      :ok
+  """
+  @spec set_image_font_size(t(), {non_neg_integer(), non_neg_integer()}) :: :ok
+  def set_image_font_size(%__MODULE__{ref: ref}, {w, h})
+      when is_integer(w) and w >= 0 and is_integer(h) and h >= 0 do
+    Native.session_set_image_font_size(ref, {w, h})
+  end
 end

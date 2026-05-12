@@ -34,10 +34,59 @@ defmodule ExRatatui.ImageTest do
       end
     end
 
-    test "accepts nil and {r, g, b} backgrounds" do
+    test "accepts every Style.color() shape for :background" do
+      # nil + raw RGB
       assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: nil)
       assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {0, 0, 0})
       assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {255, 128, 64})
+
+      # Tagged RGB
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:rgb, 0, 0, 0})
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:rgb, 200, 100, 50})
+
+      # Named ANSI colors
+      for name <- [
+            :black,
+            :red,
+            :green,
+            :yellow,
+            :blue,
+            :magenta,
+            :cyan,
+            :gray,
+            :dark_gray,
+            :light_red,
+            :light_green,
+            :light_yellow,
+            :light_blue,
+            :light_magenta,
+            :light_cyan,
+            :white
+          ] do
+        assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: name)
+      end
+
+      # :reset maps to nil (transparent)
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: :reset)
+
+      # xterm 256-color indices — exercise EVERY clause of indexed_to_rgb.
+      # Indices 0..15 each route through their own case branch
+      # (mapping to a named ANSI color); 16..231 hit the 6×6×6 cube
+      # arithmetic; 232..255 hit the grayscale ramp.
+      for n <- 0..15 do
+        assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, n})
+      end
+
+      # Cube band — pick a few that exercise both `cube_step(0)` and
+      # `cube_step(i)` arms.
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 16})
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 100})
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 231})
+
+      # Grayscale band.
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 232})
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 240})
+      assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: {:indexed, 255})
     end
 
     test "raises on unknown protocol" do
@@ -58,9 +107,21 @@ defmodule ExRatatui.ImageTest do
       end
     end
 
-    test "raises on non-tuple background" do
+    test "raises on out-of-range {:rgb, ...} background" do
       assert_raise ArgumentError, ~r/:background/, fn ->
-        Image.new(@valid_png, background: :red)
+        Image.new(@valid_png, background: {:rgb, -1, 0, 0})
+      end
+    end
+
+    test "raises on out-of-range {:indexed, ...} background" do
+      assert_raise ArgumentError, ~r/:background/, fn ->
+        Image.new(@valid_png, background: {:indexed, 999})
+      end
+    end
+
+    test "raises on unknown atom background" do
+      assert_raise ArgumentError, ~r/:background/, fn ->
+        Image.new(@valid_png, background: :neon_pink)
       end
     end
   end

@@ -437,11 +437,19 @@ Probe the local terminal for best protocol detection:
 ExRatatui.Image.auto_local_protocol(terminal_ref)
 ```
 
-Over SSH or Distributed, declare the protocol at session start:
+Over SSH or Distributed, declare both the protocol and the client's cell pixel size (needed for accurate Kitty/Sixel/iTerm2 scaling):
 
 ```elixir
-ExRatatui.SSH.Daemon.start_link(mod: MyApp.TUI, image_protocol: :kitty)
-ExRatatui.Distributed.attach(:"app@host", MyApp.TUI, image_protocol: :kitty)
+ExRatatui.SSH.Daemon.start_link(
+  mod: MyApp.TUI,
+  image_protocol: :kitty,
+  image_font_size: {10, 20}
+)
+
+ExRatatui.Distributed.attach(:"app@host", MyApp.TUI,
+  image_protocol: :kitty,
+  image_font_size: {10, 20}
+)
 ```
 
 See [Images](../images.md) for the full transport / protocol resolution table.

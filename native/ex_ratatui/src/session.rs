@@ -108,6 +108,14 @@ pub struct SessionResource {
     // image render path, so `:auto` resolves to the user-chosen protocol
     // instead of falling back to halfblocks.
     pub(crate) image_protocol: Mutex<Option<crate::image::ProtocolKind>>,
+    // Set via `session_set_image_font_size/2`. When both this and
+    // `image_protocol` are set, `session_draw` emits
+    // `TransportCaps::Local { picker_protocol, font_size }` so the
+    // Kitty / Sixel / iTerm2 encoder uses the correct cell pixel size
+    // for the client terminal. Without it the picker falls back to the
+    // ratatui-image default `(8, 16)` which mis-scales on most
+    // terminals (Kitty/Ghostty default to roughly `(10, 20)`).
+    pub(crate) image_font_size: Mutex<Option<(u16, u16)>>,
 }
 
 #[rustler::resource_impl]
@@ -144,6 +152,7 @@ impl SessionResource {
             input: Mutex::new(InputParser::new()),
             size: Mutex::new((width, height)),
             image_protocol: Mutex::new(None),
+            image_font_size: Mutex::new(None),
         })
     }
 
@@ -174,13 +183,24 @@ impl SessionResource {
             .as_mut()
             .ok_or_else(|| "session is closed".to_string())?;
 
-        // Byte-stream session (SSH / Distributed / custom transport): the
-        // client terminal isn't probed here. The session-level
-        // `:image_protocol` opt (set via `session_set_image_protocol/2`)
-        // surfaces a user-provided hint; otherwise `:auto` resolves to
-        // halfblocks and explicit per-image protocol choices are honored.
+        // Byte-stream session (SSH / Distributed / custom transport):
+        // - With BOTH `image_protocol` and `image_font_size` set, we
+        //   emit `Local { picker_protocol, font_size }` so the encoder
+        //   gets correct cell pixel dimensions for accurate scaling.
+        // - With only `image_protocol`, fall back to RawTerminal hint;
+        //   font size defaults to ratatui-image's built-in (8, 16)
+        //   inside the render path.
+        // - With neither, `:auto` resolves to halfblocks per the
+        //   `RawTerminal { hint: None }` default.
         let hint = self.image_protocol.lock().map(|g| *g).unwrap_or(None);
-        let caps = TransportCaps::RawTerminal { hint };
+        let font_size = self.image_font_size.lock().map(|g| *g).unwrap_or(None);
+        let caps = match (hint, font_size) {
+            (Some(picker_protocol), Some(font_size)) => TransportCaps::Local {
+                picker_protocol,
+                font_size,
+            },
+            _ => TransportCaps::RawTerminal { hint },
+        };
 
         terminal
             .draw(|frame| {
@@ -288,6 +308,18 @@ impl SessionResource {
         *guard = kind;
         Ok(())
     }
+
+    /// Sets the cell pixel dimensions used when the protocol hint is
+    /// honored. Pass `None` to clear and let the render path fall back
+    /// to ratatui-image's built-in default.
+    pub fn set_image_font_size(&self, size: Option<(u16, u16)>) -> Result<(), String> {
+        let mut guard = self
+            .image_font_size
+            .lock()
+            .map_err(|_| "session image_font_size lock poisoned".to_string())?;
+        *guard = size;
+        Ok(())
+    }
 }
 
 /// Converts a domain error string into a `rustler::Error::Term` carrying a
@@ -342,6 +374,20 @@ fn session_set_image_protocol(
         explicit => Some(explicit),
     };
     resource.set_image_protocol(hint).map_err(nif_error)?;
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn session_set_image_font_size(
+    resource: ResourceArc<SessionResource>,
+    size: (u16, u16),
+) -> Result<Atom, Error> {
+    // (0, 0) clears the stored font size; any positive pair stores it.
+    let stored = match size {
+        (0, 0) => None,
+        (w, h) => Some((w, h)),
+    };
+    resource.set_image_font_size(stored).map_err(nif_error)?;
     Ok(atoms::ok())
 }
 

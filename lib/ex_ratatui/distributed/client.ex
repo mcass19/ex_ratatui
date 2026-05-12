@@ -59,6 +59,7 @@ defmodule ExRatatui.Distributed.Client do
 
     init_fn = Keyword.get(opts, :init_terminal, &default_init_terminal/1)
     image_protocol = Keyword.get(opts, :image_protocol)
+    image_font_size = Keyword.get(opts, :image_font_size)
 
     case init_fn.(test_mode) do
       {:error, reason} ->
@@ -66,7 +67,7 @@ defmodule ExRatatui.Distributed.Client do
 
       terminal_ref ->
         polling_enabled? = polling_enabled?(test_mode)
-        if image_protocol, do: ExRatatui.set_image_protocol(terminal_ref, image_protocol)
+        apply_image_caps(terminal_ref, image_protocol, image_font_size)
 
         state = %__MODULE__{
           terminal_ref: terminal_ref,
@@ -150,6 +151,24 @@ defmodule ExRatatui.Distributed.Client do
 
   defp polling_enabled?(nil), do: true
   defp polling_enabled?({_width, _height}), do: false
+
+  # Apply the image-protocol hints onto the local terminal:
+  # - Both protocol + font_size → cache a synthetic local probe so
+  #   `draw_frame` emits `TransportCaps::Local { picker_protocol,
+  #   font_size }` and Kitty / Sixel / iTerm2 get correct scaling math.
+  # - Just protocol → cheaper `set_image_protocol` path which resolves
+  #   `:auto` to the hint but uses ratatui-image's default font size.
+  # - Nothing → no-op; `:auto` falls back to halfblocks at render time.
+  defp apply_image_caps(_terminal_ref, nil, _font_size), do: :ok
+
+  defp apply_image_caps(terminal_ref, protocol, nil) do
+    ExRatatui.set_image_protocol(terminal_ref, protocol)
+  end
+
+  defp apply_image_caps(terminal_ref, protocol, {w, h})
+       when is_integer(w) and w > 0 and is_integer(h) and h > 0 do
+    ExRatatui.Native.terminal_set_local_probe(terminal_ref, protocol, {w, h})
+  end
 
   @doc false
   def default_init_terminal(nil), do: Native.init_terminal()

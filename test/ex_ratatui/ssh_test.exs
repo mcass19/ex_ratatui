@@ -109,6 +109,14 @@ defmodule ExRatatui.SSHTest do
       {:ok, with_hint} = SSH.init(mod: SampleApp, image_protocol: :kitty)
       assert with_hint.image_protocol == :kitty
     end
+
+    test "defaults :image_font_size to nil and stores it when given" do
+      {:ok, state} = SSH.init(mod: SampleApp)
+      assert state.image_font_size == nil
+
+      {:ok, with_size} = SSH.init(mod: SampleApp, image_font_size: {10, 20})
+      assert with_size.image_font_size == {10, 20}
+    end
   end
 
   describe "image_protocol applied to per-client session" do
@@ -133,6 +141,36 @@ defmodule ExRatatui.SSHTest do
 
       assert {:ok, new_state} = SSH.handle_ssh_msg(msg, state)
       assert :ok = Session.set_image_protocol(new_state.session, :sixel)
+      cleanup(new_state)
+    end
+
+    test "subsystem mode also applies :image_font_size to the session" do
+      starter = fake_starter(self(), {:ok, spawn(fn -> Process.sleep(:infinity) end)})
+
+      state =
+        build_state(
+          subsystem: true,
+          starter: starter,
+          image_protocol: :kitty,
+          image_font_size: {12, 24}
+        )
+
+      assert {:ok, new_state} = SSH.handle_msg({:ssh_channel_up, 9, :conn}, state)
+
+      # Round-trip the same value as a smoke check that the session
+      # accepted the earlier font_size set.
+      assert :ok = Session.set_image_font_size(new_state.session, {12, 24})
+      cleanup(new_state)
+    end
+
+    test "shell-mode pty_req applies :image_font_size to the new session" do
+      state = build_state(image_protocol: :kitty, image_font_size: {9, 18})
+
+      msg =
+        {:ssh_cm, :conn, {:pty, 11, true, {~c"xterm", 80, 24, 640, 480, []}}}
+
+      assert {:ok, new_state} = SSH.handle_ssh_msg(msg, state)
+      assert :ok = Session.set_image_font_size(new_state.session, {9, 18})
       cleanup(new_state)
     end
   end

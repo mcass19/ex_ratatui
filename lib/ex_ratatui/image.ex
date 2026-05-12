@@ -28,8 +28,12 @@ defmodule ExRatatui.Image do
       inside the rect), `:crop` (preserve aspect, fill the rect, crop the
       overflow), or `:scale` (stretch to fill).
     * `:background` - background color used to fill transparency / unused
-      area. Either `nil` (default, transparent) or an `{r, g, b}` tuple
-      with each channel in `0..255`.
+      area. Accepts the full `t:ExRatatui.Style.color/0` shape: `nil`
+      (default, transparent), a named color atom (`:red`, `:dark_gray`,
+      …), an `{:rgb, r, g, b}` tuple, an `{:indexed, n}` xterm 256-color
+      code, or a raw `{r, g, b}` tuple. Named and indexed values are
+      converted to RGB at the Elixir boundary using the standard ANSI
+      palette.
 
   ## Errors
 
@@ -58,7 +62,7 @@ defmodule ExRatatui.Image do
 
   @type protocol :: :auto | :halfblocks | :kitty | :sixel | :iterm2
   @type resize :: :fit | :crop | :scale
-  @type background :: nil | {0..255, 0..255, 0..255}
+  @type background :: nil | ExRatatui.Style.color()
 
   @type new_opts :: [
           protocol: protocol(),
@@ -148,6 +152,27 @@ defmodule ExRatatui.Image do
           "expected :resize to be one of #{inspect(@valid_resizes)}, got: #{inspect(other)}"
   end
 
+  # Standard ANSI palette → RGB. Matches xterm's defaults for the first
+  # 16 colors (close enough to what the image render path expects).
+  @named_color_rgb %{
+    black: {0, 0, 0},
+    red: {205, 0, 0},
+    green: {0, 205, 0},
+    yellow: {205, 205, 0},
+    blue: {0, 0, 238},
+    magenta: {205, 0, 205},
+    cyan: {0, 205, 205},
+    gray: {229, 229, 229},
+    dark_gray: {127, 127, 127},
+    light_red: {255, 0, 0},
+    light_green: {0, 255, 0},
+    light_yellow: {255, 255, 0},
+    light_blue: {92, 92, 255},
+    light_magenta: {255, 0, 255},
+    light_cyan: {0, 255, 255},
+    white: {255, 255, 255}
+  }
+
   defp validate_background(nil), do: nil
 
   defp validate_background({r, g, b})
@@ -155,10 +180,70 @@ defmodule ExRatatui.Image do
               b in 0..255,
        do: {r, g, b}
 
+  defp validate_background({:rgb, r, g, b})
+       when is_integer(r) and r in 0..255 and is_integer(g) and g in 0..255 and is_integer(b) and
+              b in 0..255,
+       do: {r, g, b}
+
+  defp validate_background({:indexed, n}) when is_integer(n) and n in 0..255,
+    do: indexed_to_rgb(n)
+
+  defp validate_background(name) when is_atom(name) and is_map_key(@named_color_rgb, name),
+    do: Map.fetch!(@named_color_rgb, name)
+
+  defp validate_background(:reset), do: nil
+
   defp validate_background(other) do
     raise ArgumentError,
-          "expected :background to be nil or a {r, g, b} tuple in 0..255, got: #{inspect(other)}"
+          "expected :background to be a t:ExRatatui.Style.color/0 value " <>
+            "(nil, named atom, {:rgb, r, g, b}, {:indexed, n}, or {r, g, b}), " <>
+            "got: #{inspect(other)}"
   end
+
+  # Ordered lookup table for xterm indices 0..15 → named ANSI colors.
+  # Tuple element lookup is O(1) and keeps cyclomatic complexity flat.
+  @indexed_low_names {
+    :black,
+    :red,
+    :green,
+    :yellow,
+    :blue,
+    :magenta,
+    :cyan,
+    :gray,
+    :dark_gray,
+    :light_red,
+    :light_green,
+    :light_yellow,
+    :light_blue,
+    :light_magenta,
+    :light_cyan,
+    :white
+  }
+
+  # Map an xterm 256-color index to RGB. Indices 0..15 are the named
+  # ANSI palette; 16..231 are a 6×6×6 color cube; 232..255 are 24 steps
+  # of grayscale. Matches the standard xterm color table.
+  defp indexed_to_rgb(n) when n in 0..15 do
+    name = elem(@indexed_low_names, n)
+    Map.fetch!(@named_color_rgb, name)
+  end
+
+  defp indexed_to_rgb(n) when n in 16..231 do
+    n = n - 16
+    r = div(n, 36)
+    g = div(rem(n, 36), 6)
+    b = rem(n, 6)
+    {cube_step(r), cube_step(g), cube_step(b)}
+  end
+
+  defp indexed_to_rgb(n) when n in 232..255 do
+    v = 8 + (n - 232) * 10
+    {v, v, v}
+  end
+
+  defp cube_step(0), do: 0
+  defp cube_step(i), do: 55 + i * 40
 
   @type probe_result :: %{protocol: protocol(), font_size: {pos_integer(), pos_integer()}}
 

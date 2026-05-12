@@ -39,13 +39,17 @@ Each transport stamps its own capability hint. Widget-level `:auto` resolves aga
 |---|---|---|---|
 | Local terminal (no probe) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored — emits raw escapes |
 | Local terminal (after probe) | `Local { picker_protocol, font_size }` | The detected protocol | Honored |
-| SSH (no opt) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
-| SSH (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` | `:kitty` | Honored |
-| Distributed (no opt) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
-| Distributed (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` | `:kitty` | Honored |
+| SSH (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` | `:kitty` | Honored, default `(8, 16)` font size |
+| SSH (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `Local { picker_protocol, font_size }` | `:kitty` | Honored with accurate scaling |
+| SSH (no opts) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
+| Distributed (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` on local terminal | `:kitty` | Honored, default `(8, 16)` font size |
+| Distributed (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `Local { picker_protocol, font_size }` on local terminal | `:kitty` | Honored with accurate scaling |
+| Distributed (no opts) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
 | `CellSession` (Livebook / Kino) | `CellOnly` | `:halfblocks` | **Forced to `:halfblocks`** (escape sequences can't survive cell diffing) |
 
 This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in your local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching.
+
+Image widgets work over **every** transport, including `ExRatatui.Distributed`. The server-side runtime snapshots each `%ExRatatui.Widgets.Image{}` (decoded bytes + opts) before sending the render tree over the wire; the client node re-decodes the bytes into a fresh `ImageResource` per draw. This costs roughly the PNG byte size per frame on the wire — fine for stills, watch the bandwidth if you're animating large images.
 
 ### Probing the local terminal
 
@@ -77,18 +81,22 @@ If you want to make your own decision based on the probe, `ExRatatui.Image.probe
 
 ### Telling SSH / Distributed what protocol the client supports
 
-You can't probe an SSH or Distributed client terminal, so the audience declares it at start time:
+You can't probe an SSH or Distributed client terminal, so the audience declares it at start time. Pair `:image_protocol` with `:image_font_size` to get accurate Kitty/Sixel/iTerm2 scaling — without the font size, the encoder falls back to `(8, 16)` cell pixels which mis-scales on most modern terminals (Kitty/Ghostty are closer to `(10, 20)`):
 
 ```elixir
 # SSH daemon
 ExRatatui.SSH.Daemon.start_link(
   mod: MyApp.TUI,
   port: 2222,
-  image_protocol: :kitty
+  image_protocol: :kitty,
+  image_font_size: {10, 20}
 )
 
 # Distributed attach
-ExRatatui.Distributed.attach(:"app@host", MyApp.TUI, image_protocol: :kitty)
+ExRatatui.Distributed.attach(:"app@host", MyApp.TUI,
+  image_protocol: :kitty,
+  image_font_size: {10, 20}
+)
 ```
 
 Per-image explicit choices (`ExRatatui.Image.new(bytes, protocol: :sixel)`) are always honored, regardless of the session-level hint.
@@ -99,11 +107,18 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
 
 ## Examples
 
-* [`examples/headless_image.exs`](../examples/headless_image.exs) — fetch a photo, render through `CellSession`, dump cells to stdout. The Livebook / Kino path.
-* [`examples/image_demo.exs`](../examples/image_demo.exs) — interactive viewer with `p` to cycle protocol and `r` to cycle resize mode.
-* [`examples/slides.exs`](../examples/slides.exs) — three-slide deck with arrow-key navigation: title, image, code. The "TUI slides with photos" use case.
+* [`examples/image_demo.exs`](../examples/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
 
-All three accept an `IMAGE_PATH` env var, default to fetching from `picsum.photos` once at startup, and fall back to an embedded 1×1 PNG if the network is unreachable.
+  ```sh
+  mix run examples/image_demo.exs                # local terminal
+  mix run --no-halt examples/image_demo.exs --ssh
+  elixir --sname app --cookie demo -S mix run --no-halt \
+    examples/image_demo.exs --distributed
+  ```
+
+* [`examples/headless_image.exs`](../examples/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
+
+Both accept an `IMAGE_PATH` env var, default to fetching from `picsum.photos` once at startup, and fall back to an embedded 1×1 PNG if the network is unreachable. The SSH demo also honors `IMAGE_PROTOCOL` / `IMAGE_FONT_W` / `IMAGE_FONT_H` env vars.
 
 ## Telemetry
 

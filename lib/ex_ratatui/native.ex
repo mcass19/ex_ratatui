@@ -45,8 +45,10 @@ defmodule ExRatatui.Native do
     textarea_line_count: 1,
     image_new: 2,
     image_dimensions: 1,
+    image_snapshot: 1,
     image_probe_terminal: 0,
     session_set_image_protocol: 2,
+    session_set_image_font_size: 2,
     terminal_set_image_protocol: 2,
     terminal_set_local_probe: 3
   ]

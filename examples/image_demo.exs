@@ -1,28 +1,40 @@
-# Example: interactive image rendering demo.
+# Example: interactive image rendering demo, runnable on every transport.
 #
-# Run with: mix run examples/image_demo.exs
+# Run modes:
+#   mix run examples/image_demo.exs                # local terminal
+#   mix run --no-halt examples/image_demo.exs --ssh       # serve over SSH
+#   mix run --no-halt examples/image_demo.exs --ssh 2223  # custom port
+#   elixir --sname app --cookie demo -S mix run --no-halt \
+#     examples/image_demo.exs --distributed         # serve over Erlang distribution
 #
-# Controls:
+# Controls (all transports):
 #   p — cycle protocol (auto / halfblocks / kitty / sixel / iterm2)
 #   r — cycle resize  (fit / crop / scale)
 #   q — quit
 #
-# Image source:
+# Image source (all transports):
 #   - IMAGE_PATH env var, if set, points to a local image file
 #   - otherwise picsum.photos/400/300 is fetched once at startup
-#   - if that fails too, falls back to a 1x1 magenta PNG (so the demo
-#     still runs offline; just not very visually interesting)
+#   - if that fails too, falls back to a 67-byte 1×1 PNG so the demo
+#     still runs offline (just visually boring)
 #
-# Best viewed in a Kitty/Ghostty/WezTerm terminal. The demo opts into
-# `probe_image_protocol: true` from mount/1, so the runtime probes the
-# terminal at startup and `:auto` resolves to whatever native protocol
-# your terminal supports (Kitty / Sixel / iTerm2 / Halfblocks). If the
-# probe fails (no TTY, no response), `:auto` quietly falls back to
-# halfblocks.
+# How each transport handles the image:
 #
-# Initial settings: protocol `:auto`, resize `:scale` (the photo fills
-# the available area regardless of source size). Press `r` to cycle to
-# `:fit` if you want to see aspect-preserving anchoring behavior.
+#   - Local: `probe_image_protocol: true` from mount/1 fires the
+#     terminal capability probe so `:auto` resolves to whatever native
+#     protocol the terminal supports. Falls back to halfblocks if the
+#     probe can't complete.
+#
+#   - SSH: the daemon is started with `image_protocol: :auto` and
+#     `image_font_size: {10, 20}` — sane defaults for a Kitty/Ghostty
+#     client. Override `IMAGE_PROTOCOL` / `IMAGE_FONT_W` / `IMAGE_FONT_H`
+#     env vars for other clients.
+#
+#   - Distributed: the listener does not pre-configure the local
+#     terminal — the *connecting* node's terminal capabilities matter,
+#     so let `ExRatatui.Distributed.attach/3` callers pass their own
+#     `image_protocol:` / `image_font_size:` opts. The example below
+#     shows the suggested attach call after the listener starts.
 
 alias ExRatatui.Event
 alias ExRatatui.Image
@@ -191,9 +203,128 @@ defmodule ImageDemo do
   end
 end
 
-{:ok, pid} = ImageDemo.start_link([])
-ref = Process.monitor(pid)
+defmodule ImageDemo.Runner do
+  @moduledoc false
 
-receive do
-  {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+  def main(argv) do
+    case argv do
+      ["--ssh" | rest] -> run_ssh(rest)
+      ["--distributed"] -> run_distributed()
+      _ -> run_local()
+    end
+  end
+
+  defp run_local do
+    {:ok, pid} = ImageDemo.start_link([])
+    wait_for(pid)
+  end
+
+  defp run_ssh(rest) do
+    port =
+      case rest do
+        [port_str] -> String.to_integer(port_str)
+        _ -> 2222
+      end
+
+    {protocol, font_size} = ssh_image_opts()
+
+    {:ok, daemon} =
+      ExRatatui.SSH.Daemon.start_link(
+        mod: ImageDemo,
+        name: nil,
+        port: port,
+        image_protocol: protocol,
+        image_font_size: font_size,
+        system_dir: shared_host_key_dir(),
+        auth_methods: ~c"password",
+        user_passwords: [{~c"demo", ~c"demo"}]
+      )
+
+    IO.puts("""
+
+    \e[36mImage demo over SSH\e[0m — listening on port #{port}
+
+    Connect:
+
+        ssh demo@localhost -p #{port}
+
+    Password: \e[1mdemo\e[0m
+    Sessions render with image_protocol: #{inspect(protocol)}, font_size: #{inspect(font_size)}.
+    Override with IMAGE_PROTOCOL / IMAGE_FONT_W / IMAGE_FONT_H env vars.
+
+    Ctrl-C twice to stop the daemon.
+    """)
+
+    wait_for(daemon)
+  end
+
+  defp run_distributed do
+    unless Node.alive?() do
+      IO.puts(:stderr, """
+
+      \e[31mError:\e[0m This node is not distributed.
+      Start it with --sname or --name:
+
+          elixir --sname app --cookie demo -S mix run --no-halt \\
+            examples/image_demo.exs --distributed
+      """)
+
+      System.halt(1)
+    end
+
+    {:ok, pid} = ExRatatui.Distributed.Listener.start_link(mod: ImageDemo)
+
+    IO.puts("""
+
+    \e[36mImage demo over Erlang Distribution\e[0m
+
+    This node: \e[1m#{Node.self()}\e[0m
+
+    From another node (same cookie), run one of:
+
+        # Halfblocks default — safe and works everywhere
+        ExRatatui.Distributed.attach(#{inspect(Node.self())}, ImageDemo)
+
+        # Kitty/Ghostty client with accurate scaling
+        ExRatatui.Distributed.attach(#{inspect(Node.self())}, ImageDemo,
+          image_protocol: :kitty,
+          image_font_size: {10, 20}
+        )
+
+    Ctrl-C twice to stop the listener.
+    """)
+
+    wait_for(pid)
+  end
+
+  defp ssh_image_opts do
+    protocol =
+      case System.get_env("IMAGE_PROTOCOL") do
+        nil -> :auto
+        s -> String.to_existing_atom(s)
+      end
+
+    font_size = {
+      String.to_integer(System.get_env("IMAGE_FONT_W") || "10"),
+      String.to_integer(System.get_env("IMAGE_FONT_H") || "20")
+    }
+
+    {protocol, font_size}
+  end
+
+  defp shared_host_key_dir do
+    [System.tmp_dir!(), "ex_ratatui_example_host_keys"]
+    |> Path.join()
+    |> ExRatatui.SSH.Daemon.ensure_host_key!()
+  end
+
+  defp wait_for(pid) do
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    end
+  end
 end
+
+ImageDemo.Runner.main(System.argv())

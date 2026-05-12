@@ -179,6 +179,7 @@ defmodule ExRatatui.SSH do
     :replier,
     :starter,
     image_protocol: nil,
+    image_font_size: nil,
     rendering: false,
     subsystem_mode: false,
     esc_timer: nil
@@ -195,6 +196,7 @@ defmodule ExRatatui.SSH do
           replier: (term(), boolean(), :success | :failure, non_neg_integer() -> :ok),
           starter: (keyword() -> {:ok, pid()} | {:error, term()}),
           image_protocol: ExRatatui.Image.protocol() | nil,
+          image_font_size: {pos_integer(), pos_integer()} | nil,
           rendering: boolean(),
           subsystem_mode: boolean(),
           esc_timer: reference() | nil
@@ -236,6 +238,7 @@ defmodule ExRatatui.SSH do
     starter = Keyword.get(args, :starter, @default_starter)
     subsystem_mode = Keyword.get(args, :subsystem, false)
     image_protocol = Keyword.get(args, :image_protocol)
+    image_font_size = Keyword.get(args, :image_font_size)
 
     state = %__MODULE__{
       mod: mod,
@@ -244,7 +247,8 @@ defmodule ExRatatui.SSH do
       replier: replier,
       starter: starter,
       subsystem_mode: subsystem_mode,
-      image_protocol: image_protocol
+      image_protocol: image_protocol,
+      image_font_size: image_font_size
     }
 
     {:ok, state}
@@ -277,7 +281,11 @@ defmodule ExRatatui.SSH do
     # resize + a `{:ex_ratatui_resize, w, h}` notification to the
     # server. `{:window_change, ...}` still correctly resizes after
     # that if the user drags their terminal window.
-    session = Session.new(80, 24) |> apply_image_protocol(state.image_protocol)
+    session =
+      Session.new(80, 24)
+      |> apply_image_protocol(state.image_protocol)
+      |> apply_image_font_size(state.image_font_size)
+
     primed = %{state | session: session, conn: conn, channel_id: channel_id}
 
     case start_server(primed) do
@@ -342,7 +350,12 @@ defmodule ExRatatui.SSH do
     # doesn't exist until the client sends pty_req (followed by
     # shell_req, which starts the server).
     {w, h} = normalize_pty_size(width, height)
-    session = Session.new(w, h) |> apply_image_protocol(state.image_protocol)
+
+    session =
+      Session.new(w, h)
+      |> apply_image_protocol(state.image_protocol)
+      |> apply_image_font_size(state.image_font_size)
+
     state.replier.(conn, want_reply, :success, channel_id)
     {:ok, %{state | session: session, conn: conn, channel_id: channel_id}}
   end
@@ -542,10 +555,20 @@ defmodule ExRatatui.SSH do
     %{state | esc_timer: nil}
   end
 
+  # Applies both image-related session hints. Called after every
+  # `Session.new(...)` on the SSH channel path so per-client sessions
+  # are configured before the first draw. `nil` opts are no-ops.
   defp apply_image_protocol(%Session{} = session, nil), do: session
 
   defp apply_image_protocol(%Session{} = session, protocol) do
     :ok = Session.set_image_protocol(session, protocol)
+    session
+  end
+
+  defp apply_image_font_size(%Session{} = session, nil), do: session
+
+  defp apply_image_font_size(%Session{} = session, size) do
+    :ok = Session.set_image_font_size(session, size)
     session
   end
 

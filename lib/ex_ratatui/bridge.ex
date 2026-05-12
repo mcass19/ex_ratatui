@@ -304,9 +304,10 @@ defmodule ExRatatui.Bridge do
     raise ArgumentError, "image.state is required and must be a reference"
   end
 
-  defp encode_widget(%Image{state: state}) when not is_reference(state) do
+  defp encode_widget(%Image{state: state}) when not is_reference(state) and not is_tuple(state) do
     raise ArgumentError,
-          "image.state must be a reference returned by ExRatatui.Image.new/2, got: #{inspect(state)}"
+          "image.state must be a reference returned by ExRatatui.Image.new/2 " <>
+            "(or a snapshot tuple inserted by the distributed transport), got: #{inspect(state)}"
   end
 
   defp encode_widget(%Image{} = image) do

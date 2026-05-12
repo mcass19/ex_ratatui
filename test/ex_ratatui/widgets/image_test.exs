@@ -53,6 +53,59 @@ defmodule ExRatatui.Widgets.ImageTest do
     end
   end
 
+  describe "distributed snapshot path" do
+    # The Server's snapshot_stateful_widgets replaces the
+    # ResourceArc-bearing %Image{state: ref} with a snapshot tuple
+    # before the widget tree is sent over distribution. The receiving
+    # node's decode_image must accept that tuple and reconstruct a
+    # fresh ImageResource. This test runs the round-trip locally to
+    # exercise the snapshot encode + decode path without needing two
+    # BEAM nodes.
+    test "kitty snapshot decodes locally and renders identical cells to a live image" do
+      {:ok, %ImageWidget{state: ref}} = Image.new(@valid_png, protocol: :kitty)
+      snapshot = Native.image_snapshot(ref)
+
+      live_cells = draw_through_cell_session(%ImageWidget{state: ref}, 4, 4)
+      snap_cells = draw_through_cell_session(%ImageWidget{state: snapshot}, 4, 4)
+
+      # Both paths land in CellSession which forces halfblocks; the
+      # snapshot must therefore produce byte-identical cells.
+      assert live_cells == snap_cells
+    end
+
+    test "snapshot preserves resize and background" do
+      {:ok, %ImageWidget{state: ref}} =
+        Image.new(@valid_png, protocol: :sixel, resize: :crop, background: {12, 34, 56})
+
+      assert {bytes, :sixel, :crop, {12, 34, 56}} = Native.image_snapshot(ref)
+      assert is_binary(bytes)
+      assert byte_size(bytes) == byte_size(@valid_png)
+    end
+
+    test "Bridge accepts a snapshot tuple as state" do
+      {:ok, %ImageWidget{state: ref}} = Image.new(@valid_png)
+      snap = Native.image_snapshot(ref)
+
+      assert {%{"type" => "image", "state" => ^snap}, _rect} =
+               Bridge.encode_command(
+                 {%ImageWidget{state: snap}, %Rect{x: 0, y: 0, width: 4, height: 4}}
+               )
+    end
+
+    test "decode_image rejects bytes that aren't decodable" do
+      bad_snapshot = {<<"not an image">>, :halfblocks, :fit, nil}
+      rect = %Rect{x: 0, y: 0, width: 4, height: 4}
+      commands = Bridge.encode_commands!([{%ImageWidget{state: bad_snapshot}, rect}])
+
+      ref = Native.cell_session_new(4, 4)
+
+      assert {:error, message} = Native.cell_session_draw(ref, commands)
+      assert message =~ "snapshot bytes failed to decode" or message =~ "image.state"
+
+      Native.cell_session_close(ref)
+    end
+  end
+
   describe "CellSession protocol fallback" do
     # CellSession-style transports can only carry cells, never escape
     # sequences, so the render pipeline must force Halfblocks regardless
