@@ -13,18 +13,16 @@
 #   - if that fails too, falls back to a 1x1 magenta PNG (so the demo
 #     still runs offline; just not very visually interesting)
 #
-# Best viewed in a Kitty/Ghostty/WezTerm terminal. NOTE: this demo runs
-# under `ExRatatui.App` which doesn't expose the terminal_ref to
-# `mount/1`, so it can't call `ExRatatui.Image.auto_local_protocol/1`
-# to enable native protocol detection — the demo therefore renders
-# with the (8, 16) default font size. For a real Kitty-detecting demo,
-# call `auto_local_protocol/1` from a script that uses `ExRatatui.run/1`
-# directly (see `counter.exs` for that entry-point pattern).
+# Best viewed in a Kitty/Ghostty/WezTerm terminal. The demo opts into
+# `probe_image_protocol: true` from mount/1, so the runtime probes the
+# terminal at startup and `:auto` resolves to whatever native protocol
+# your terminal supports (Kitty / Sixel / iTerm2 / Halfblocks). If the
+# probe fails (no TTY, no response), `:auto` quietly falls back to
+# halfblocks.
 #
-# Initial settings: protocol `:auto` (resolves to halfblocks without
-# the probe wired in) and resize `:scale` so the photo fills the
-# available area immediately. Press `r` to cycle to `:fit` if you
-# want to see aspect-preserving anchoring behavior.
+# Initial settings: protocol `:auto`, resize `:scale` (the photo fills
+# the available area regardless of source size). Press `r` to cycle to
+# `:fit` if you want to see aspect-preserving anchoring behavior.
 
 alias ExRatatui.Event
 alias ExRatatui.Image
@@ -48,6 +46,9 @@ defmodule ImageDemo do
 
     {w, h} = Image.dimensions(image)
 
+    # `probe_image_protocol: true` asks the runtime to run the terminal
+    # capability probe right after mount — `:auto` images then render
+    # via the detected protocol (Kitty / Sixel / iTerm2 / Halfblocks).
     {:ok,
      %{
        image: image,
@@ -56,7 +57,7 @@ defmodule ImageDemo do
        resize: :scale,
        image_size: {w, h},
        probe: probe_string()
-     }}
+     }, probe_image_protocol: true}
   end
 
   @impl true

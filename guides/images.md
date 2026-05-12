@@ -51,7 +51,20 @@ This means **the same model code is portable**: a slide deck that renders pixel-
 
 `ExRatatui.Image.auto_local_protocol/1` writes a query escape sequence and waits for the terminal's reply (this is ratatui-image's `Picker::from_query_stdio`). On success the result is cached on the terminal reference; on no-TTY / no-reply the cache stays empty and `:auto` falls back to halfblocks. Either way it's safe to call from any environment.
 
-Call it once, right after acquiring the terminal:
+There are two ways to wire it in.
+
+**Inside `ExRatatui.App`:** return `probe_image_protocol: true` from `mount/1`. The runtime calls `auto_local_protocol/1` for you right after mount, on the `:local` transport only (CellSession forces halfblocks; SSH / Distributed use the session-level `:image_protocol` opt instead):
+
+```elixir
+@impl true
+def mount(_opts) do
+  {:ok, initial_state, probe_image_protocol: true}
+end
+```
+
+The probe is automatically skipped under `test_mode: {w, h}` so headless tests don't accidentally write probe escapes.
+
+**Outside `ExRatatui.App`** (e.g. `ExRatatui.run/1`):
 
 ```elixir
 ExRatatui.run(fn terminal ->

@@ -22,7 +22,11 @@ defmodule Slides do
   @impl true
   def mount(_opts) do
     {:ok, image} = Image.new(load_image_bytes(), protocol: :auto, resize: :fit)
-    {:ok, %{slide: 0, image: image, total: 3}}
+    # `probe_image_protocol: true` runs `Picker::from_query_stdio` once
+    # after mount on the :local transport — `:auto` images then resolve
+    # to the detected protocol (Kitty in Kitty/Ghostty, halfblocks
+    # elsewhere). Soft-fails silently if the probe can't complete.
+    {:ok, %{slide: 0, image: image, total: 3}, probe_image_protocol: true}
   end
 
   @impl true

@@ -124,6 +124,13 @@ defmodule ExRatatui.Server do
           runtime_mode: runtime_mode(mod)
         }
 
+        # Mount-time probe — only honored on :local transport (other
+        # transports either force halfblocks (CellSession) or surface
+        # their own :image_protocol opt (SSH / Distributed)). Soft-fail:
+        # the helper logs nothing and leaves the cache untouched if the
+        # probe can't complete.
+        maybe_probe_image_protocol(terminal_ref, runtime_opts, test_mode)
+
         state =
           state
           |> maybe_set_trace(runtime_opts)
@@ -144,6 +151,19 @@ defmodule ExRatatui.Server do
         restore_terminal(terminal_ref)
         {:stop, reason}
     end
+  end
+
+  @doc false
+  # Public for testing — production callers go through `continue_init/2`.
+  def maybe_probe_image_protocol(_terminal_ref, %{probe_image_protocol: false}, _test_mode),
+    do: :ok
+
+  def maybe_probe_image_protocol(_terminal_ref, _runtime_opts, {_, _} = _test_mode),
+    do: :ok
+
+  def maybe_probe_image_protocol(terminal_ref, %{probe_image_protocol: true}, nil) do
+    _ = ExRatatui.Image.auto_local_protocol(terminal_ref)
+    :ok
   end
 
   @doc false
@@ -797,7 +817,13 @@ defmodule ExRatatui.Server do
   end
 
   defp default_runtime_opts do
-    %{commands: [], intents: [], render?: true, trace?: nil}
+    %{
+      commands: [],
+      intents: [],
+      render?: true,
+      trace?: nil,
+      probe_image_protocol: false
+    }
   end
 
   defp normalize_runtime_opts(runtime_opts) when is_list(runtime_opts) do
@@ -811,7 +837,8 @@ defmodule ExRatatui.Server do
       commands: Command.normalize(Map.get(runtime_opts, :commands)),
       intents: normalize_intents(Map.get(runtime_opts, :intents)),
       render?: Map.get(runtime_opts, :render?, true),
-      trace?: Map.get(runtime_opts, :trace?)
+      trace?: Map.get(runtime_opts, :trace?),
+      probe_image_protocol: Map.get(runtime_opts, :probe_image_protocol, false)
     }
   end
 
