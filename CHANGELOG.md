@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ExRatatui.Widgets.Image` — image rendering across every transport.** Decodes PNG / JPEG / GIF / WebP / BMP bytes and renders them through [ratatui-image](https://github.com/ratatui/ratatui-image) with Kitty, Sixel, iTerm2, or Unicode halfblocks. `ExRatatui.Image.new/2` returns a stateful widget handle (`{:ok, %ExRatatui.Widgets.Image{}}`) or `{:error, {:decode_failed, msg}}`; protocol / resize mode / background are set at construction and stored on a NIF resource so re-encoding only happens when the resolved protocol or rect dimensions change. Three resize strategies: `:fit` (preserve aspect inside the rect), `:crop` (preserve aspect, fill, crop overflow), `:scale` (stretch to fill).
+
+- **Transport-aware protocol resolution.** Each transport stamps a `TransportCaps` value the render path consults: `CellSession` forces `:halfblocks` (escape sequences can't survive cell diffing — Livebook / Kino apps that share model code with a real terminal just work); the local terminal can cache a `Picker::from_query_stdio` probe via `ExRatatui.Image.auto_local_protocol/1` so `:auto` resolves to the detected protocol with the right font size; SSH and Distributed accept an `:image_protocol` opt at start time (`ExRatatui.SSH.Daemon.start_link(..., image_protocol: :kitty)`, `ExRatatui.Distributed.attach(..., image_protocol: :kitty)`) because the client terminal isn't probeable from the server side. Explicit per-image protocol selections at `Image.new/2` are always honored.
+
+- **New public API surface.** `ExRatatui.Image.{new,dimensions,probe_terminal,auto_local_protocol}/{1,2}`, `ExRatatui.Session.set_image_protocol/2`, `ExRatatui.set_image_protocol/2`. Six new NIFs: `image_new/2`, `image_dimensions/1`, `image_probe_terminal/0`, `session_set_image_protocol/2`, `terminal_set_image_protocol/2`, `terminal_set_local_probe/3`.
+
+- **`[:ex_ratatui, :image, :decode]` telemetry span.** Each `Image.new/2` call emits start + stop with `format` (sniffed from magic bytes — `:png` / `:jpeg` / `:gif` / `:webp` / `:bmp` / `:unknown`), `bytes`, and `width` / `height` on success. Per-render encode timing stays inside the existing `[:ex_ratatui, :render, :frame]` span.
+
+- **Examples.** [`examples/image_demo.exs`](examples/image_demo.exs) is an interactive viewer with runtime protocol / resize toggling; [`examples/slides.exs`](examples/slides.exs) is a three-slide deck (title / photo / code) demoing the "TUI slides with photos" use case; [`examples/headless_image.exs`](examples/headless_image.exs) renders an image through `CellSession` for Livebook / snapshot consumers. All three accept `IMAGE_PATH` to skip the network fetch, default to `picsum.photos`, and embed a 1×1 fallback PNG for offline use.
+
+- **[Images guide](guides/images.md) and cheatsheet entry.** Walks through the API, the full transport / protocol resolution table, the font-size caveat for Kitty / Sixel / iTerm2 scaling, telemetry, and known v1 limitations (no GIF animation, no SVG, no streaming decode, `Resize::Fit` doesn't upscale).
+
+### Changed
+
+- **Rust toolchain bumped to 1.86+** to match [ratatui-image 11.0.2](https://github.com/ratatui/ratatui-image)'s `rust-version` (edition 2024). ex_ratatui itself stays on edition 2021; precompiled binaries are unaffected — you only hit this if you build the NIF yourself with `EX_RATATUI_BUILD=1`.
+
+- **Binary size grows by ~1.6 MB.** ratatui-image pulls in `image` (with PNG / JPEG / GIF / WebP / BMP decoders) and bundled Kitty / Sixel / iTerm2 encoders. No new system dependencies — chafa is feature-gated off, sixel uses pure-Rust `icy_sixel`.
+
 ## [0.9.0] - 2026-05-7
 
 ### Added

@@ -125,6 +125,7 @@ defmodule ExRatatui.MixProject do
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "guides/custom_transports.md": [title: "Custom Transports"],
         "guides/cell_session.md": [title: "Rendering to Non-Terminal Surfaces"],
+        "guides/images.md": [title: "Images"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
@@ -217,6 +218,10 @@ defmodule ExRatatui.MixProject do
         "Widgets: Slash Commands": [
           ExRatatui.Widgets.SlashCommands,
           ExRatatui.Widgets.SlashCommands.Command
+        ],
+        "Widgets: Image": [
+          ExRatatui.Image,
+          ExRatatui.Widgets.Image
         ],
         "Custom Widgets": [
           ExRatatui.Widget

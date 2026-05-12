@@ -20,10 +20,10 @@ defmodule ExRatatui.Image do
 
     * `:protocol` - which terminal image protocol to render with. One of
       `:auto` (default), `:halfblocks`, `:kitty`, `:sixel`, `:iterm2`.
-      `:auto` resolves at render time using the transport's capabilities;
-      see `c:resolve_protocol/0` semantics in the design guide. Explicit
-      protocols are honored except over `CellSession`-style transports
-      where `:halfblocks` is forced.
+      `:auto` resolves at render time using the transport's capabilities
+      (see the [Images guide](images.md) for the resolution table).
+      Explicit protocols are honored except over `CellSession`-style
+      transports where `:halfblocks` is forced.
     * `:resize` - resize strategy. `:fit` (default, preserve aspect ratio
       inside the rect), `:crop` (preserve aspect, fill the rect, crop the
       overflow), or `:scale` (stretch to fill).

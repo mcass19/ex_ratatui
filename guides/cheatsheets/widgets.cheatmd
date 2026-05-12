@@ -414,3 +414,34 @@ Fills the rect with blank cells. Use before a popup to dim underlying content.
 ```
 
 Needs ~22×8 cells (24×10 with a block). `events` accepts a keyword-like list of `{%Date{}, %Style{}}` tuples or a `%{Date => Style}` map.
+
+## Image
+{: .width-50}
+
+```elixir
+{:ok, picture} = ExRatatui.Image.new(File.read!("priv/cover.png"),
+  protocol: :auto,        # or :halfblocks / :kitty / :sixel / :iterm2
+  resize: :fit,           # or :crop / :scale
+  background: {0, 0, 0}   # nil for transparent
+)
+
+# Drop into a render tree like any other widget:
+[{picture, area}]
+```
+
+Hold the handle in your model (decode is non-trivial — don't rebuild per frame). `:auto` adapts to the transport: Kitty/Ghostty get native graphics, Livebook gets halfblocks. Errors return `{:error, {:decode_failed, msg}}`.
+
+Probe the local terminal for best protocol detection:
+
+```elixir
+ExRatatui.Image.auto_local_protocol(terminal_ref)
+```
+
+Over SSH or Distributed, declare the protocol at session start:
+
+```elixir
+ExRatatui.SSH.Daemon.start_link(mod: MyApp.TUI, image_protocol: :kitty)
+ExRatatui.Distributed.attach(:"app@host", MyApp.TUI, image_protocol: :kitty)
+```
+
+See [Images](../images.md) for the full transport / protocol resolution table.

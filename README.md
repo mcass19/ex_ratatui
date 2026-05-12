@@ -13,7 +13,8 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Features
 
-- 21 built-in widgets (and counting!): Paragraph, Block, List, Table, Gauge, LineGauge, BarChart, Sparkline, Calendar, Canvas, Chart, Tabs, Scrollbar, Checkbox, TextInput, Clear, Markdown, Textarea, Throbber, Popup, WidgetList
+- 22 built-in widgets (and counting!): Paragraph, Block, List, Table, Gauge, LineGauge, BarChart, Sparkline, Calendar, Canvas, Chart, Tabs, Scrollbar, Checkbox, TextInput, Clear, Markdown, Textarea, Throbber, Popup, WidgetList, **Image**
+- **Image rendering** via [ratatui-image](https://github.com/ratatui/ratatui-image): PNG / JPEG / GIF / WebP / BMP, with Kitty / Sixel / iTerm2 / halfblocks protocols. Same model code adapts to the terminal at hand — pixel-perfect Kitty graphics locally, halfblocks fallback over SSH or in Livebook. See the [Images guide](guides/images.md).
 - Constraint-based layout engine (percentage, length, min, max, ratio)
 - Non-blocking keyboard, mouse, and resize event polling
 - OTP-supervised TUI apps: via `ExRatatui.App` behaviour with LiveView-inspired callbacks
