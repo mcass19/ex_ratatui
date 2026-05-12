@@ -73,10 +73,53 @@ session = CellSession.new(40, 20)
 
 IO.puts("Rendered #{byte_size(bytes)} bytes of image into #{w}×#{div(length(cells), w)} cells:\n")
 
+# Halfblocks rendering encodes the image entirely in the fg/bg colors of
+# each cell (the symbol is just a ▀ / ▄ / █ block selector). Naively
+# printing only `cell.symbol` throws that visual information away and
+# produces a high-contrast outline that doesn't look like the source.
+# Emit each cell with ANSI fg + bg escapes so a color-capable terminal
+# (Ghostty, Kitty, WezTerm, iTerm2, modern xterm, …) actually paints
+# the photo.
+ansi_color = fn channel, color ->
+  base_fg = if channel == :fg, do: 30, else: 40
+  bright_fg = if channel == :fg, do: 90, else: 100
+  param_fg = if channel == :fg, do: 38, else: 48
+
+  case color do
+    nil -> ""
+    :reset -> "\e[#{if channel == :fg, do: 39, else: 49}m"
+    :black -> "\e[#{base_fg + 0}m"
+    :red -> "\e[#{base_fg + 1}m"
+    :green -> "\e[#{base_fg + 2}m"
+    :yellow -> "\e[#{base_fg + 3}m"
+    :blue -> "\e[#{base_fg + 4}m"
+    :magenta -> "\e[#{base_fg + 5}m"
+    :cyan -> "\e[#{base_fg + 6}m"
+    :gray -> "\e[#{base_fg + 7}m"
+    :dark_gray -> "\e[#{bright_fg + 0}m"
+    :light_red -> "\e[#{bright_fg + 1}m"
+    :light_green -> "\e[#{bright_fg + 2}m"
+    :light_yellow -> "\e[#{bright_fg + 3}m"
+    :light_blue -> "\e[#{bright_fg + 4}m"
+    :light_magenta -> "\e[#{bright_fg + 5}m"
+    :light_cyan -> "\e[#{bright_fg + 6}m"
+    :white -> "\e[#{bright_fg + 7}m"
+    {:indexed, n} -> "\e[#{param_fg};5;#{n}m"
+    {:rgb, r, g, b} -> "\e[#{param_fg};2;#{r};#{g};#{b}m"
+  end
+end
+
 cells
 |> Enum.chunk_every(w)
 |> Enum.each(fn row ->
-  row |> Enum.map_join(& &1.symbol) |> IO.puts()
+  row
+  |> Enum.map_join(fn cell ->
+    ansi_color.(:fg, cell.fg) <> ansi_color.(:bg, cell.bg) <> cell.symbol
+  end)
+  # Reset at the end of each row so subsequent terminal output isn't
+  # accidentally inked in the last cell's bg color.
+  |> Kernel.<>("\e[0m")
+  |> IO.puts()
 end)
 
 IO.puts(

@@ -170,10 +170,16 @@ defmodule ExRatatui.ImageTest do
     content
   end
 
+  # Captured module function — :telemetry warns at info level when
+  # attached handlers are local/anonymous functions, citing a perf
+  # penalty per dispatch. Using `&__MODULE__.forward_tel/4` silences it.
+  def forward_tel(event, measurements, metadata, %{probe: probe}) do
+    send(probe, {:tel, event, measurements, metadata})
+  end
+
   describe "telemetry [:ex_ratatui, :image, :decode]" do
     setup do
       ref = make_ref()
-      probe = self()
 
       :telemetry.attach_many(
         ref,
@@ -181,10 +187,8 @@ defmodule ExRatatui.ImageTest do
           [:ex_ratatui, :image, :decode, :start],
           [:ex_ratatui, :image, :decode, :stop]
         ],
-        fn event, meas, meta, _ ->
-          send(probe, {:tel, event, meas, meta})
-        end,
-        nil
+        &__MODULE__.forward_tel/4,
+        %{probe: self()}
       )
 
       on_exit(fn -> :telemetry.detach(ref) end)
