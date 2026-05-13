@@ -15,6 +15,7 @@ defmodule ExRatatui.Bridge do
     Bar,
     BarChart,
     BarGroup,
+    BigText,
     Block,
     Calendar,
     Canvas,
@@ -285,6 +286,17 @@ defmodule ExRatatui.Bridge do
     |> maybe_put("track_symbol", scrollbar.track_symbol)
     |> maybe_put("begin_symbol", scrollbar.begin_symbol)
     |> maybe_put("end_symbol", scrollbar.end_symbol)
+  end
+
+  defp encode_widget(%BigText{} = big_text) do
+    %{
+      "type" => "big_text",
+      "lines" => Enum.map(big_text.lines, &encode_line_like/1),
+      "pixel_size" => Atom.to_string(big_text.pixel_size),
+      "alignment" => Atom.to_string(big_text.alignment),
+      "style" => encode_style(big_text.style, "big_text.style")
+    }
+    |> maybe_put_block(big_text.block, "big_text.block")
   end
 
   defp encode_widget(%Checkbox{} = checkbox) do

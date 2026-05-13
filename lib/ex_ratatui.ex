@@ -46,7 +46,7 @@ defmodule ExRatatui do
   `ExRatatui.Widgets.TextInput`, `ExRatatui.Widgets.Clear`,
   `ExRatatui.Widgets.Markdown`, `ExRatatui.Widgets.Textarea`,
   `ExRatatui.Widgets.Throbber`, `ExRatatui.Widgets.Popup`,
-  and `ExRatatui.Widgets.WidgetList`.
+  `ExRatatui.Widgets.BigText`, and `ExRatatui.Widgets.WidgetList`.
 
   ## Testing
 
@@ -82,6 +82,7 @@ defmodule ExRatatui do
 
   alias ExRatatui.Widgets.{
     BarChart,
+    BigText,
     Block,
     Calendar,
     Chart,
@@ -113,6 +114,7 @@ defmodule ExRatatui do
   """
   @type primitive_widget ::
           Paragraph.t()
+          | BigText.t()
           | Block.t()
           | Checkbox.t()
           | Clear.t()
