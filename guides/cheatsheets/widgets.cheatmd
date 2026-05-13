@@ -84,6 +84,21 @@ All widgets render into a `Rect`. Returned from `Layout.split/3`, derived from `
 
 Supports headings, bold/italic, inline code, lists.
 
+### BigText
+
+```elixir
+ExRatatui.BigText.new("HELLO",
+  pixel_size: :quadrant,               # :full | :half_height | :half_width
+                                       # :quadrant | :third_height | :sextant
+                                       # :quarter_height | :octant
+  alignment: :center,                  # :left | :center | :right
+  style: %Style{fg: :magenta},
+  block: %Block{borders: [:all]}
+)
+```
+
+Oversized 8×8-pixel text for slide titles / banners. Smaller `pixel_size` packs more characters into the same area; `:octant` is the densest. Backed by [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text).
+
 ## Lists, tables & scrolling
 {: .col-2}
 
