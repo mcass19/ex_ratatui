@@ -12,7 +12,7 @@ defmodule ExRatatui.Widgets.BigTextIntegrationTest do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Native
   alias ExRatatui.Style
-  alias ExRatatui.Widgets.{BigText, Popup, WidgetList}
+  alias ExRatatui.Widgets.{BigText, Block, Popup, WidgetList}
 
   # Symbols ratatui-image-style block art and the font8x8 raster both
   # paint with. Any of these in a cell means BigText put a glyph there.
@@ -108,6 +108,75 @@ defmodule ExRatatui.Widgets.BigTextIntegrationTest do
         end)
 
       assert reds != [], "expected at least one painted cell with fg :red"
+    end
+
+    test "per-Span style overrides the widget-level style" do
+      # Widget-level style says :red; the only span requests :green.
+      # The painted glyph cells should be green, not red — confirming
+      # the ratatui text-styling cascade carries through our render
+      # path (span beats widget on conflicts).
+      widget = %BigText{
+        lines: [
+          %ExRatatui.Text.Line{
+            spans: [%ExRatatui.Text.Span{content: "G", style: %Style{fg: :green}}]
+          }
+        ],
+        pixel_size: :full,
+        style: %Style{fg: :red}
+      }
+
+      cells = draw_cells(widget, %Rect{x: 0, y: 0, width: 40, height: 16})
+
+      greens =
+        Enum.filter(cells, fn {_x, _y, sym, fg, _bg, _, _} ->
+          sym in @block_symbols and fg == :green
+        end)
+
+      reds_on_glyphs =
+        Enum.filter(cells, fn {_x, _y, sym, fg, _bg, _, _} ->
+          sym in @block_symbols and fg == :red
+        end)
+
+      assert greens != [], "expected per-span :green to win on at least one glyph"
+      assert reds_on_glyphs == [], "no glyph cell should be widget-level :red"
+    end
+  end
+
+  describe "block container (end-to-end)" do
+    test "block borders paint alongside big-text glyphs" do
+      # Confirm both the block's border and the BigText glyphs land in
+      # the same render. End-to-end coverage for the
+      # upstream-native-block-field path (no Elixir-side block layering).
+      widget = %BigText{
+        lines: [%ExRatatui.Text.Line{spans: [%ExRatatui.Text.Span{content: "X"}]}],
+        pixel_size: :half_height,
+        block: %Block{
+          title: "title",
+          borders: [:all],
+          border_type: :rounded
+        }
+      }
+
+      cells = draw_cells(widget, %Rect{x: 0, y: 0, width: 40, height: 10})
+
+      # Corner cell should hold a rounded border glyph, not a space.
+      corner_symbol =
+        cells
+        |> Enum.find(fn {x, y, _, _, _, _, _} -> x == 0 and y == 0 end)
+        |> elem(2)
+
+      assert corner_symbol in ~w(╭ ┌ ╔ ╓ ╒)
+
+      # And the inner area still receives big-text glyphs.
+      assert paints_glyph?(cells), "expected big-text glyphs alongside the border"
+
+      # Title text from the block lands somewhere on row 0.
+      row0_chars =
+        cells
+        |> Enum.filter(fn {_x, y, _, _, _, _, _} -> y == 0 end)
+        |> Enum.map_join("", fn {_, _, sym, _, _, _, _} -> sym end)
+
+      assert row0_chars =~ "title"
     end
   end
 

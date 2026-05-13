@@ -41,7 +41,7 @@ defmodule BigTextDemo do
 
   @alignments [:left, :center, :right]
   @colors [:magenta, :cyan, :yellow, :green, :red, :white]
-  @titles ["EX_RATATUI", "SLIDES", "TUI ROCKS", "HELLO"]
+  @titles ["EX_RATATUI", "TUI ROCKS", "HELLO!"]
 
   @impl true
   def mount(_opts) do

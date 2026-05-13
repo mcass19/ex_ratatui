@@ -40,31 +40,27 @@ pub fn parse_pixel_size(value: &str) -> Result<PixelSize, Error> {
 }
 
 pub fn render(buf: &mut Buffer, data: &BigTextData, area: Rect) {
-    // If a block was supplied, render the border first and confine the
-    // big text to the inner area. tui-big-text doesn't carry a Block of
-    // its own (it's a pure pixel-grid renderer), so we layer the
-    // ratatui Block here for parity with our other widgets.
-    let inner_area = if let Some(ref block_data) = data.block {
-        let block = block_data.to_block();
-        let inner = block.inner(area);
-        Widget::render(block, area, buf);
-        inner
-    } else {
-        area
-    };
-
-    if inner_area.width == 0 || inner_area.height == 0 {
+    if area.width == 0 || area.height == 0 {
         return;
     }
 
-    let big_text = BigText::builder()
+    // tui-big-text 0.8.4 has a native `block` field; its Widget::render
+    // draws the block and clips glyphs to the inner area itself. Hand
+    // the block off via the builder rather than reimplementing that
+    // logic — keeps us aligned with upstream and avoids drift if their
+    // block handling ever changes.
+    let mut builder = BigText::builder();
+    builder
         .pixel_size(data.pixel_size)
         .style(data.style)
         .alignment(data.alignment)
-        .lines(data.lines.clone())
-        .build();
+        .lines(data.lines.clone());
 
-    big_text.render(inner_area, buf);
+    if let Some(ref block_data) = data.block {
+        builder.block(block_data.to_block());
+    }
+
+    builder.build().render(area, buf);
 }
 
 #[cfg(test)]
@@ -263,6 +259,33 @@ mod tests {
         assert!(
             !paints_any_non_space(&terminal),
             "zero-area render should leave the buffer untouched"
+        );
+    }
+
+    #[test]
+    fn render_truncates_gracefully_in_undersized_area() {
+        // A long string at :full pixel size needs ~8 cols per char and
+        // 8 rows total. Render into a 10×3 area and confirm we don't
+        // panic and don't paint past the rect bounds. Slide users will
+        // hit this whenever a header overflows a column.
+        let mut state = data_with(
+            vec![line("OVERFLOW_OVERFLOW")],
+            PixelSize::Full,
+            Alignment::Left,
+        );
+        state.style = Style::default();
+        let area = Rect::new(0, 0, 10, 3);
+        let mut buf = Buffer::empty(area);
+        render(&mut buf, &state, area);
+
+        // Some cells should be painted (the visible portion) and no
+        // panic should have fired. Painted cells must stay inside the
+        // area.
+        let any_painted = (0..area.width)
+            .any(|x| (0..area.height).any(|y| buf.cell((x, y)).map_or(" ", |c| c.symbol()) != " "));
+        assert!(
+            any_painted,
+            "truncated render should still paint visible glyphs"
         );
     }
 
