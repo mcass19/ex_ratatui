@@ -134,6 +134,10 @@ defmodule ExRatatui.Server.IntentsTest do
 
   describe "shape validation" do
     test "non-list :intents value raises ArgumentError from the runtime" do
+      # trap_exit absorbs the link from start_link so the test process
+      # doesn't get killed when the GenServer crashes. We don't rely on
+      # the EXIT signal for the assertion though — see the monitor
+      # comment below.
       Process.flag(:trap_exit, true)
       cs = CellSession.new(20, 5)
 
@@ -145,11 +149,29 @@ defmodule ExRatatui.Server.IntentsTest do
           transport: {:cell_session, cs, cell_writer(self()), intent_writer(self())}
         )
 
+      # Drain the mount-triggered initial render so the mailbox is
+      # clean before we send the bogus event. Otherwise the writer_diff
+      # is interleaved with the DOWN message and the failure mailbox
+      # snapshot becomes confusing if this test ever regresses.
       assert_receive {:mounted, _opts}, 500
+      assert_receive {:writer_diff, _}, 500
+
+      # Use Process.monitor instead of asserting on the linked
+      # {:EXIT, ...}: under high parallelism the GenServer's SASL
+      # crash-log dispatch (which fires before EXIT signals propagate)
+      # serializes through :logger and can push the EXIT delivery past
+      # a 500ms timeout. DOWN messages from a monitor fire as part of
+      # the kernel's process_exit path independent of logger routing,
+      # so they're tight and stable. 2000ms is belt-and-braces for
+      # slow CI runners.
+      ref = Process.monitor(pid)
 
       ExUnit.CaptureLog.capture_log(fn ->
         send(pid, {:ex_ratatui_event, %Key{code: "bogus_intents"}})
-        assert_receive {:EXIT, ^pid, {%ArgumentError{message: msg}, _}}, 500
+
+        assert_receive {:DOWN, ^ref, :process, ^pid, {%ArgumentError{message: msg}, _stack}},
+                       2000
+
         assert msg =~ "invalid intents"
       end)
     end

@@ -148,7 +148,12 @@ defmodule ExRatatui.RuntimeTest do
     end
 
     def subscriptions(%{scenario: :once}) do
-      [Subscription.once(:once, 100, :once_tick)]
+      # 100ms was tight enough that under heavy parallel-test load the
+      # timer could fire before the test observed the initial `active?:
+      # true, fired?: false` state. 1000ms gives the test plenty of
+      # headroom; the post-rearm assert_receive timeout below is bumped
+      # to match.
+      [Subscription.once(:once, 1000, :once_tick)]
     end
 
     def subscriptions(%{scenario: :stale_subscription}) do
@@ -387,7 +392,9 @@ defmodule ExRatatui.RuntimeTest do
 
     send(pid, :poke)
     assert_receive :poke_seen, 1000
-    assert_receive {:once_tick, 2}, 1000
+    # Subscription interval is 1000ms; give the post-rearm fire room
+    # under load. See the matching comment in `subscriptions/1`.
+    assert_receive {:once_tick, 2}, 2000
 
     snapshot = Runtime.snapshot(pid)
     assert [%{id: :once, active?: false, fired?: true}] = snapshot.subscriptions
