@@ -94,7 +94,10 @@ defmodule ExRatatui.Server do
   end
 
   @doc false
-  def continue_init({:error, reason}, _opts), do: {:stop, {:terminal_init_failed, reason}}
+  def continue_init({:error, reason}, opts) do
+    stop_task_supervisor(opts)
+    {:stop, {:terminal_init_failed, reason}}
+  end
 
   def continue_init(terminal_ref, opts) do
     mod = Keyword.fetch!(opts, :mod)
@@ -149,6 +152,7 @@ defmodule ExRatatui.Server do
 
       {:error, reason} ->
         restore_terminal(terminal_ref)
+        stop_task_supervisor(opts)
         {:stop, reason}
     end
   end
@@ -231,6 +235,7 @@ defmodule ExRatatui.Server do
         )
 
         Session.close(session)
+        stop_task_supervisor(opts)
         {:stop, reason}
     end
   end
@@ -303,6 +308,7 @@ defmodule ExRatatui.Server do
         )
 
         CellSession.close(cell_session)
+        stop_task_supervisor(opts)
         {:stop, reason}
     end
   end
@@ -357,6 +363,7 @@ defmodule ExRatatui.Server do
         {:ok, state}
 
       {:error, reason} ->
+        stop_task_supervisor(opts)
         {:stop, reason}
     end
   end
@@ -627,6 +634,23 @@ defmodule ExRatatui.Server do
   def normalize_size_result({:error, _}), do: {80, 24}
 
   ## Private helpers
+
+  # Shuts down the linked Task.Supervisor that `init/1` started before
+  # the transport / mount succeeded. Called from every `{:stop, reason}`
+  # branch in `continue_init*` — otherwise the Server crash propagates a
+  # link EXIT into the still-running task_sup, which logs its own
+  # `GenServer terminating` line with the same reason. Idempotent for
+  # callers that don't have a task_sup in their opts (test helpers).
+  defp stop_task_supervisor(opts) do
+    case Keyword.get(opts, :task_supervisor) do
+      pid when is_pid(pid) ->
+        if Process.alive?(pid), do: Supervisor.stop(pid, :normal, :infinity)
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
 
   defp init_terminal(nil), do: Native.init_terminal()
   defp init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)

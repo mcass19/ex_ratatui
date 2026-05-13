@@ -262,6 +262,29 @@ defmodule ExRatatui.ServerTest do
       end)
     end
 
+    test "mount failure does not leak a linked Task.Supervisor crash log" do
+      # Regression: init/1 used to start a Task.Supervisor linked to the
+      # Server before mount/1 ran. When mount returned {:error, reason}
+      # the Server crashed with that reason and the linked task_sup
+      # received the EXIT, terminated with the same reason, and logged
+      # its own `GenServer terminating` line. The fix stops the
+      # task_sup in each failure branch before returning {:stop, _}.
+      Process.flag(:trap_exit, true)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :mount_failed} =
+                   ExRatatui.Server.start_link(
+                     mod: FailingMount,
+                     name: nil,
+                     test_mode: {80, 24}
+                   )
+        end)
+
+      refute log =~ "GenServer", "expected no GenServer crash log, got:\n#{log}"
+      refute log =~ "Task.Supervisor", "expected no Task.Supervisor log, got:\n#{log}"
+    end
+
     test "server stops when terminal init fails (no TTY)" do
       Process.flag(:trap_exit, true)
 
