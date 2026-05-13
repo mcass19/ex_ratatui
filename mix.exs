@@ -223,6 +223,10 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Image,
           ExRatatui.Widgets.Image
         ],
+        "Widgets: BigText": [
+          ExRatatui.BigText,
+          ExRatatui.Widgets.BigText
+        ],
         "Custom Widgets": [
           ExRatatui.Widget
         ],

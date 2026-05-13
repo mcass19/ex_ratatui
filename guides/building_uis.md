@@ -86,6 +86,7 @@ Widgets that accept rich text on their text-bearing fields:
 | Widget | Field(s) |
 |--------|----------|
 | `Paragraph` | `:text` |
+| `BigText` | `:lines` (first arg to `BigText.new/2`) |
 | `List` | each `items` entry |
 | `Table` | each cell in `:rows`, each `:header` cell |
 | `Tabs` | each `:titles` entry |
@@ -143,6 +144,34 @@ Displays text with support for alignment, wrapping, and scrolling.
   wrap: true
 }
 ```
+
+### BigText
+
+Renders oversized 8×8-pixel text for slide titles, splash screens, and banners. Backed by [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text); use `ExRatatui.BigText.new/2` so input is coerced and options validated.
+
+```elixir
+ExRatatui.BigText.new("EX_RATATUI",
+  pixel_size: :quadrant,
+  alignment: :center,
+  style: %Style{fg: :magenta, modifiers: [:bold]},
+  block: %Block{borders: [:all], border_type: :rounded}
+)
+```
+
+`:pixel_size` controls how many character cells a single 8×8 pixel maps to. Smaller variants pack more characters into the same area at the cost of legibility:
+
+| Variant | Cells per pixel | Typical use |
+|---------|-----------------|-------------|
+| `:full` (default) | 1 × 1 | A single word, big impact (8 rows tall) |
+| `:half_height` | 0.5 × 1 | Short title bar (4 rows tall) |
+| `:half_width` | 1 × 0.5 | Tall narrow text |
+| `:quadrant` | 0.5 × 0.5 | Good middle ground for 2–3 word titles |
+| `:third_height` | 0.33 × 1 | |
+| `:sextant` | 0.33 × 0.5 | |
+| `:quarter_height` | 0.25 × 1 | |
+| `:octant` | 0.25 × 0.5 | Densest; closer to "bold caps" |
+
+See `examples/big_text_demo.exs` to cycle through every variant interactively.
 
 ### Block
 

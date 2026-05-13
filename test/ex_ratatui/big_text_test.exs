@@ -1,6 +1,8 @@
 defmodule ExRatatui.BigTextTest do
   use ExUnit.Case, async: true
 
+  doctest ExRatatui.BigText
+
   alias ExRatatui.BigText
   alias ExRatatui.Style
   alias ExRatatui.Text

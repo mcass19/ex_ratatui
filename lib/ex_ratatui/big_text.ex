@@ -29,7 +29,8 @@ defmodule ExRatatui.BigText do
 
   ## Accepted input shapes
 
-  `new/2` coerces its first argument through `ExRatatui.Text.Coerce`:
+  `new/2` coerces its first argument through the same path
+  `ExRatatui.Paragraph` uses, so any text-like shape is accepted:
 
     * `String.t()` — split on `"\\n"` into one line per chunk
     * `%ExRatatui.Text.Line{}` or `%ExRatatui.Text.Span{}`
@@ -61,15 +62,39 @@ defmodule ExRatatui.BigText do
   @doc """
   Build a `%ExRatatui.Widgets.BigText{}` from text-like input.
 
-  `text` is coerced through `ExRatatui.Text.Coerce.coerce_text!/1` — it
-  accepts a binary, a single `%Line{}` / `%Span{}`, a full `%Text{}`, or
-  a homogeneous list. When a `%Text{}` is supplied (or coerced into),
+  `text` accepts the same shapes any text-bearing widget accepts:
+  a binary, a single `%Line{}` / `%Span{}`, a full `%Text{}`, or a
+  homogeneous list. When a `%Text{}` is supplied (or coerced into),
   its outer `:style` is merged with the widget's own `:style` and its
   `:alignment` is preferred over the widget's default when set.
 
   Returns the widget struct directly; constructing fails fast with
   `ArgumentError` on a bad shape or invalid option (matching the rest
   of the widget surface — no `{:ok, _}` wrapper, no NIF call).
+
+  ## Examples
+
+      iex> ExRatatui.BigText.new("HELLO")
+      %ExRatatui.Widgets.BigText{
+        lines: [
+          %ExRatatui.Text.Line{
+            spans: [%ExRatatui.Text.Span{content: "HELLO", style: %ExRatatui.Style{}}],
+            style: %ExRatatui.Style{},
+            alignment: nil
+          }
+        ],
+        pixel_size: :full,
+        alignment: :left,
+        style: %ExRatatui.Style{},
+        block: nil
+      }
+
+      iex> widget = ExRatatui.BigText.new("HI", pixel_size: :quadrant, alignment: :center)
+      iex> {widget.pixel_size, widget.alignment}
+      {:quadrant, :center}
+
+      iex> ExRatatui.BigText.new("X", pixel_size: :huge)
+      ** (ArgumentError) expected :pixel_size to be one of [:full, :half_height, :half_width, :quadrant, :third_height, :sextant, :quarter_height, :octant], got: :huge
   """
   @spec new(term(), new_opts()) :: Widget.t()
   def new(text, opts \\ []) when is_list(opts) do
