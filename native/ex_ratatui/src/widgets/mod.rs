@@ -1,4 +1,5 @@
 pub mod bar_chart;
+pub mod big_text;
 pub mod block;
 pub mod calendar;
 pub mod canvas;

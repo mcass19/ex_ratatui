@@ -14,6 +14,7 @@ use crate::text;
 use crate::text_input::{self, TextInputRenderData, TextInputResource, TextInputState};
 use crate::textarea::{self, TextareaRenderData, TextareaResource};
 use crate::widgets::bar_chart::{self, BarChartData, BarData, BarGroupData};
+use crate::widgets::big_text::{self, BigTextData};
 use crate::widgets::block::{self, BlockData};
 use crate::widgets::calendar::{self, CalendarData};
 use crate::widgets::canvas::{self, CanvasData, CanvasShape};
@@ -34,6 +35,7 @@ use crate::widgets::widget_list::{self, WidgetListData, WidgetListItem};
 
 pub enum WidgetData {
     Paragraph(ParagraphData),
+    BigText(BigTextData),
     Block(BlockData),
     List(ListData),
     Table(TableData),
@@ -113,6 +115,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
 
     match widget_type.as_str() {
         "paragraph" => Ok(WidgetData::Paragraph(decode_paragraph(widget_map)?)),
+        "big_text" => Ok(WidgetData::BigText(decode_big_text(widget_map)?)),
         "block" => Ok(WidgetData::Block(block::decode_block_from_map(widget_map)?)),
         "list" => Ok(WidgetData::List(decode_list(widget_map)?)),
         "table" => Ok(WidgetData::Table(decode_table(widget_map)?)),
@@ -171,6 +174,53 @@ fn decode_paragraph(map: &TermMap<'_>) -> Result<ParagraphData, Error> {
         alignment,
         wrap,
         scroll: (scroll_y, scroll_x),
+        block,
+    })
+}
+
+fn decode_big_text(map: &TermMap<'_>) -> Result<BigTextData, Error> {
+    let lines_term = optional_term(map, "lines")
+        .ok_or_else(|| crate::decode::missing_field("big_text", "lines"))?;
+    let line_terms: Vec<Term<'_>> = lines_term
+        .decode()
+        .map_err(|_| invalid_field("big_text", "lines", "expected a list of line maps"))?;
+    let lines: Vec<ratatui::text::Line<'static>> = line_terms
+        .into_iter()
+        .map(text::decode_line)
+        .collect::<Result<_, _>>()?;
+
+    let pixel_size_str: String =
+        decode_optional(map, "pixel_size", "big_text")?.unwrap_or_else(|| "full".to_string());
+    let pixel_size = big_text::parse_pixel_size(&pixel_size_str)?;
+
+    let alignment = match decode_optional::<String>(map, "alignment", "big_text")? {
+        Some(s) => match s.as_str() {
+            "center" => Alignment::Center,
+            "right" => Alignment::Right,
+            "left" => Alignment::Left,
+            other => {
+                return Err(invalid_field(
+                    "big_text",
+                    "alignment",
+                    &format!("unknown alignment '{other}'"),
+                ))
+            }
+        },
+        None => Alignment::Left,
+    };
+
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let block = decode_optional_block(map)?;
+
+    Ok(BigTextData {
+        lines,
+        pixel_size,
+        alignment,
+        style,
         block,
     })
 }
@@ -1327,6 +1377,7 @@ fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand, caps: Transpor
 pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, caps: TransportCaps) {
     match widget {
         WidgetData::Paragraph(data) => paragraph::render(buf, data, area),
+        WidgetData::BigText(data) => big_text::render(buf, data, area),
         WidgetData::Block(data) => block::render(buf, data, area),
         WidgetData::List(data) => list::render(buf, data, area),
         WidgetData::Table(data) => table::render(buf, data, area),
