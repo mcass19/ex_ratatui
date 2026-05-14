@@ -179,4 +179,60 @@ defmodule ExRatatui.CodeBlockTest do
                CodeBlock.from_native(raw)
     end
   end
+
+  describe "telemetry [:ex_ratatui, :code_block, :highlight]" do
+    setup do
+      ref = make_ref()
+
+      :telemetry.attach_many(
+        ref,
+        [
+          [:ex_ratatui, :code_block, :highlight, :start],
+          [:ex_ratatui, :code_block, :highlight, :stop]
+        ],
+        &__MODULE__.forward_tel/4,
+        %{probe: self()}
+      )
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+      :ok
+    end
+
+    test "emits start + stop with language, theme, bytes, and line_count" do
+      _ = CodeBlock.highlight("fn main() {}\nfn other() {}", "rust", :solarized_dark)
+
+      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], start_meas,
+                      %{language: "rust", theme: "Solarized (dark)", bytes: bytes}}
+
+      assert is_integer(start_meas.monotonic_time)
+      assert bytes == byte_size("fn main() {}\nfn other() {}")
+
+      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :stop], stop_meas,
+                      %{
+                        language: "rust",
+                        theme: "Solarized (dark)",
+                        bytes: ^bytes,
+                        line_count: line_count
+                      }}
+
+      assert is_integer(stop_meas.duration)
+      assert line_count >= 1
+    end
+
+    test "passes nil language through to telemetry metadata" do
+      _ = CodeBlock.highlight("hello", nil, :base16_ocean_dark)
+
+      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], _, %{language: nil}}
+
+      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :stop], _,
+                      %{language: nil, line_count: 1}}
+    end
+  end
+
+  # Captured module function — :telemetry warns at info level when
+  # attached handlers are local/anonymous functions, citing a perf
+  # penalty per dispatch. Using `&__MODULE__.forward_tel/4` silences it.
+  def forward_tel(event, measurements, metadata, %{probe: probe}) do
+    send(probe, {:tel, event, measurements, metadata})
+  end
 end

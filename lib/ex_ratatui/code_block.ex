@@ -98,17 +98,51 @@ defmodule ExRatatui.CodeBlock do
   @spec highlight(String.t(), String.t() | nil, CodeBlockWidget.theme()) :: [Line.t()]
   def highlight(code, language, theme) when is_binary(code) do
     theme_name = resolve_theme(theme)
+    start_meta = %{language: language, theme: theme_name, bytes: byte_size(code)}
 
-    code
-    |> Native.highlight_code(language, theme_name)
-    |> from_native()
+    :telemetry.span([:ex_ratatui, :code_block, :highlight], start_meta, fn ->
+      lines =
+        code
+        |> Native.highlight_code(language, theme_name)
+        |> from_native()
+
+      {lines, Map.put(start_meta, :line_count, length(lines))}
+    end)
   end
 
-  @doc false
-  # Converts the raw NIF response into `%Line{}` structs. Exposed (not
-  # private) so unit tests can exercise the nil-fg/nil-bg branches that
-  # syntect's bundled themes don't reach in practice.
-  @spec from_native([[map()]]) :: [Line.t()]
+  @typedoc """
+  Raw span shape returned by the underlying highlighter NIF.
+
+  `fg`/`bg` are `nil` for the theme's default (when syntect's effective
+  alpha is `0`), or a `{r, g, b}` tuple otherwise.
+  """
+  @type native_span :: %{
+          content: String.t(),
+          fg: nil | {0..255, 0..255, 0..255},
+          bg: nil | {0..255, 0..255, 0..255},
+          bold: boolean(),
+          italic: boolean(),
+          underlined: boolean()
+        }
+
+  @doc """
+  Converts the raw NIF response into `%ExRatatui.Text.Line{}` structs.
+
+  Useful when you call the underlying highlighter directly to skip
+  per-call theme atom resolution (e.g. in a hot loop reusing the same
+  theme), or when building tooling that consumes the wire shape. Most
+  callers should use `highlight/3` instead — it resolves the theme and
+  emits the `[:ex_ratatui, :code_block, :highlight]` telemetry span.
+
+  ## Examples
+
+      iex> raw = [[%{content: "x", fg: {10, 20, 30}, bg: nil,
+      ...>           bold: true, italic: false, underlined: false}]]
+      iex> [%ExRatatui.Text.Line{spans: [span]}] = ExRatatui.CodeBlock.from_native(raw)
+      iex> {span.content, span.style.fg, span.style.modifiers}
+      {"x", {:rgb, 10, 20, 30}, [:bold]}
+  """
+  @spec from_native([[native_span()]]) :: [Line.t()]
   def from_native(lines) when is_list(lines), do: Enum.map(lines, &to_line/1)
 
   defp to_line(spans) when is_list(spans) do

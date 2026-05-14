@@ -21,7 +21,7 @@ pub struct HighlightedSpan {
     pub underlined: bool,
 }
 
-#[rustler::nif]
+#[rustler::nif(schedule = "DirtyCpu")]
 fn highlight_code(
     code: String,
     language: Option<String>,
