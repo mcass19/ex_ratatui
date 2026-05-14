@@ -22,6 +22,7 @@ defmodule ExRatatui.Bridge do
     Chart,
     Checkbox,
     Clear,
+    CodeBlock,
     Gauge,
     Image,
     LineGauge,
@@ -362,6 +363,20 @@ defmodule ExRatatui.Bridge do
       "scroll_x" => elem(markdown.scroll, 1)
     }
     |> maybe_put_block(markdown.block, "markdown.block")
+  end
+
+  defp encode_widget(%CodeBlock{} = cb) do
+    %{
+      "type" => "code_block",
+      "content" => cb.content,
+      "language" => cb.language,
+      "theme" => resolve_code_theme(cb.theme),
+      "style" => encode_style(cb.style, "code_block.style"),
+      "wrap" => cb.wrap,
+      "scroll_y" => elem(cb.scroll, 0),
+      "scroll_x" => elem(cb.scroll, 1)
+    }
+    |> maybe_put_block(cb.block, "code_block.block")
   end
 
   defp encode_widget(%Textarea{state: nil}) do
@@ -1035,5 +1050,34 @@ defmodule ExRatatui.Bridge do
 
   defp maybe_put_block(map, block, context) do
     Map.put(map, "block", encode_block(block, context))
+  end
+
+  @code_themes %{
+    base16_ocean_dark: "base16-ocean.dark",
+    base16_ocean_light: "base16-ocean.light",
+    base16_eighties_dark: "base16-eighties.dark",
+    base16_mocha_dark: "base16-mocha.dark",
+    inspired_github: "InspiredGitHub",
+    solarized_dark: "Solarized (dark)",
+    solarized_light: "Solarized (light)"
+  }
+
+  defp resolve_code_theme(theme) when is_binary(theme), do: theme
+
+  defp resolve_code_theme(theme) when is_atom(theme) do
+    case Map.fetch(@code_themes, theme) do
+      {:ok, name} ->
+        name
+
+      :error ->
+        valid =
+          @code_themes
+          |> Map.keys()
+          |> Enum.sort()
+          |> Enum.map_join(", ", &inspect/1)
+
+        raise ArgumentError,
+              "unknown CodeBlock theme #{inspect(theme)}, valid atoms: #{valid}"
+    end
   end
 end
