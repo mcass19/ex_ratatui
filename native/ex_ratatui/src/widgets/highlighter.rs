@@ -14,14 +14,27 @@ use ratatui::text::{Line, Span};
 use std::sync::OnceLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Color as SColor, FontStyle, Style as SStyle, ThemeSet};
-use syntect::parsing::SyntaxSet;
+use syntect::parsing::{SyntaxDefinition, SyntaxSet};
 use syntect::util::LinesWithEndings;
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
 static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
 
+/// Languages bundled by us on top of syntect's defaults. See
+/// `native/ex_ratatui/syntaxes/README.md` for licensing and the add-a-language
+/// procedure.
+const ELIXIR_SYNTAX: &str = include_str!("../../syntaxes/Elixir.sublime-syntax");
+
 fn syntaxes() -> &'static SyntaxSet {
-    SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines)
+    SYNTAX_SET.get_or_init(|| {
+        let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
+
+        let elixir = SyntaxDefinition::load_from_str(ELIXIR_SYNTAX, true, None)
+            .expect("bundled Elixir.sublime-syntax must parse");
+        builder.add(elixir);
+
+        builder.build()
+    })
 }
 
 fn themes() -> &'static ThemeSet {

@@ -69,6 +69,14 @@ defmodule CodeBlockDemo do
        "version": "0.9.0",
        "features": ["code_block", "big_text"]
      }
+     """},
+    {"elixir",
+     """
+     defmodule Fib do
+       @doc "Compute the nth fibonacci number."
+       def of(n) when n < 2, do: n
+       def of(n), do: of(n - 1) + of(n - 2)
+     end
      """}
   ]
 

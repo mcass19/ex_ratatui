@@ -10,13 +10,14 @@ defmodule ExRatatui.CodeBlock do
 
   ## Supported languages
 
-  Powered by syntect's bundled Sublime-syntax set. Languages with built-in
-  support include Bash, C, C++, C#, CSS, D, Diff, Erlang, Go, Groovy,
+  Powered by syntect's bundled Sublime-syntax set, plus **Elixir** which
+  we ship in addition to the defaults (see
+  `native/ex_ratatui/syntaxes/`). Languages with built-in support:
+  Bash, C, C++, C#, CSS, D, Diff, **Elixir**, Erlang, Go, Groovy,
   Haskell, HTML, Java, JavaScript, JSON, Lisp, Lua, Make, Markdown,
   MATLAB, OCaml, Objective-C, Pascal, Perl, PHP, Python, R, Regexp, Ruby,
-  Rust, Scala, Shell-Script, SQL, TCL, XML, YAML. **Elixir is not in the
-  bundled set** — pass it anyway and the input falls back to plain text
-  (still themed, but uncoloured).
+  Rust, Scala, Shell-Script, SQL, TCL, XML, YAML. Unknown languages fall
+  back to plain text (still themed, but uncoloured).
 
   ## Themes
 

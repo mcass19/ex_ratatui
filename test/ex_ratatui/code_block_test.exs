@@ -44,7 +44,7 @@ defmodule ExRatatui.CodeBlockTest do
 
   describe "highlight/3" do
     test "returns a list of Line structs with at least one Span each" do
-      [first | _] = CodeBlock.highlight("fn main() {}", "rust", :base16_ocean_dark)
+      [first | _] = CodeBlock.highlight("defmodule X do end", "elixir", :base16_ocean_dark)
       assert %Line{} = first
       assert [%Span{} | _] = first.spans
     end
@@ -62,19 +62,22 @@ defmodule ExRatatui.CodeBlockTest do
       assert Enum.map_join(spans, & &1.content) =~ "anything"
     end
 
-    test "rust source produces multiple spans with distinct fg colors" do
+    test "elixir source produces multiple spans with distinct fg colors" do
       fgs =
-        "fn main() { let x: i32 = 42; }"
-        |> CodeBlock.highlight("rust", :base16_ocean_dark)
+        "defmodule Fib do\n  def of(n) when n < 2, do: n\nend"
+        |> CodeBlock.highlight("elixir", :base16_ocean_dark)
         |> Enum.flat_map(fn %Line{spans: spans} -> Enum.map(spans, & &1.style.fg) end)
         |> Enum.uniq()
 
-      assert length(fgs) >= 2
+      # bundled Elixir syntax gives keywords / atoms / numbers / identifiers
+      # distinct fg colors; >=4 catches a regression where the syntax fails
+      # to load and we fall back to plain text (would be ≤1 distinct color)
+      assert length(fgs) >= 4
     end
 
     test "fg colors are {:rgb, r, g, b} tuples" do
       [%Line{spans: spans} | _] =
-        CodeBlock.highlight("fn main() {}", "rust", :base16_ocean_dark)
+        CodeBlock.highlight("defmodule X do end", "elixir", :base16_ocean_dark)
 
       assert Enum.any?(spans, fn %Span{style: %Style{fg: fg}} ->
                match?({:rgb, _, _, _}, fg)
@@ -82,17 +85,17 @@ defmodule ExRatatui.CodeBlockTest do
     end
 
     test "accepts a raw theme string" do
-      [%Line{} | _] = CodeBlock.highlight("x", "rust", "InspiredGitHub")
+      [%Line{} | _] = CodeBlock.highlight("x", "elixir", "InspiredGitHub")
     end
 
     test "raises on unknown theme atom (before crossing the NIF)" do
       assert_raise ArgumentError, ~r/unknown CodeBlock theme/, fn ->
-        CodeBlock.highlight("x", "rust", :no_such_theme)
+        CodeBlock.highlight("x", "elixir", :no_such_theme)
       end
     end
 
     test "empty input yields zero or more lines without crashing" do
-      result = CodeBlock.highlight("", "rust", :base16_ocean_dark)
+      result = CodeBlock.highlight("", "elixir", :base16_ocean_dark)
       assert is_list(result)
     end
 

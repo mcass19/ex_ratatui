@@ -115,9 +115,9 @@ Oversized 8×8-pixel text for slide titles / banners. Smaller `pixel_size` packs
 Syntax-highlighted source code, display-only. Themes (curated atoms):
 `:base16_ocean_dark`, `:base16_ocean_light`, `:base16_eighties_dark`,
 `:base16_mocha_dark`, `:inspired_github`, `:solarized_dark`, `:solarized_light`.
-Raw strings pass through for custom theme sets. Languages: anything in syntect's
-bundled SyntaxSet (Rust, Python, JS, Ruby, Go, Java, JSON, YAML, etc. — note
-**Elixir is not bundled** and falls back to plain text).
+Raw strings pass through for custom theme sets. Languages: syntect's bundled
+SyntaxSet (Rust, Python, JS, Ruby, Go, Java, JSON, YAML, Erlang, etc.) **plus
+Elixir** which we ship as an additional bundled syntax.
 
 Raw highlighted lines for composite widgets:
 

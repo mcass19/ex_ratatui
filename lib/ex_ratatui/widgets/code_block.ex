@@ -5,8 +5,8 @@ defmodule ExRatatui.Widgets.CodeBlock do
   Powered by `syntect`, shares its syntax/theme machinery with
   `ExRatatui.Widgets.Markdown`. Supports the seven themes bundled with
   syntect plus any string a custom theme set understands. See
-  `ExRatatui.CodeBlock` for the bundled language set — note that Elixir
-  is not included and falls back to plain text.
+  `ExRatatui.CodeBlock` for the bundled language set (syntect's defaults
+  plus Elixir).
 
   Ideal for static code samples, slide decks, tutorials, and any
   read-only code view. For editable code, use `ExRatatui.Widgets.Textarea`
