@@ -103,6 +103,16 @@ defmodule ExRatatui.CodeBlockTest do
       lines = CodeBlock.highlight("a\nb\nc", nil, :base16_ocean_dark)
       assert length(lines) == 3
     end
+
+    test "accepts an atom language (converted to string internally)" do
+      [%Line{spans: spans} | _] =
+        CodeBlock.highlight("defmodule X do end", :elixir, :base16_ocean_dark)
+
+      fgs = spans |> Enum.map(& &1.style.fg) |> Enum.uniq()
+      # If the atom were silently dropped to nil or passed through to the NIF
+      # without coercion, we'd get <=1 fg (plain text fallback or crash).
+      assert length(fgs) >= 2
+    end
   end
 
   describe "from_native/1 (NIF response → structs)" do
@@ -229,6 +239,13 @@ defmodule ExRatatui.CodeBlockTest do
 
       assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :stop], _,
                       %{language: nil, line_count: 1}}
+    end
+
+    test "atom language is normalised to a string in telemetry metadata" do
+      _ = CodeBlock.highlight("x", :elixir, :base16_ocean_dark)
+
+      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], _,
+                      %{language: "elixir"}}
     end
   end
 

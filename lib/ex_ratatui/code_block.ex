@@ -19,6 +19,9 @@ defmodule ExRatatui.CodeBlock do
   Rust, Scala, Shell-Script, SQL, TCL, XML, YAML. Unknown languages fall
   back to plain text (still themed, but uncoloured).
 
+  Lookup is case-insensitive and accepts file extensions, so `"elixir"`,
+  `:Elixir`, `"ex"`, and `"exs"` all resolve to the same syntax.
+
   ## Themes
 
   Curated atoms resolve to syntect's bundled `ThemeSet`:
@@ -96,20 +99,25 @@ defmodule ExRatatui.CodeBlock do
       iex> Enum.map(spans, & &1.content) |> Enum.join() |> String.trim()
       "hello"
   """
-  @spec highlight(String.t(), String.t() | nil, CodeBlockWidget.theme()) :: [Line.t()]
+  @spec highlight(String.t(), String.t() | atom() | nil, CodeBlockWidget.theme()) :: [Line.t()]
   def highlight(code, language, theme) when is_binary(code) do
     theme_name = resolve_theme(theme)
-    start_meta = %{language: language, theme: theme_name, bytes: byte_size(code)}
+    language_str = normalize_language(language)
+    start_meta = %{language: language_str, theme: theme_name, bytes: byte_size(code)}
 
     :telemetry.span([:ex_ratatui, :code_block, :highlight], start_meta, fn ->
       lines =
         code
-        |> Native.highlight_code(language, theme_name)
+        |> Native.highlight_code(language_str, theme_name)
         |> from_native()
 
       {lines, Map.put(start_meta, :line_count, length(lines))}
     end)
   end
+
+  defp normalize_language(nil), do: nil
+  defp normalize_language(lang) when is_binary(lang), do: lang
+  defp normalize_language(lang) when is_atom(lang), do: Atom.to_string(lang)
 
   @typedoc """
   Raw span shape returned by the underlying highlighter NIF.
@@ -129,11 +137,11 @@ defmodule ExRatatui.CodeBlock do
   @doc """
   Converts the raw NIF response into `%ExRatatui.Text.Line{}` structs.
 
-  Useful when you call the underlying highlighter directly to skip
-  per-call theme atom resolution (e.g. in a hot loop reusing the same
-  theme), or when building tooling that consumes the wire shape. Most
-  callers should use `highlight/3` instead — it resolves the theme and
-  emits the `[:ex_ratatui, :code_block, :highlight]` telemetry span.
+  Useful for callers reaching for the underlying highlighter directly
+  to skip per-call theme atom resolution (e.g. in a hot loop reusing the
+  same theme), or for tooling that consumes the wire shape. Most callers
+  should use `highlight/3` instead — it resolves the theme and emits the
+  `[:ex_ratatui, :code_block, :highlight]` telemetry span.
 
   ## Examples
 

@@ -15,8 +15,8 @@ defmodule ExRatatui.Widgets.CodeBlock do
   ## Fields
 
     * `:content` — source code string
-    * `:language` — syntect token name (e.g. `"elixir"`, `"rust"`, `"python"`)
-      or `nil` for plain text
+    * `:language` — syntect token name as a string or atom (e.g. `"elixir"`,
+      `:rust`, `:python`) or `nil` for plain text
     * `:theme` — atom (curated) or raw string; see "Themes" below
     * `:line_numbers` — `true` to render a right-aligned gutter before each
       line (default: `false`)
@@ -93,7 +93,7 @@ defmodule ExRatatui.Widgets.CodeBlock do
 
   @type t :: %__MODULE__{
           content: String.t(),
-          language: String.t() | nil,
+          language: String.t() | atom() | nil,
           theme: theme(),
           line_numbers: boolean(),
           starting_line: pos_integer(),

@@ -1,27 +1,15 @@
 # Bundled Sublime syntaxes
 
-This directory holds `.sublime-syntax` files we embed in the NIF binary
-to extend syntect's default `SyntaxSet` with languages it doesn't bundle.
+Syntect ships a useful default `SyntaxSet`, but the BEAM languages we care about most aren't in it. This directory holds the `.sublime-syntax` files we vendor on top — each one is `include_str!`'d into the NIF binary and added to syntect's set at process startup by `native/ex_ratatui/src/widgets/highlighter.rs`. There's no runtime filesystem access; the files exist here purely so the source is inspectable and the licenses are easy to audit.
 
-Each file is loaded by `widgets/highlighter.rs::syntaxes()` at process
-startup via `SyntaxSet::load_defaults_newlines().into_builder()` →
-`SyntaxDefinition::load_from_str(include_str!("…"), true, None)` → `.add()` →
-`.build()`. Files are baked into the binary at compile time; no runtime
-filesystem access.
-
-## Contents
+Today the list is short:
 
 | File | Source | License |
 |---|---|---|
 | `Elixir.sublime-syntax` | [elixir-editors/elixir-sublime-syntax](https://github.com/elixir-editors/elixir-sublime-syntax) | MIT (see `LICENSE` in this directory) |
 
+Erlang already rides along inside syntect's defaults. EEx, HEEx, and Surface don't, but the same path extends to them whenever there's a reason to pull them in.
+
 ## Adding a new language
 
-1. Drop the `.sublime-syntax` file here (verify the license is
-   permissive — MIT / Apache 2.0 / similar — and copy the LICENSE
-   alongside).
-2. Add a `include_str!` + `builder.add(...)` line to `syntaxes()` in
-   `native/ex_ratatui/src/widgets/highlighter.rs`.
-3. Update `ExRatatui.CodeBlock`'s moduledoc "Supported languages"
-   list and the cheatsheet's language note.
-4. Add a row to the table above.
+Drop the `.sublime-syntax` file alongside this README and copy its LICENSE in beside it — we only vendor permissive licenses (MIT, Apache 2.0, and friends). Then teach the highlighter about it: an `include_str!` constant and a `builder.add(...)` call inside `syntaxes()` in `widgets/highlighter.rs`. Finally, add the language to `ExRatatui.CodeBlock`'s moduledoc, the cheatsheet, and the table above so users can actually discover it.

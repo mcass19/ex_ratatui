@@ -371,14 +371,14 @@ defmodule ExRatatui.Bridge do
       "content" => cb.content,
       "theme" => ExRatatui.CodeBlock.resolve_theme(cb.theme),
       "line_numbers" => cb.line_numbers,
-      "starting_line" => cb.starting_line,
+      "starting_line" => validate_starting_line(cb.starting_line),
       "highlight_lines" => normalize_highlight_lines(cb.highlight_lines),
       "style" => encode_style(cb.style, "code_block.style"),
       "wrap" => cb.wrap,
       "scroll_y" => elem(cb.scroll, 0),
       "scroll_x" => elem(cb.scroll, 1)
     }
-    |> maybe_put("language", cb.language)
+    |> maybe_put("language", normalize_language(cb.language))
     |> maybe_put_block(cb.block, "code_block.block")
   end
 
@@ -1055,6 +1055,22 @@ defmodule ExRatatui.Bridge do
     Map.put(map, "block", encode_block(block, context))
   end
 
+  defp normalize_language(nil), do: nil
+  defp normalize_language(lang) when is_binary(lang), do: lang
+  defp normalize_language(lang) when is_atom(lang), do: Atom.to_string(lang)
+
+  defp normalize_language(other) do
+    raise ArgumentError,
+          "code_block.language must be a string, atom, or nil, got: #{inspect(other)}"
+  end
+
+  defp validate_starting_line(n) when is_integer(n) and n > 0, do: n
+
+  defp validate_starting_line(other) do
+    raise ArgumentError,
+          "code_block.starting_line must be a positive integer, got: #{inspect(other)}"
+  end
+
   defp normalize_highlight_lines(entries) when is_list(entries) do
     entries
     |> Enum.flat_map(fn
@@ -1064,5 +1080,10 @@ defmodule ExRatatui.Bridge do
     end)
     |> Enum.uniq()
     |> Enum.sort()
+  end
+
+  defp normalize_highlight_lines(other) do
+    raise ArgumentError,
+          "code_block.highlight_lines must be a list, got: #{inspect(other)}"
   end
 end

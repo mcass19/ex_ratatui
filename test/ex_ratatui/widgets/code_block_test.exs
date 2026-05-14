@@ -64,6 +64,43 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
       assert encode(%CodeBlock{content: "", language: "rust"})["language"] == "rust"
     end
 
+    test "accepts atom language and converts to string" do
+      assert encode(%CodeBlock{content: "", language: :elixir})["language"] == "elixir"
+      assert encode(%CodeBlock{content: "", language: :rust})["language"] == "rust"
+    end
+
+    test "raises on non-binary, non-atom language" do
+      assert_raise ArgumentError, ~r/code_block.language must be a string, atom, or nil/, fn ->
+        encode(%CodeBlock{content: "", language: 42})
+      end
+    end
+
+    test "raises on starting_line <= 0" do
+      assert_raise ArgumentError, ~r/starting_line must be a positive integer/, fn ->
+        encode(%CodeBlock{content: "x", starting_line: 0})
+      end
+
+      assert_raise ArgumentError, ~r/starting_line must be a positive integer/, fn ->
+        encode(%CodeBlock{content: "x", starting_line: -5})
+      end
+    end
+
+    test "raises on non-integer starting_line" do
+      assert_raise ArgumentError, ~r/starting_line must be a positive integer/, fn ->
+        encode(%CodeBlock{content: "x", starting_line: 1.5})
+      end
+    end
+
+    test "raises on non-list highlight_lines with a helpful message" do
+      assert_raise ArgumentError, ~r/highlight_lines must be a list/, fn ->
+        encode(%CodeBlock{content: "x", highlight_lines: nil})
+      end
+
+      assert_raise ArgumentError, ~r/highlight_lines must be a list/, fn ->
+        encode(%CodeBlock{content: "x", highlight_lines: {1, 2, 3}})
+      end
+    end
+
     test "encodes block when present" do
       block = %Block{title: "src", borders: [:all]}
       json = encode(%CodeBlock{content: "", block: block})
