@@ -369,13 +369,13 @@ defmodule ExRatatui.Bridge do
     %{
       "type" => "code_block",
       "content" => cb.content,
-      "language" => cb.language,
       "theme" => resolve_code_theme(cb.theme),
       "style" => encode_style(cb.style, "code_block.style"),
       "wrap" => cb.wrap,
       "scroll_y" => elem(cb.scroll, 0),
       "scroll_x" => elem(cb.scroll, 1)
     }
+    |> maybe_put("language", cb.language)
     |> maybe_put_block(cb.block, "code_block.block")
   end
 

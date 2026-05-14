@@ -3,6 +3,7 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
 
   alias ExRatatui.Bridge
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.Native
   alias ExRatatui.Widgets.{Block, CodeBlock}
 
   doctest ExRatatui.Widgets.CodeBlock
@@ -17,11 +18,11 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
 
       assert json["type"] == "code_block"
       assert json["content"] == "x = 1"
-      assert json["language"] == nil
       assert json["theme"] == "base16-ocean.dark"
       assert json["wrap"] == false
       assert json["scroll_y"] == 0
       assert json["scroll_x"] == 0
+      refute Map.has_key?(json, "language")
       refute Map.has_key?(json, "block")
     end
 
@@ -76,6 +77,49 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
       assert json["scroll_y"] == 3
       assert json["scroll_x"] == 5
       assert json["wrap"] == true
+    end
+  end
+
+  describe "rendering through the native pipeline" do
+    setup do
+      terminal = ExRatatui.init_test_terminal(60, 8)
+      on_exit(fn -> Native.restore_terminal(terminal) end)
+      %{terminal: terminal}
+    end
+
+    test "renders plain content when language is nil", %{terminal: terminal} do
+      widget = %CodeBlock{content: "hello world"}
+      rect = %Rect{x: 0, y: 0, width: 60, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "hello world"
+    end
+
+    test "renders elixir source through the highlighter", %{terminal: terminal} do
+      widget = %CodeBlock{
+        content: "defmodule X do\n  def hi, do: :ok\nend",
+        language: "elixir"
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 60, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "defmodule"
+      assert content =~ "def hi"
+    end
+
+    test "renders inside a Block container", %{terminal: terminal} do
+      widget = %CodeBlock{
+        content: "x = 1",
+        language: "elixir",
+        block: %Block{title: "snippet", borders: [:all]}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "snippet"
     end
   end
 end

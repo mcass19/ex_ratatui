@@ -20,6 +20,7 @@ use crate::widgets::calendar::{self, CalendarData};
 use crate::widgets::canvas::{self, CanvasData, CanvasShape};
 use crate::widgets::chart::{self, AxisData, ChartData, DatasetData};
 use crate::widgets::checkbox::{self, CheckboxData};
+use crate::widgets::code_block::{self, CodeBlockData};
 use crate::widgets::gauge::{self, GaugeData};
 use crate::widgets::line_gauge::{self, LineGaugeData};
 use crate::widgets::list::{self, ListData};
@@ -52,6 +53,7 @@ pub enum WidgetData {
     TextInput(TextInputRenderData),
     Throbber(ThrobberData),
     Markdown(MarkdownData),
+    CodeBlock(CodeBlockData),
     Textarea(TextareaRenderData),
     Popup(PopupData),
     WidgetList(WidgetListData),
@@ -132,6 +134,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "text_input" => Ok(WidgetData::TextInput(decode_text_input(widget_map)?)),
         "throbber" => Ok(WidgetData::Throbber(decode_throbber(widget_map)?)),
         "markdown" => Ok(WidgetData::Markdown(decode_markdown(widget_map)?)),
+        "code_block" => Ok(WidgetData::CodeBlock(decode_code_block(widget_map)?)),
         "textarea" => Ok(WidgetData::Textarea(decode_textarea(widget_map)?)),
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
@@ -1077,6 +1080,34 @@ fn decode_markdown(map: &TermMap<'_>) -> Result<MarkdownData, Error> {
     })
 }
 
+fn decode_code_block(map: &TermMap<'_>) -> Result<CodeBlockData, Error> {
+    let content: String = decode_required(map, "content", "code_block")?;
+    let language: Option<String> = decode_optional(map, "language", "code_block")?;
+    let theme: String = decode_optional(map, "theme", "code_block")?
+        .unwrap_or_else(|| "base16-ocean.dark".to_string());
+
+    let style = match optional_term(map, "style") {
+        Some(term) => decode_style(term)?,
+        None => ratatui::style::Style::default(),
+    };
+
+    let wrap: bool = decode_optional(map, "wrap", "code_block")?.unwrap_or(false);
+    let scroll_y: u16 = decode_optional(map, "scroll_y", "code_block")?.unwrap_or(0);
+    let scroll_x: u16 = decode_optional(map, "scroll_x", "code_block")?.unwrap_or(0);
+
+    let block = decode_optional_block(map)?;
+
+    Ok(CodeBlockData {
+        content,
+        language,
+        theme,
+        style,
+        block,
+        scroll: (scroll_y, scroll_x),
+        wrap,
+    })
+}
+
 fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
     let resource = decode_textarea_state(map)?;
 
@@ -1394,6 +1425,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, cap
         WidgetData::TextInput(data) => text_input::render(buf, data, area),
         WidgetData::Throbber(data) => throbber::render(buf, data, area),
         WidgetData::Markdown(data) => markdown::render(buf, data, area),
+        WidgetData::CodeBlock(data) => code_block::render(buf, data, area),
         WidgetData::Textarea(data) => textarea::render(buf, data, area),
         WidgetData::Popup(data) => popup::render(buf, data, area, caps),
         WidgetData::WidgetList(data) => widget_list::render(buf, data, area, caps),

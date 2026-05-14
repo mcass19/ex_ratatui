@@ -20,6 +20,7 @@ vte = "0.15"
 ratatui-image = { version = "11.0.2", default-features = false, features = ["crossterm"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 tui-big-text = "0.8.4"
+syntect = "5"
 
 [features]
 default = ["nif_version_2_16"]
