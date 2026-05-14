@@ -370,6 +370,8 @@ defmodule ExRatatui.Bridge do
       "type" => "code_block",
       "content" => cb.content,
       "theme" => resolve_code_theme(cb.theme),
+      "line_numbers" => cb.line_numbers,
+      "starting_line" => cb.starting_line,
       "style" => encode_style(cb.style, "code_block.style"),
       "wrap" => cb.wrap,
       "scroll_y" => elem(cb.scroll, 0),

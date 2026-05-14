@@ -78,6 +78,18 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
       assert json["scroll_x"] == 5
       assert json["wrap"] == true
     end
+
+    test "encodes line_numbers + starting_line defaults" do
+      json = encode(%CodeBlock{content: "x"})
+      assert json["line_numbers"] == false
+      assert json["starting_line"] == 1
+    end
+
+    test "encodes line_numbers when enabled" do
+      json = encode(%CodeBlock{content: "x", line_numbers: true, starting_line: 100})
+      assert json["line_numbers"] == true
+      assert json["starting_line"] == 100
+    end
   end
 
   describe "rendering through the native pipeline" do
@@ -120,6 +132,22 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
 
       assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
       assert ExRatatui.get_buffer_content(terminal) =~ "snippet"
+    end
+
+    test "renders gutter when line_numbers is true", %{terminal: terminal} do
+      widget = %CodeBlock{
+        content: "a\nb\nc",
+        line_numbers: true,
+        starting_line: 10
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "10 │"
+      assert content =~ "11 │"
+      assert content =~ "12 │"
     end
   end
 end

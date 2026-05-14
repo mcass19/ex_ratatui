@@ -1,7 +1,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
-use ratatui::text::Text;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use crate::widgets::block::BlockData;
@@ -11,6 +11,8 @@ pub struct CodeBlockData {
     pub content: String,
     pub language: Option<String>,
     pub theme: String,
+    pub line_numbers: bool,
+    pub starting_line: usize,
     pub style: Style,
     pub block: Option<BlockData>,
     pub scroll: (u16, u16),
@@ -19,6 +21,12 @@ pub struct CodeBlockData {
 
 pub fn render(buf: &mut Buffer, data: &CodeBlockData, area: Rect) {
     let lines = highlighter::lines_for(&data.content, data.language.as_deref(), &data.theme);
+
+    let lines = if data.line_numbers {
+        prepend_gutter(lines, data.starting_line)
+    } else {
+        lines
+    };
 
     let mut widget = Paragraph::new(Text::from(lines)).style(data.style);
 
@@ -37,6 +45,28 @@ pub fn render(buf: &mut Buffer, data: &CodeBlockData, area: Rect) {
     widget.render(area, buf);
 }
 
+fn prepend_gutter(lines: Vec<Line<'static>>, starting_line: usize) -> Vec<Line<'static>> {
+    let total = lines.len();
+    if total == 0 {
+        return lines;
+    }
+    let last = starting_line.saturating_add(total).saturating_sub(1);
+    let width = last.to_string().len();
+    let gutter_style = Style::default().add_modifier(Modifier::DIM);
+
+    lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, line)| {
+            let n = starting_line + i;
+            let prefix = format!("{:>width$} │ ", n, width = width);
+            let mut spans = vec![Span::styled(prefix, gutter_style)];
+            spans.extend(line.spans);
+            Line::from(spans)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,6 +79,8 @@ mod tests {
             content: content.to_string(),
             language: language.map(String::from),
             theme: "base16-ocean.dark".to_string(),
+            line_numbers: false,
+            starting_line: 1,
             style: Style::default(),
             block: None,
             scroll: (0, 0),
@@ -146,6 +178,72 @@ mod tests {
             .unwrap();
         let line = buffer_line(&terminal, 0, 40);
         assert!(line.contains("x"), "got: {line}");
+    }
+
+    #[test]
+    fn line_numbers_renders_gutter() {
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let data = CodeBlockData {
+            line_numbers: true,
+            starting_line: 1,
+            ..make("a\nb\nc", None)
+        };
+        terminal
+            .draw(|f| render(f.buffer_mut(), &data, Rect::new(0, 0, 60, 5)))
+            .unwrap();
+
+        assert!(buffer_line(&terminal, 0, 60).starts_with("1 │"));
+        assert!(buffer_line(&terminal, 1, 60).starts_with("2 │"));
+        assert!(buffer_line(&terminal, 2, 60).starts_with("3 │"));
+    }
+
+    #[test]
+    fn starting_line_offset_applied_with_width() {
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let data = CodeBlockData {
+            line_numbers: true,
+            starting_line: 100,
+            ..make("a\nb", None)
+        };
+        terminal
+            .draw(|f| render(f.buffer_mut(), &data, Rect::new(0, 0, 60, 5)))
+            .unwrap();
+
+        assert!(buffer_line(&terminal, 0, 60).starts_with("100 │"));
+        assert!(buffer_line(&terminal, 1, 60).starts_with("101 │"));
+    }
+
+    #[test]
+    fn line_numbers_width_grows_for_larger_files() {
+        let backend = TestBackend::new(60, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        // last line will be number 12 → width 2 → " 1 │", " 9 │", "12 │"
+        let data = CodeBlockData {
+            line_numbers: true,
+            starting_line: 1,
+            ..make("a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl", None)
+        };
+        terminal
+            .draw(|f| render(f.buffer_mut(), &data, Rect::new(0, 0, 60, 12)))
+            .unwrap();
+
+        assert!(buffer_line(&terminal, 0, 60).starts_with(" 1 │"));
+        assert!(buffer_line(&terminal, 11, 60).starts_with("12 │"));
+    }
+
+    #[test]
+    fn empty_content_with_line_numbers_does_not_panic() {
+        let backend = TestBackend::new(40, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let data = CodeBlockData {
+            line_numbers: true,
+            ..make("", None)
+        };
+        terminal
+            .draw(|f| render(f.buffer_mut(), &data, Rect::new(0, 0, 40, 5)))
+            .unwrap();
     }
 
     #[test]

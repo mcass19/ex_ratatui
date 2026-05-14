@@ -17,6 +17,10 @@ defmodule ExRatatui.Widgets.CodeBlock do
     * `:language` — syntect token name (e.g. `"elixir"`, `"rust"`, `"python"`)
       or `nil` for plain text
     * `:theme` — atom (curated) or raw string; see "Themes" below
+    * `:line_numbers` — `true` to render a right-aligned gutter before each
+      line (default: `false`)
+    * `:starting_line` — first line number when `:line_numbers` is `true`
+      (default: `1`)
     * `:style` — `%ExRatatui.Style{}` for the widget background
     * `:block` — optional `%ExRatatui.Widgets.Block{}` container
     * `:scroll` — `{vertical, horizontal}` scroll offset (default: `{0, 0}`)
@@ -45,6 +49,8 @@ defmodule ExRatatui.Widgets.CodeBlock do
         content: "IO.puts(\\"hi\\")",
         language: "elixir",
         theme: :base16_ocean_dark,
+        line_numbers: false,
+        starting_line: 1,
         style: %ExRatatui.Style{},
         block: nil,
         scroll: {0, 0},
@@ -81,6 +87,8 @@ defmodule ExRatatui.Widgets.CodeBlock do
           content: String.t(),
           language: String.t() | nil,
           theme: theme(),
+          line_numbers: boolean(),
+          starting_line: pos_integer(),
           style: Style.t(),
           block: ExRatatui.Widgets.Block.t() | nil,
           scroll: {non_neg_integer(), non_neg_integer()},
@@ -90,6 +98,8 @@ defmodule ExRatatui.Widgets.CodeBlock do
   defstruct content: "",
             language: nil,
             theme: :base16_ocean_dark,
+            line_numbers: false,
+            starting_line: 1,
             style: %Style{},
             block: nil,
             scroll: {0, 0},

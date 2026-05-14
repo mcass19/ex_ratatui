@@ -1086,6 +1086,10 @@ fn decode_code_block(map: &TermMap<'_>) -> Result<CodeBlockData, Error> {
     let theme: String = decode_optional(map, "theme", "code_block")?
         .unwrap_or_else(|| "base16-ocean.dark".to_string());
 
+    let line_numbers: bool = decode_optional(map, "line_numbers", "code_block")?.unwrap_or(false);
+    let starting_line: usize =
+        decode_optional::<u64>(map, "starting_line", "code_block")?.unwrap_or(1) as usize;
+
     let style = match optional_term(map, "style") {
         Some(term) => decode_style(term)?,
         None => ratatui::style::Style::default(),
@@ -1101,6 +1105,8 @@ fn decode_code_block(map: &TermMap<'_>) -> Result<CodeBlockData, Error> {
         content,
         language,
         theme,
+        line_numbers,
+        starting_line,
         style,
         block,
         scroll: (scroll_y, scroll_x),
