@@ -227,6 +227,10 @@ defmodule ExRatatui.MixProject do
           ExRatatui.BigText,
           ExRatatui.Widgets.BigText
         ],
+        "Widgets: Code": [
+          ExRatatui.CodeBlock,
+          ExRatatui.Widgets.CodeBlock
+        ],
         "Custom Widgets": [
           ExRatatui.Widget
         ],

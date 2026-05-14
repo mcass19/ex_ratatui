@@ -99,6 +99,33 @@ ExRatatui.BigText.new("HELLO",
 
 Oversized 8×8-pixel text for slide titles / banners. Smaller `pixel_size` packs more characters into the same area; `:octant` is the densest. Backed by [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text).
 
+### CodeBlock
+
+```elixir
+%ExRatatui.Widgets.CodeBlock{
+  content: source_code,
+  language: "rust",                    # nil = plain text fallback
+  theme: :base16_ocean_dark,           # 7 curated atoms or any raw string
+  line_numbers: true,
+  starting_line: 1,
+  highlight_lines: [3, 7..9]           # ints + ranges, normalised
+}
+```
+
+Syntax-highlighted source code, display-only. Themes (curated atoms):
+`:base16_ocean_dark`, `:base16_ocean_light`, `:base16_eighties_dark`,
+`:base16_mocha_dark`, `:inspired_github`, `:solarized_dark`, `:solarized_light`.
+Raw strings pass through for custom theme sets. Languages: anything in syntect's
+bundled SyntaxSet (Rust, Python, JS, Ruby, Go, Java, JSON, YAML, etc. — note
+**Elixir is not bundled** and falls back to plain text).
+
+Raw highlighted lines for composite widgets:
+
+```elixir
+ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
+# => [%ExRatatui.Text.Line{spans: [...]}, ...]
+```
+
 ## Lists, tables & scrolling
 {: .col-2}
 

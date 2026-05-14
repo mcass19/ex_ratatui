@@ -9,6 +9,11 @@ defmodule ExRatatui.Widgets.Markdown do
 
   Ideal for rendering AI assistant responses in a chat interface.
 
+  Fenced-code highlighting uses syntect's bundled `base16-ocean.dark` theme,
+  which is hardcoded by `tui-markdown` and cannot be overridden through its
+  public API. For themed code display, use `ExRatatui.Widgets.CodeBlock`
+  directly.
+
   ## Fields
 
     * `:content` - the markdown text to render
