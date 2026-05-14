@@ -1089,6 +1089,12 @@ fn decode_code_block(map: &TermMap<'_>) -> Result<CodeBlockData, Error> {
     let line_numbers: bool = decode_optional(map, "line_numbers", "code_block")?.unwrap_or(false);
     let starting_line: usize =
         decode_optional::<u64>(map, "starting_line", "code_block")?.unwrap_or(1) as usize;
+    let highlight_lines: Vec<usize> =
+        decode_optional::<Vec<u64>>(map, "highlight_lines", "code_block")?
+            .unwrap_or_default()
+            .into_iter()
+            .map(|n| n as usize)
+            .collect();
 
     let style = match optional_term(map, "style") {
         Some(term) => decode_style(term)?,
@@ -1107,6 +1113,7 @@ fn decode_code_block(map: &TermMap<'_>) -> Result<CodeBlockData, Error> {
         theme,
         line_numbers,
         starting_line,
+        highlight_lines,
         style,
         block,
         scroll: (scroll_y, scroll_x),

@@ -372,6 +372,7 @@ defmodule ExRatatui.Bridge do
       "theme" => resolve_code_theme(cb.theme),
       "line_numbers" => cb.line_numbers,
       "starting_line" => cb.starting_line,
+      "highlight_lines" => normalize_highlight_lines(cb.highlight_lines),
       "style" => encode_style(cb.style, "code_block.style"),
       "wrap" => cb.wrap,
       "scroll_y" => elem(cb.scroll, 0),
@@ -1081,5 +1082,16 @@ defmodule ExRatatui.Bridge do
         raise ArgumentError,
               "unknown CodeBlock theme #{inspect(theme)}, valid atoms: #{valid}"
     end
+  end
+
+  defp normalize_highlight_lines(entries) when is_list(entries) do
+    entries
+    |> Enum.flat_map(fn
+      n when is_integer(n) and n > 0 -> [n]
+      %Range{first: a, last: b, step: 1} when a > 0 and b >= a -> Enum.to_list(a..b)
+      other -> raise ArgumentError, "invalid highlight_lines entry: #{inspect(other)}"
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 end

@@ -90,6 +90,44 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
       assert json["line_numbers"] == true
       assert json["starting_line"] == 100
     end
+
+    test "highlight_lines default is an empty list" do
+      json = encode(%CodeBlock{content: "x"})
+      assert json["highlight_lines"] == []
+    end
+
+    test "highlight_lines normalises ints + ranges + dedup + sort" do
+      json = encode(%CodeBlock{content: "", highlight_lines: [3, 7..9, 3, 1]})
+      assert json["highlight_lines"] == [1, 3, 7, 8, 9]
+    end
+
+    test "highlight_lines accepts a single int" do
+      json = encode(%CodeBlock{content: "", highlight_lines: [5]})
+      assert json["highlight_lines"] == [5]
+    end
+
+    test "highlight_lines accepts a single range" do
+      json = encode(%CodeBlock{content: "", highlight_lines: [2..4]})
+      assert json["highlight_lines"] == [2, 3, 4]
+    end
+
+    test "highlight_lines rejects non-positive ints" do
+      assert_raise ArgumentError, ~r/invalid highlight_lines entry/, fn ->
+        encode(%CodeBlock{content: "", highlight_lines: [0]})
+      end
+    end
+
+    test "highlight_lines rejects descending ranges" do
+      assert_raise ArgumentError, ~r/invalid highlight_lines entry/, fn ->
+        encode(%CodeBlock{content: "", highlight_lines: [5..1//-1]})
+      end
+    end
+
+    test "highlight_lines rejects garbage entries" do
+      assert_raise ArgumentError, ~r/invalid highlight_lines entry/, fn ->
+        encode(%CodeBlock{content: "", highlight_lines: ["one"]})
+      end
+    end
   end
 
   describe "rendering through the native pipeline" do
@@ -148,6 +186,21 @@ defmodule ExRatatui.Widgets.CodeBlockTest do
       assert content =~ "10 │"
       assert content =~ "11 │"
       assert content =~ "12 │"
+    end
+
+    test "renders highlight_lines without erroring", %{terminal: terminal} do
+      widget = %CodeBlock{
+        content: "a\nb\nc",
+        highlight_lines: [2, 3..3]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, rect}])
+      content = ExRatatui.get_buffer_content(terminal)
+      assert content =~ "a"
+      assert content =~ "b"
+      assert content =~ "c"
     end
   end
 end

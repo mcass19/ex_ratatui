@@ -28,6 +28,12 @@ fn themes() -> &'static ThemeSet {
     THEME_SET.get_or_init(ThemeSet::load_defaults)
 }
 
+/// Theme background color — used as the base when emphasising line ranges.
+pub fn theme_bg(theme_name: &str) -> Option<Color> {
+    let theme = themes().themes.get(theme_name)?;
+    theme.settings.background.map(|c| Color::Rgb(c.r, c.g, c.b))
+}
+
 /// Highlight `code` for the given `language` token (`"elixir"`, `"rust"`…).
 /// Returns one `Line` per source line. Unknown languages fall back to plain
 /// text. Unknown themes fall back to `base16-ocean.dark`.

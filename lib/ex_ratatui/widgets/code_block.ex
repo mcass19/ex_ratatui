@@ -21,6 +21,10 @@ defmodule ExRatatui.Widgets.CodeBlock do
       line (default: `false`)
     * `:starting_line` — first line number when `:line_numbers` is `true`
       (default: `1`)
+    * `:highlight_lines` — list of line numbers and/or ranges to emphasise
+      with a subtle theme-derived background. Example: `[3, 7..9]`.
+      Numbers are 1-based and refer to the rendered line number (so they
+      pair with `:starting_line` when offsets are in play).
     * `:style` — `%ExRatatui.Style{}` for the widget background
     * `:block` — optional `%ExRatatui.Widgets.Block{}` container
     * `:scroll` — `{vertical, horizontal}` scroll offset (default: `{0, 0}`)
@@ -51,6 +55,7 @@ defmodule ExRatatui.Widgets.CodeBlock do
         theme: :base16_ocean_dark,
         line_numbers: false,
         starting_line: 1,
+        highlight_lines: [],
         style: %ExRatatui.Style{},
         block: nil,
         scroll: {0, 0},
@@ -83,12 +88,15 @@ defmodule ExRatatui.Widgets.CodeBlock do
           | :solarized_light
           | String.t()
 
+  @type highlight_entry :: pos_integer() | Range.t()
+
   @type t :: %__MODULE__{
           content: String.t(),
           language: String.t() | nil,
           theme: theme(),
           line_numbers: boolean(),
           starting_line: pos_integer(),
+          highlight_lines: [highlight_entry()],
           style: Style.t(),
           block: ExRatatui.Widgets.Block.t() | nil,
           scroll: {non_neg_integer(), non_neg_integer()},
@@ -100,6 +108,7 @@ defmodule ExRatatui.Widgets.CodeBlock do
             theme: :base16_ocean_dark,
             line_numbers: false,
             starting_line: 1,
+            highlight_lines: [],
             style: %Style{},
             block: nil,
             scroll: {0, 0},
