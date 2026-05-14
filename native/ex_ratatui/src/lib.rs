@@ -1,6 +1,7 @@
 mod cell_session;
 mod decode;
 mod events;
+mod highlight;
 mod image;
 mod layout;
 mod rendering;

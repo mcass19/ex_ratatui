@@ -1,0 +1,144 @@
+defmodule ExRatatui.CodeBlock do
+  @moduledoc """
+  Helpers for syntax-highlighted code, complementing the
+  `ExRatatui.Widgets.CodeBlock` widget.
+
+  `highlight/3` is the seam for users composing their own widgets — a
+  DiffViewer building side-by-side panels of highlighted source, an
+  Inspector pretty-printing structs — without dropping a full `CodeBlock`
+  into the tree.
+
+  ## Supported languages
+
+  Powered by syntect's bundled Sublime-syntax set. Languages with built-in
+  support include Bash, C, C++, C#, CSS, D, Diff, Erlang, Go, Groovy,
+  Haskell, HTML, Java, JavaScript, JSON, Lisp, Lua, Make, Markdown,
+  MATLAB, OCaml, Objective-C, Pascal, Perl, PHP, Python, R, Regexp, Ruby,
+  Rust, Scala, Shell-Script, SQL, TCL, XML, YAML. **Elixir is not in the
+  bundled set** — pass it anyway and the input falls back to plain text
+  (still themed, but uncoloured).
+
+  ## Themes
+
+  Curated atoms resolve to syntect's bundled `ThemeSet`:
+
+    * `:base16_ocean_dark` (default for `ExRatatui.Widgets.CodeBlock`)
+    * `:base16_ocean_light`
+    * `:base16_eighties_dark`
+    * `:base16_mocha_dark`
+    * `:inspired_github`
+    * `:solarized_dark`
+    * `:solarized_light`
+
+  Raw strings pass through unchanged.
+
+  ## Examples
+
+      iex> [%ExRatatui.Text.Line{} | _] =
+      ...>   ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :base16_ocean_dark)
+  """
+
+  alias ExRatatui.Native
+  alias ExRatatui.Style
+  alias ExRatatui.Text.{Line, Span}
+  alias ExRatatui.Widgets.CodeBlock, as: CodeBlockWidget
+
+  @code_themes %{
+    base16_ocean_dark: "base16-ocean.dark",
+    base16_ocean_light: "base16-ocean.light",
+    base16_eighties_dark: "base16-eighties.dark",
+    base16_mocha_dark: "base16-mocha.dark",
+    inspired_github: "InspiredGitHub",
+    solarized_dark: "Solarized (dark)",
+    solarized_light: "Solarized (light)"
+  }
+
+  @doc """
+  Resolves a `CodeBlock` theme into the raw syntect theme name.
+
+  Accepts a curated atom (one of seven) or a raw string. Raises
+  `ArgumentError` for unknown atoms with a message listing valid choices.
+  Raw strings pass through unchanged so callers can load custom theme
+  sets without modifying this module.
+  """
+  @spec resolve_theme(CodeBlockWidget.theme()) :: String.t()
+  def resolve_theme(theme) when is_binary(theme), do: theme
+
+  def resolve_theme(theme) when is_atom(theme) do
+    case Map.fetch(@code_themes, theme) do
+      {:ok, name} ->
+        name
+
+      :error ->
+        valid =
+          @code_themes
+          |> Map.keys()
+          |> Enum.sort()
+          |> Enum.map_join(", ", &inspect/1)
+
+        raise ArgumentError,
+              "unknown CodeBlock theme #{inspect(theme)}, valid atoms: #{valid}"
+    end
+  end
+
+  @doc """
+  Highlight `code` for `language` using `theme`.
+
+  Returns a list of `%ExRatatui.Text.Line{}` with per-token styled spans.
+  Unknown languages fall back to a single plain span per line; unknown
+  themes fall back to `:base16_ocean_dark`.
+
+  ## Examples
+
+      iex> [%ExRatatui.Text.Line{spans: spans} | _] =
+      ...>   ExRatatui.CodeBlock.highlight("hello", nil, :base16_ocean_dark)
+      iex> Enum.map(spans, & &1.content) |> Enum.join() |> String.trim()
+      "hello"
+  """
+  @spec highlight(String.t(), String.t() | nil, CodeBlockWidget.theme()) :: [Line.t()]
+  def highlight(code, language, theme) when is_binary(code) do
+    theme_name = resolve_theme(theme)
+
+    code
+    |> Native.highlight_code(language, theme_name)
+    |> from_native()
+  end
+
+  @doc false
+  # Converts the raw NIF response into `%Line{}` structs. Exposed (not
+  # private) so unit tests can exercise the nil-fg/nil-bg branches that
+  # syntect's bundled themes don't reach in practice.
+  @spec from_native([[map()]]) :: [Line.t()]
+  def from_native(lines) when is_list(lines), do: Enum.map(lines, &to_line/1)
+
+  defp to_line(spans) when is_list(spans) do
+    %Line{spans: Enum.map(spans, &to_span/1)}
+  end
+
+  defp to_span(%{
+         content: content,
+         fg: fg,
+         bg: bg,
+         bold: bold,
+         italic: italic,
+         underlined: underlined
+       }) do
+    %Span{
+      content: content,
+      style: %Style{
+        fg: to_color(fg),
+        bg: to_color(bg),
+        modifiers: collect_modifiers(bold, italic, underlined)
+      }
+    }
+  end
+
+  defp to_color(nil), do: nil
+  defp to_color({r, g, b}), do: {:rgb, r, g, b}
+
+  defp collect_modifiers(bold, italic, underlined) do
+    [{:bold, bold}, {:italic, italic}, {:underlined, underlined}]
+    |> Enum.filter(fn {_, on?} -> on? end)
+    |> Enum.map(fn {name, _} -> name end)
+  end
+end

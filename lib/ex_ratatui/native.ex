@@ -50,7 +50,8 @@ defmodule ExRatatui.Native do
     session_set_image_protocol: 2,
     session_set_image_font_size: 2,
     terminal_set_image_protocol: 2,
-    terminal_set_local_probe: 3
+    terminal_set_local_probe: 3,
+    highlight_code: 3
   ]
 
   version = Mix.Project.config()[:version]
