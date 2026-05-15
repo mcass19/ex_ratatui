@@ -135,6 +135,7 @@ defmodule ExRatatui.MixProject do
         "guides/internals/debugging.md": [title: "Debugging"],
         "guides/internals/performance.md": [title: "Performance"],
         "guides/internals/telemetry.md": [title: "Telemetry"],
+        "guides/packaging/packaging_with_burrito.md": [title: "Packaging with Burrito"],
         "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
@@ -145,6 +146,7 @@ defmodule ExRatatui.MixProject do
         Runtimes: Path.wildcard("guides/runtimes/*.md"),
         Transports: Path.wildcard("guides/transports/*.md"),
         "Going Deeper": Path.wildcard("guides/internals/*.md"),
+        Packaging: Path.wildcard("guides/packaging/*.md"),
         Cheatsheets: Path.wildcard("guides/cheatsheets/*.cheatmd")
       ],
       groups_for_modules: [
