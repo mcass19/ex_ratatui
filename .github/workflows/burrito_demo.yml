@@ -1,0 +1,104 @@
+name: Burrito Demo
+
+# Builds examples/burrito_demo as a native single-file binary on each
+# supported OS/arch and runs a non-interactive --version smoke test that
+# proves the BEAM boots and the ex_ratatui NIF loads inside the wrapped
+# binary. Artifacts are uploaded for inspection.
+#
+# Each runner builds only its own target via BURRITO_TARGET. Linux
+# additionally cross-builds the ex_ratatui NIF for musl using zigbuild
+# until ex_ratatui v0.9.1 ships the corrected precompiled artifact and
+# the local NIF dance can be deleted.
+
+on:
+  pull_request:
+  push:
+    branches: [main, burrito]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.target }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            artifact: burrito_demo_linux
+          - os: macos-13
+            target: macos
+            artifact: burrito_demo_macos
+          - os: macos-14
+            target: macos_silicon
+            artifact: burrito_demo_macos_silicon
+          - os: windows-latest
+            target: windows
+            artifact: burrito_demo_windows.exe
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.2"
+          elixir-version: "1.18"
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install cargo-zigbuild
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo install --locked cargo-zigbuild
+
+      - name: Cross-build musl NIF
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: native/ex_ratatui
+        run: cargo zigbuild --target x86_64-unknown-linux-musl --release
+
+      - name: Get deps
+        working-directory: examples/burrito_demo
+        run: mix deps.get
+
+      - name: Build release (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: examples/burrito_demo
+        env:
+          BURRITO_TARGET: ${{ matrix.target }}
+          MIX_ENV: prod
+          TARGET_ARCH: x86_64
+          TARGET_VENDOR: unknown
+          TARGET_OS: linux
+          TARGET_ABI: musl
+        run: mix release --overwrite
+
+      - name: Build release (macOS / Windows)
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: examples/burrito_demo
+        env:
+          BURRITO_TARGET: ${{ matrix.target }}
+          MIX_ENV: prod
+        run: mix release --overwrite
+
+      - name: Smoke test --version
+        working-directory: examples/burrito_demo
+        run: ./burrito_out/${{ matrix.artifact }} --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: examples/burrito_demo/burrito_out/${{ matrix.artifact }}
+          retention-days: 7
