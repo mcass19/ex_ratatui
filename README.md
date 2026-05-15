@@ -150,6 +150,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
 | [Performance](guides/internals/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
 | [Telemetry](guides/internals/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
+| [Packaging with Burrito](guides/packaging/packaging_with_burrito.md) | Ship a TUI as a single-file native binary per OS/arch via [Burrito](https://github.com/burrito-elixir/burrito) — no Erlang or Rust install required for end users |
 | [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |
 
 ## How It Works
