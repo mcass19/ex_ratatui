@@ -34,7 +34,7 @@ defmodule BurritoDemo.MixProject do
     [
       {@app,
        [
-         steps: [:assemble, &Burrito.wrap/1],
+         steps: [:assemble, &swap_local_nif/1, &Burrito.wrap/1],
          burrito: [
            targets: [
              linux: [os: :linux, cpu: :x86_64]
@@ -42,5 +42,38 @@ defmodule BurritoDemo.MixProject do
          ]
        ]}
     ]
+  end
+
+  # Replaces the precompiled musl NIF in the assembled release with a
+  # locally cross-built one from `native/ex_ratatui/target/.../release/`.
+  # Needed until the upstream `.cargo/config.toml` change ships in a new
+  # ex_ratatui release; without this, the published musl NIF links
+  # `libgcc_s.so.1` and fails to load under Burrito's musl payload.
+  defp swap_local_nif(release) do
+    repo_root = Path.expand("../..", __DIR__)
+
+    source =
+      Path.join([
+        repo_root,
+        "native/ex_ratatui/target/x86_64-unknown-linux-musl/release/libex_ratatui.so"
+      ])
+
+    if File.exists?(source) do
+      [dest] =
+        Path.wildcard(
+          Path.join([
+            release.path,
+            "lib/ex_ratatui-*/priv/native/libex_ratatui-*-x86_64-unknown-linux-musl.so"
+          ])
+        )
+
+      File.cp!(source, dest)
+
+      Mix.shell().info(
+        "[burrito_demo] swapped musl NIF -> #{Path.relative_to(dest, release.path)}"
+      )
+    end
+
+    release
   end
 end
