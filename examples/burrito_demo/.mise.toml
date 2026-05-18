@@ -2,13 +2,6 @@
 #
 # Burrito 1.5 requires zig exactly 0.15.2 — newer or older versions are
 # rejected at `mix release` time.
-#
-# cargo-zigbuild is used to cross-compile the ex_ratatui NIF for the musl
-# target that Burrito's Linux payload expects. Temporary until the upstream
-# `.cargo/config.toml` fix in native/ex_ratatui ships in a new ex_ratatui
-# release; once it does, this example can drop the local NIF build and rely
-# on the published precompiled artifact.
 
 [tools]
 zig = "0.15.2"
-"cargo:cargo-zigbuild" = "latest"

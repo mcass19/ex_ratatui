@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Single-binary distribution via [Burrito](https://github.com/burrito-elixir/burrito).** The new [Packaging with Burrito guide](guides/packaging/packaging_with_burrito.md) walks through wrapping any `ExRatatui.App` into a self-contained native binary per OS/arch — Linux x86_64, macOS x86_64, macOS aarch64, and Windows x86_64. End users download one file, run it, and the BEAM + ex_ratatui + Rust NIF unpack into a per-user cache on first launch. On Linux the wrapper runs a musl runtime, so releases build with `TARGET_ABI=musl` and bundle the musl NIF — self-contained since the 0.12.0 fix for #83. `examples/burrito_demo/` is the reference consumer, and `.github/workflows/burrito_demo.yml` is the regression CI proving the linux (musl), macOS apple-silicon, and windows targets build + smoke-test green on every push — intel macOS builds the same way, it just has no CI leg.
+
+- **`mix ex_ratatui.gen.burrito` — Igniter-based generator.** Patches a consumer's `mix.exs` (adds `{:burrito, "~> 1.5"}`, wires `releases/0` with the four standard targets), drops a CLI module with `main/1` + `--version` smoke entry, and adds a `.mise.toml` pinning `zig 0.15.2`. `--ci github` additionally scaffolds a `.github/workflows/release.yml` that builds + publishes binaries to GitHub Releases on tag push. Igniter is declared `optional: true`; projects that never run the generator pay nothing for it, and invoking the task without Igniter installed prints an install hint and exits cleanly.
+
 ## [0.12.0] - 2026-08-11
 
 ### Added
