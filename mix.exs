@@ -78,6 +78,7 @@ defmodule ExRatatui.MixProject do
 
       # Optional
       {:rustler, ">= 0.0.0", optional: true},
+      {:igniter, "~> 0.8", optional: true},
 
       # Dev
       {:ex_doc, "~> 0.35", only: :dev, runtime: false},
@@ -98,8 +99,8 @@ defmodule ExRatatui.MixProject do
       },
       keywords: ~w(tui terminal ratatui cli ssh nerves distributed otp),
       files: ~w(
-        lib native assets/logo.png .formatter.exs mix.exs README.md LICENSE CHANGELOG.md
-        usage-rules.md checksum-Elixir.ExRatatui.Native.exs
+        lib native priv/templates/burrito assets/logo.png .formatter.exs mix.exs README.md
+        LICENSE CHANGELOG.md usage-rules.md checksum-Elixir.ExRatatui.Native.exs
       ),
       exclude_patterns: ~w(native/ex_ratatui/target)
     ]

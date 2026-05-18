@@ -1,0 +1,73 @@
+name: Release
+
+# Builds <%= @app %> as a native single-file binary on each supported OS/arch
+# and uploads the artifacts to the matching GitHub Release on tag push.
+#
+# Each runner builds only its own target via BURRITO_TARGET. macOS and
+# Windows binaries are unsigned by default — see the Packaging with
+# Burrito guide for codesigning / notarization.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.target }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            artifact: <%= @app %>_linux
+          - os: macos-13
+            target: macos
+            artifact: <%= @app %>_macos
+          - os: macos-14
+            target: macos_silicon
+            artifact: <%= @app %>_macos_silicon
+          - os: windows-latest
+            target: windows
+            artifact: <%= @app %>_windows.exe
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.2"
+          elixir-version: "1.18"
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Get deps
+        run: mix deps.get
+
+      - name: Build release
+        env:
+          BURRITO_TARGET: ${{ matrix.target }}
+          MIX_ENV: prod
+        run: mix release --overwrite
+
+      - name: Smoke test --version
+        run: ./burrito_out/${{ matrix.artifact }} --version
+
+      - uses: softprops/action-gh-release@v3
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: burrito_out/${{ matrix.artifact }}
