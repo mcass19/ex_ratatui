@@ -1,0 +1,34 @@
+defmodule <%= inspect(@cli_module) %> do
+  @moduledoc """
+  Burrito entry point. Boots the TUI, waits for it to exit, then stops the
+  VM so the wrapper returns control to the shell.
+
+  A `--version` flag is recognised for non-interactive smoke tests (CI
+  uses it to assert the wrapped binary boots and loads the NIF without
+  needing a TTY).
+  """
+
+  @version Mix.Project.config()[:version]
+
+  def main(argv) do
+    case argv do
+      ["--version" | _] ->
+        IO.puts("<%= @app %> #{@version}")
+        System.stop(0)
+
+      _ ->
+        run_tui()
+    end
+  end
+
+  defp run_tui do
+    {:ok, pid} = <%= inspect(@tui_module) %>.start_link([])
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    end
+
+    System.stop(0)
+  end
+end

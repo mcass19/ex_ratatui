@@ -1,0 +1,6 @@
+# Toolchain pin for <%= @app %> burrito builds.
+# Burrito 1.5 requires zig exactly 0.15.2 — newer or older versions are
+# rejected at `mix release` time.
+
+[tools]
+zig = "0.15.2"
