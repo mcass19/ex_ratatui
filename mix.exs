@@ -47,7 +47,7 @@ defmodule ExRatatui.MixProject do
       dialyzer: [
         plt_local_path: "plts",
         plt_core_path: "plts/core",
-        plt_add_apps: [:rustler]
+        plt_add_apps: [:rustler, :mix]
       ]
     ]
   end

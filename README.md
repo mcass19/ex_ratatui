@@ -35,6 +35,7 @@
 - **First-class testing** — headless backend and event injection for CI-friendly assertions
 - **Observability built in** — `:telemetry` events across runtime, render, and transports
 - **Precompiled NIFs** — no Rust toolchain needed; event polling runs on the DirtyIo scheduler and never blocks the BEAM
+- **Single-binary distribution** — ship a TUI as one native executable per OS/arch via [Burrito](https://github.com/burrito-elixir/burrito), no Erlang or Rust install needed on the target machine; `mix ex_ratatui.gen.burrito` scaffolds the wiring
 
 ## Installation
 
