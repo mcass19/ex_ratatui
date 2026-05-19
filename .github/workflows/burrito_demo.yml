@@ -8,6 +8,9 @@ name: Burrito Demo
 # Each runner builds only its own target via BURRITO_TARGET, so no host
 # needs the union of cross-build tools — its native target's precompiled
 # NIF gets resolved by rustler_precompiled and bundled into the payload.
+#
+# The musl NIF variant is not covered here. Should be verified manually
+# against the published NIF before each release.
 
 on:
   pull_request:
