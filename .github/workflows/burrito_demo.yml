@@ -32,9 +32,6 @@ jobs:
           - os: ubuntu-latest
             target: linux
             artifact: burrito_demo_linux
-          - os: macos-13
-            target: macos
-            artifact: burrito_demo_macos
           - os: macos-14
             target: macos_silicon
             artifact: burrito_demo_macos_silicon
