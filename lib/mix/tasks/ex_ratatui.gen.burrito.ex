@@ -148,14 +148,16 @@ if Code.ensure_loaded?(Igniter) do
 
         1. mix deps.get
         2. mise install              (one-time; pins zig 0.15.2)
-        3. BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
+        3. TARGET_ABI=musl BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
         4. ./burrito_out/#{app}_linux --version
 
-      For macos, macos_silicon, or windows artifacts, repeat step 3 on
-      a host matching that OS — the bundled NIF is resolved from the
-      build host's triple, so cross-host releases will not load. The
-      generated CI workflow (if any) builds each target on its native
-      runner.#{ci_note(ci)}
+      TARGET_ABI=musl is required for the linux target only — burrito's
+      linux wrapper uses a musl runtime, so the bundled NIF must be the
+      musl variant. For macos, macos_silicon, or windows artifacts,
+      repeat step 3 without TARGET_ABI on a host matching that OS — the
+      bundled NIF is resolved from the build host's triple, so
+      cross-host releases will not load. The generated CI workflow
+      (if any) builds each target on its native runner.#{ci_note(ci)}
 
       Full walkthrough: https://hexdocs.pm/ex_ratatui/packaging_with_burrito.html
       """

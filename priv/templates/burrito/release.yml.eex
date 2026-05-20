@@ -33,6 +33,9 @@ jobs:
           - os: ubuntu-latest
             target: linux
             artifact: <%= @app %>_linux
+            # Burrito's linux wrapper uses a musl runtime, so the bundled
+            # NIF must be the musl variant even when building on glibc.
+            target_abi: musl
           - os: macos-13
             target: macos
             artifact: <%= @app %>_macos
@@ -62,7 +65,14 @@ jobs:
         env:
           BURRITO_TARGET: ${{ matrix.target }}
           MIX_ENV: prod
-        run: mix release --overwrite
+          MATRIX_TARGET_ABI: ${{ matrix.target_abi }}
+        run: |
+          # Only export TARGET_ABI when set — empty string is truthy in
+          # rustler_precompiled and produces a broken triple.
+          if [ -n "${MATRIX_TARGET_ABI}" ]; then
+            export TARGET_ABI="${MATRIX_TARGET_ABI}"
+          fi
+          mix release --overwrite
 
       - name: Smoke test --version
         run: ./burrito_out/${{ matrix.artifact }} --version

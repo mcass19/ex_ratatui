@@ -9,8 +9,9 @@ name: Burrito Demo
 # needs the union of cross-build tools — its native target's precompiled
 # NIF gets resolved by rustler_precompiled and bundled into the payload.
 #
-# The musl NIF variant is not covered here. Should be verified manually
-# against the published NIF before each release.
+# The linux job builds with TARGET_ABI=musl, so the published musl NIF —
+# the artifact every musl consumer downloads — is smoke-tested inside
+# burrito's musl wrapper on every push.
 
 on:
   pull_request:
@@ -35,6 +36,9 @@ jobs:
           - os: ubuntu-latest
             target: linux
             artifact: burrito_demo_linux
+            # Burrito's linux wrapper uses a musl runtime, so the bundled
+            # NIF must be the musl variant even when building on glibc.
+            target_abi: musl
           - os: macos-14
             target: macos_silicon
             artifact: burrito_demo_macos_silicon
@@ -63,7 +67,14 @@ jobs:
         env:
           BURRITO_TARGET: ${{ matrix.target }}
           MIX_ENV: prod
-        run: mix release --overwrite
+          MATRIX_TARGET_ABI: ${{ matrix.target_abi }}
+        run: |
+          # Only export TARGET_ABI when set — empty string is truthy in
+          # rustler_precompiled and produces a broken triple.
+          if [ -n "${MATRIX_TARGET_ABI}" ]; then
+            export TARGET_ABI="${MATRIX_TARGET_ABI}"
+          fi
+          mix release --overwrite
 
       - name: Smoke test --version
         working-directory: examples/burrito_demo
