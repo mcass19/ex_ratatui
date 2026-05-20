@@ -47,7 +47,6 @@ terminal once the BEAM takes over.
   shortest path; the broader install matrix is on the
   [Burrito README](https://github.com/burrito-elixir/burrito#requirements).
 - `xz` on `PATH`. Usually already present on Linux and macOS.
-- `7z` only when cross-building Windows targets from a non-Windows host.
 
 A `.mise.toml` in the consumer project keeps the toolchain reproducible:
 
@@ -179,9 +178,12 @@ burrito_out/
 ```
 
 Repeat with `BURRITO_TARGET=macos`, `macos_silicon`, `windows` to produce
-the other artifacts. Cross-builds work from any host (zig handles the
-cross-compile), provided the host has `xz` and — for Windows targets —
-`7z`.
+the other artifacts — **on a host that matches the target OS**. While
+zig can cross-compile burrito's wrapper from any host,
+`rustler_precompiled` resolves the bundled NIF from the build host's
+triple, so a macOS or Windows release built on Linux ends up with a
+Linux `.so` inside and fails to load. The per-target CI matrix below is
+the canonical way to produce all artifacts in one pipeline.
 
 ## Per-target CI matrix
 
