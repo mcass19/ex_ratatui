@@ -24,8 +24,12 @@ From this directory:
 
 ```bash
 mix deps.get
-BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
+TARGET_ABI=musl BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
 ```
+
+`TARGET_ABI=musl` is needed only for the `linux` target — burrito's
+linux wrapper uses a musl runtime, so the bundled NIF must be the musl
+variant. macOS and Windows targets do not need the override.
 
 Output lands at `burrito_out/burrito_demo_linux` (~17 MB stripped). For
 `macos`, `macos_silicon`, or `windows` artifacts, run the same command
