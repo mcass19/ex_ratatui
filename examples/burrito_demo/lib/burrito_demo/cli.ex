@@ -5,7 +5,8 @@ defmodule BurritoDemo.CLI do
 
   Recognises a `--version` flag for non-interactive smoke tests — CI uses
   it to assert that the wrapped binary boots and loads the NIF without
-  needing a TTY.
+  needing a TTY. `ensure_loaded/0` triggers the NIF dlopen so a
+  precompiled-NIF/host mismatch fails here rather than silently exiting 0.
   """
 
   @version Mix.Project.config()[:version]
@@ -13,6 +14,7 @@ defmodule BurritoDemo.CLI do
   def main(argv) do
     case argv do
       ["--version" | _] ->
+        :ok = ExRatatui.Native.ensure_loaded()
         IO.puts("burrito_demo #{@version}")
         System.stop(0)
 

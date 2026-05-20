@@ -44,6 +44,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert diff =~ "defmodule Test.CLI do"
       assert diff =~ "def main(argv)"
       assert diff =~ ~s|IO.puts("test \#{@version}")|
+      assert diff =~ "ExRatatui.Native.ensure_loaded()"
       assert diff =~ "Test.TUI.start_link([])"
       assert diff =~ "Process.monitor(pid)"
       assert diff =~ "System.stop(0)"

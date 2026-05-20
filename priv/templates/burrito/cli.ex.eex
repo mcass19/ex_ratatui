@@ -5,7 +5,8 @@ defmodule <%= inspect(@cli_module) %> do
 
   A `--version` flag is recognised for non-interactive smoke tests (CI
   uses it to assert the wrapped binary boots and loads the NIF without
-  needing a TTY).
+  needing a TTY). `ensure_loaded/0` triggers the NIF dlopen so a
+  precompiled-NIF/host mismatch fails here rather than silently exiting 0.
   """
 
   @version Mix.Project.config()[:version]
@@ -13,6 +14,7 @@ defmodule <%= inspect(@cli_module) %> do
   def main(argv) do
     case argv do
       ["--version" | _] ->
+        :ok = ExRatatui.Native.ensure_loaded()
         IO.puts("<%= @app %> #{@version}")
         System.stop(0)
 
