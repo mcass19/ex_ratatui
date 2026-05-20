@@ -151,8 +151,11 @@ if Code.ensure_loaded?(Igniter) do
         3. BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
         4. ./burrito_out/#{app}_linux --version
 
-      Repeat step 3 with BURRITO_TARGET=macos, macos_silicon, or windows
-      to build the other targets.#{ci_note(ci)}
+      For macos, macos_silicon, or windows artifacts, repeat step 3 on
+      a host matching that OS — the bundled NIF is resolved from the
+      build host's triple, so cross-host releases will not load. The
+      generated CI workflow (if any) builds each target on its native
+      runner.#{ci_note(ci)}
 
       Full walkthrough: https://hexdocs.pm/ex_ratatui/packaging_with_burrito.html
       """

@@ -15,9 +15,8 @@ For the wider story, see the
 ## Prerequisites
 
 `mise install` from this directory provides `zig 0.15.2` (pinned by
-Burrito 1.5). `xz` must be on `PATH` (already present on Linux and macOS).
-`7z` is required only for cross-building Windows targets from a
-non-Windows host.
+Burrito 1.5). `xz` must be on `PATH` (already present on Linux and
+macOS).
 
 ## Build
 
@@ -28,9 +27,12 @@ mix deps.get
 BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
 ```
 
-Output lands at `burrito_out/burrito_demo_linux` (~17 MB stripped). Repeat
-with `BURRITO_TARGET=macos`, `macos_silicon`, or `windows` for the other
-targets.
+Output lands at `burrito_out/burrito_demo_linux` (~17 MB stripped). For
+`macos`, `macos_silicon`, or `windows` artifacts, run the same command
+on a host matching the target OS — the bundled NIF is resolved from the
+build host's triple, so cross-host releases will fail to load. The
+[Burrito Demo CI workflow](../../.github/workflows/burrito_demo.yml)
+shows the per-target matrix.
 
 ## Run
 
