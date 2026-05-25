@@ -8,7 +8,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-rustler = { version = "0.37.2", default-features = false, features = ["derive"] }
+rustler = { version = "0.38.0", default-features = false, features = ["derive"] }
 ratatui = "0.30"
 crossterm = "0.29"
 time = "0.3"
