@@ -81,7 +81,7 @@ defmodule ThemePicker do
 
     [
       {header_widget(state, theme), header_rect}
-      | swatch_widgets(theme, swatch_rect) ++
+      | swatch_widgets(state, theme, swatch_rect) ++
           live_widgets(state, theme, live_rect) ++
           [{footer_widget(theme), footer_rect}]
     ]
@@ -155,12 +155,13 @@ defmodule ThemePicker do
 
   # --- swatch grid -----------------------------------------------------
 
-  defp swatch_widgets(theme, area) do
+  defp swatch_widgets(state, theme, area) do
     inner_area = inside(area)
 
     # One row per slot. Each row: name label on the left, a colored
-    # block on the right. Rendering one widget per row makes it easy
-    # to follow which color belongs to which name.
+    # block on the right. The currently-selected row gets a subtle
+    # background tint so the user can see which slot is being
+    # previewed on the right.
     row_rects =
       Layout.split(
         inner_area,
@@ -168,18 +169,22 @@ defmodule ThemePicker do
         Enum.map(@slots, fn _ -> {:length, 1} end)
       )
 
-    container = swatch_container_widget(theme, area)
+    container = swatch_container_widget(theme)
 
     [
       {container, area}
-      | Enum.zip(@slots, row_rects)
-        |> Enum.flat_map(fn {slot, row_rect} -> swatch_row_widgets(theme, slot, row_rect) end)
+      | @slots
+        |> Enum.with_index()
+        |> Enum.zip(row_rects)
+        |> Enum.flat_map(fn {{slot, idx}, row_rect} ->
+          swatch_row_widgets(theme, slot, idx == state.selected, row_rect)
+        end)
     ]
   end
 
-  defp swatch_container_widget(theme, _area) do
+  defp swatch_container_widget(theme) do
     %Block{
-      title: " slots ",
+      title: " slots — ↑/↓ to preview ",
       title_style: %Style{fg: theme.accent, modifiers: [:bold]},
       borders: [:all],
       border_type: :rounded,
@@ -187,34 +192,48 @@ defmodule ThemePicker do
     }
   end
 
-  defp swatch_row_widgets(theme, slot, row_rect) do
-    [label_rect, swatch_rect] =
-      Layout.split(row_rect, :horizontal, [{:length, 18}, {:min, 0}])
+  defp swatch_row_widgets(theme, slot, selected?, row_rect) do
+    [marker_rect, label_rect, swatch_rect] =
+      Layout.split(row_rect, :horizontal, [{:length, 3}, {:length, 18}, {:min, 0}])
 
     color = Map.fetch!(theme, slot)
     color_repr = inspect(color)
 
+    marker_text = if selected?, do: " › ", else: "   "
+    row_bg = if selected?, do: theme.surface_alt, else: nil
+
+    marker = %Paragraph{
+      text: marker_text,
+      style: %Style{
+        fg: theme.accent,
+        bg: row_bg,
+        modifiers: if(selected?, do: [:bold], else: [])
+      }
+    }
+
     label = %Paragraph{
       text: " #{Atom.to_string(slot) |> String.pad_trailing(15)} ",
-      style: %Style{fg: theme.text}
+      style: %Style{
+        fg: theme.text,
+        bg: row_bg,
+        modifiers: if(selected?, do: [:bold], else: [])
+      }
     }
 
     swatch = %Paragraph{
-      text: "  #{color_repr}",
-      style: swatch_style(theme, color)
+      text: " #{color_repr}",
+      style: swatch_style(color, row_bg)
     }
 
-    [{label, label_rect}, {swatch, swatch_rect}]
+    [{marker, marker_rect}, {label, label_rect}, {swatch, swatch_rect}]
   end
 
-  defp swatch_style(theme, nil),
-    do: %Style{fg: theme.text_dim, modifiers: [:italic]}
+  defp swatch_style(nil, row_bg),
+    do: %Style{fg: :gray, bg: row_bg, modifiers: [:italic]}
 
-  defp swatch_style(theme, color) do
-    # Painted as the slot color on top of a dim background so nil
-    # slots stay visible (text_style/2 default).
-    _ = theme
-
+  defp swatch_style(color, _row_bg) do
+    # Paint the swatch text in inverted contrast over the slot color
+    # itself — the swatch *is* the color sample.
     %Style{
       fg: contrast_for(color),
       bg: color,
@@ -233,16 +252,13 @@ defmodule ThemePicker do
 
   defp live_widgets(state, theme, area) do
     inner = inside(area)
-    selected_slot = Enum.at(@slots, state.selected)
+    slot = Enum.at(@slots, state.selected)
 
-    [intro_rect, panels_rect, hint_rect] =
-      Layout.split(inner, :vertical, [{:length, 3}, {:min, 0}, {:length, 1}], spacing: 1)
-
-    [focused_rect, dim_rect] =
-      Layout.split(panels_rect, :vertical, [{:percentage, 50}, {:min, 0}], spacing: 1)
+    [intro_rect, swatch_rect, demo_rect] =
+      Layout.split(inner, :vertical, [{:length, 1}, {:length, 5}, {:min, 0}], spacing: 1)
 
     container = %Block{
-      title: " live preview ",
+      title: " preview: :#{slot} ",
       title_style: %Style{fg: theme.accent, modifiers: [:bold]},
       borders: [:all],
       border_type: :rounded,
@@ -251,71 +267,157 @@ defmodule ThemePicker do
 
     [
       {container, area},
-      {intro_widget(theme, selected_slot), intro_rect},
-      {focused_panel(theme), focused_rect},
-      {dim_panel(theme), dim_rect},
-      {hint_widget(theme), hint_rect}
+      {preview_intro(theme, slot), intro_rect},
+      {preview_swatch(theme, slot), swatch_rect}
+      | slot_demo_widgets(theme, slot, demo_rect)
     ]
   end
 
-  defp intro_widget(theme, slot) do
+  defp preview_intro(theme, slot) do
+    color = Map.fetch!(theme, slot)
+
     %Paragraph{
       text:
         Line.new([
-          Span.new("selected slot: ", style: %Style{fg: theme.text_dim}),
-          Span.new(Atom.to_string(slot),
-            style: %Style{fg: theme.accent, modifiers: [:bold, :underlined]}
-          )
+          Span.new("Map.fetch!(theme, :#{slot}) → ", style: %Style{fg: theme.text_dim}),
+          Span.new(inspect(color), style: %Style{fg: theme.text, modifiers: [:bold]})
         ])
     }
   end
 
-  defp focused_panel(theme) do
-    %List{
-      items: [
-        "first item",
-        "second item (selected)",
-        "third item"
-      ],
-      selected: 1,
-      highlight_symbol: "› ",
-      highlight_style: Theme.selection_style(theme),
+  # A big colored block painted with the selected slot — the most
+  # honest "what does this slot look like" answer.
+  defp preview_swatch(theme, slot) do
+    color = Map.fetch!(theme, slot)
+    {body, style} = swatch_body(theme, color)
+
+    %Paragraph{
+      text: body,
+      alignment: :center,
+      style: style,
+      block: %Block{
+        borders: [:all],
+        border_type: :thick,
+        border_style: %Style{fg: color || theme.text_dim}
+      }
+    }
+  end
+
+  defp swatch_body(theme, nil),
+    do:
+      {"  nil — falls back to the terminal default  ",
+       %Style{fg: theme.text_dim, modifiers: [:italic]}}
+
+  defp swatch_body(_theme, color),
+    do: {"  #{inspect(color)}  ", %Style{fg: contrast_for(color), bg: color, modifiers: [:bold]}}
+
+  # "Slot in context": a small widget actually using the slot in its
+  # natural role. Different slots call for different demos.
+  defp slot_demo_widgets(theme, slot, area) do
+    [{slot_demo_widget(theme, slot), area}]
+  end
+
+  defp slot_demo_widget(theme, slot) when slot in [:border, :border_focused] do
+    border_color = Map.fetch!(theme, slot)
+
+    %Paragraph{
+      text: " border_style(focused: #{slot == :border_focused}) ",
       style: Theme.text_style(theme),
       block: %Block{
-        title: " focused: border_style(focused: true) ",
+        title: " block bordered with :#{slot} ",
         title_style: %Style{fg: theme.accent},
         borders: [:all],
         border_type: :rounded,
-        border_style: Theme.border_style(theme, focused: true)
+        border_style: %Style{fg: border_color}
       }
     }
   end
 
-  defp dim_panel(theme) do
+  defp slot_demo_widget(theme, slot) when slot in [:primary, :accent] do
+    color = Map.fetch!(theme, slot)
+
+    %List{
+      items: ["first item", "second item (selected)", "third item"],
+      selected: 1,
+      highlight_symbol: "› ",
+      highlight_style: %Style{fg: theme.surface, bg: color, modifiers: [:bold]},
+      style: Theme.text_style(theme),
+      block: %Block{
+        title: " selection_style derived from :#{slot} ",
+        title_style: %Style{fg: color},
+        borders: [:all],
+        border_type: :rounded,
+        border_style: Theme.border_style(theme)
+      }
+    }
+  end
+
+  defp slot_demo_widget(theme, slot) when slot in [:success, :warning, :danger] do
+    color = Map.fetch!(theme, slot)
+
+    label =
+      case slot do
+        :success -> "✓ build passed"
+        :warning -> "⚠ 12 deprecation warnings"
+        :danger -> "✖ 1 test failed"
+      end
+
     %Paragraph{
       text:
         Line.new([
-          Span.new("body text via Theme.text_style/1\n", style: Theme.text_style(theme)),
-          Span.new("dim text via Theme.text_style(theme, dim: true)",
-            style: Theme.text_style(theme, dim: true)
+          Span.new(" #{label} ",
+            style: %Style{fg: :black, bg: color, modifiers: [:bold]}
           )
         ]),
-      wrap: true,
       block: %Block{
-        title: " unfocused: border_style(focused: false) ",
-        title_style: %Style{fg: theme.text_dim},
+        title: " status badge using :#{slot} ",
+        title_style: %Style{fg: color},
         borders: [:all],
         border_type: :rounded,
-        border_style: Theme.border_style(theme, focused: false)
+        border_style: Theme.border_style(theme)
       }
     }
   end
 
-  defp hint_widget(theme) do
+  defp slot_demo_widget(theme, slot) when slot in [:surface, :surface_alt] do
+    color = Map.fetch!(theme, slot)
+    text_color = color && contrast_for(color)
+    text_color = text_color || theme.text
+
     %Paragraph{
-      text: "↑/↓ on the left to highlight a slot",
-      alignment: :right,
-      style: %Style{fg: theme.text_dim, modifiers: [:italic]}
+      text: "  surface fill — the table-row / panel background  ",
+      alignment: :center,
+      style: %Style{fg: text_color, bg: color},
+      block: %Block{
+        title: " filled with :#{slot} ",
+        title_style: %Style{fg: theme.accent},
+        borders: [:all],
+        border_type: :rounded,
+        border_style: Theme.border_style(theme)
+      }
+    }
+  end
+
+  defp slot_demo_widget(theme, slot) when slot in [:text, :text_dim] do
+    color = Map.fetch!(theme, slot)
+
+    sample =
+      case slot do
+        :text -> "Theme.text_style(theme) — body copy and main paragraphs"
+        :text_dim -> "Theme.text_style(theme, dim: true) — hints, placeholders, disabled"
+      end
+
+    %Paragraph{
+      text: sample,
+      wrap: true,
+      style: %Style{fg: color, bg: theme.surface},
+      block: %Block{
+        title: " text styled with :#{slot} ",
+        title_style: %Style{fg: theme.accent},
+        borders: [:all],
+        border_type: :rounded,
+        border_style: Theme.border_style(theme)
+      }
     }
   end
 

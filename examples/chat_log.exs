@@ -12,10 +12,22 @@
 #   * `ExRatatui.Focus` Tab cycling between log + composer
 #
 # Keys:
-#   Tab            cycle focus (log ↔ composer)
-#   Enter (in composer)  send message
-#   Ctrl+L         clear the log (resets unread to 0)
-#   Esc            quit
+#   Tab                  cycle focus (log ↔ composer)
+#   Enter (in composer)  send the message
+#   Alt+Enter            insert a newline in the composer (multi-line typing)
+#                        Two reasons we use Alt rather than Shift here:
+#                          (1) most terminals can't disambiguate Shift+Enter
+#                              from plain Enter — both send `\r` over the
+#                              wire and the Shift modifier is dropped before
+#                              crossterm sees it (the Kitty keyboard protocol
+#                              would fix this; not on by default here).
+#                          (2) tui-textarea's default key handler requires
+#                              alt: false for the Enter → insert_newline arm,
+#                              so we bypass it and call textarea_insert_str/2
+#                              with "\n" explicitly to insert the line break.
+#   Paste                drop a multi-line blob into the composer (newlines kept)
+#   Ctrl+L               clear the log (resets unread to 0)
+#   Esc                  quit
 #
 # Run with:  mix run examples/chat_log.exs
 
@@ -110,6 +122,15 @@ defmodule ChatLog do
 
   # --- dispatch --------------------------------------------------------
 
+  # Alt+Enter inserts a newline. tui-textarea's default key handler
+  # requires alt: false for the Enter → insert_newline arm, so we
+  # bypass it and call textarea_insert_str/2 with a literal "\n" —
+  # which the insert_str path preserves as a real line break.
+  defp dispatch_composer(state, %Event.Key{code: "enter", modifiers: ["alt"]}) do
+    :ok = ExRatatui.textarea_insert_str(state.composer, "\n")
+    state
+  end
+
   defp dispatch_composer(state, %Event.Key{code: "enter", modifiers: mods}) when mods == [] do
     case state.composer |> ExRatatui.textarea_get_value() |> String.trim() do
       "" ->
@@ -160,11 +181,16 @@ defmodule ChatLog do
     }
   end
 
-  # Bottom-to-top list pins the newest message to the bottom of the
-  # area and grows upward — the classic chat/log shape. Items receive
-  # the list with the *oldest* first; ratatui handles the visual flip.
+  # Bottom-to-top list pins the newest message to the bottom edge and
+  # grows upward — the classic chat shape. Ratatui's contract: items[0]
+  # renders at the *bottom*. state.messages is kept in chronological
+  # order (oldest first); reversing it here puts newest at items[0] →
+  # bottom edge.
   defp log_widget(state) do
-    items = Enum.map(state.messages, &format_message(state, &1))
+    items =
+      state.messages
+      |> Enum.reverse()
+      |> Enum.flat_map(&format_message(state, &1))
 
     %List{
       items: items,
@@ -179,11 +205,37 @@ defmodule ChatLog do
     }
   end
 
+  # A single message may contain newlines (Alt+Enter while typing, or
+  # multi-line paste). Span.new/2 rejects newlines, so split the body
+  # and emit one List item per line: the first carries the username
+  # prefix, the rest carry an indent that lines up under the body.
+  #
+  # Lines are returned in REVERSE visual order because the List uses
+  # direction: :bottom_to_top, where items[0] renders at the bottom.
+  # The last line of the body (visually at the bottom of the message
+  # block) needs to be earliest in the items list; the first line
+  # (visually at the top of the message block) needs to be latest.
   defp format_message(state, {user, body}) do
-    Line.new([
-      Span.new("#{String.pad_trailing(user, 6)} ", style: %Style{fg: user_color(state, user)}),
-      Span.new(body, style: %Style{fg: state.theme.text})
-    ])
+    prefix = String.pad_trailing(user, 6) <> " "
+    indent = String.duplicate(" ", String.length(prefix))
+    user_style = %Style{fg: user_color(state, user)}
+    body_style = %Style{fg: state.theme.text}
+
+    case String.split(body, "\n") do
+      [single] ->
+        [Line.new([Span.new(prefix, style: user_style), Span.new(single, style: body_style)])]
+
+      [first | rest] ->
+        first_line =
+          Line.new([Span.new(prefix, style: user_style), Span.new(first, style: body_style)])
+
+        continuations =
+          Enum.map(rest, fn line ->
+            Line.new([Span.new(indent <> line, style: body_style)])
+          end)
+
+        Enum.reverse([first_line | continuations])
+    end
   end
 
   defp user_color(state, "me"), do: state.theme.accent
@@ -194,7 +246,8 @@ defmodule ChatLog do
   defp composer_widget(state) do
     %Textarea{
       state: state.composer,
-      placeholder: "type a message, or paste any blob (multi-line supported)",
+      placeholder:
+        "type a message — Enter sends, Alt+Enter inserts a newline, paste keeps line breaks",
       block: %Block{
         title: " composer ",
         borders: [:all],
@@ -212,6 +265,8 @@ defmodule ChatLog do
           Span.new(" cycle focus  "),
           chip(state, "Enter", :accent),
           Span.new(" send  "),
+          chip(state, "Alt+Enter", :accent),
+          Span.new(" newline  "),
           chip(state, "Paste", :accent),
           Span.new(" insert blob  "),
           chip(state, "Ctrl+L", :warning),
