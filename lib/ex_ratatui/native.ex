@@ -5,7 +5,7 @@ defmodule ExRatatui.Native do
   @load_lock {__MODULE__, :nif_load_lock}
   @loaded_key {__MODULE__, :nif_loaded}
   @nif_functions [
-    init_terminal: 0,
+    init_terminal: 1,
     restore_terminal: 1,
     terminal_size: 0,
     draw_frame: 2,

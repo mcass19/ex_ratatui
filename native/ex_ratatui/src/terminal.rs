@@ -83,7 +83,7 @@ where
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
-fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
+fn init_terminal(focus_events: bool) -> Result<ResourceArc<TerminalResource>, Error> {
     terminal::enable_raw_mode().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
 
     if let Err(e) = std::io::stdout().execute(EnterAlternateScreen) {
@@ -98,17 +98,23 @@ fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
     // fall back to per-char Key events, the pre-bracketed-paste behavior.
     let _ = std::io::stdout().execute(EnableBracketedPaste);
 
-    // Enable terminal-window focus reporting (CSI ?1004h). crossterm
-    // emits Event::FocusGained / Event::FocusLost when the parent
-    // emulator window gains or loses focus. Terminals without focus
-    // reporting silently ignore the sequence — no Focus events arrive.
-    let _ = std::io::stdout().execute(EnableFocusChange);
+    // Focus-change reporting (CSI ?1004h) is opt-in. When enabled,
+    // crossterm emits Event::FocusGained / Event::FocusLost as the
+    // parent emulator window gains or loses focus. Off by default
+    // because the terminal queues focus bytes that leak back into
+    // unrelated stdin consumers (mix test, plain shells) when the user
+    // window-switches during a run.
+    if focus_events {
+        let _ = std::io::stdout().execute(EnableFocusChange);
+    }
 
     let backend = CrosstermBackend::new(std::io::stdout());
     let terminal = match Terminal::new(backend) {
         Ok(t) => t,
         Err(e) => {
-            let _ = std::io::stdout().execute(DisableFocusChange);
+            if focus_events {
+                let _ = std::io::stdout().execute(DisableFocusChange);
+            }
             let _ = std::io::stdout().execute(DisableBracketedPaste);
             let _ = std::io::stdout().execute(LeaveAlternateScreen);
             let _ = terminal::disable_raw_mode();

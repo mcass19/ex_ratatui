@@ -652,7 +652,7 @@ defmodule ExRatatui.Server do
     end
   end
 
-  defp init_terminal(nil), do: Native.init_terminal()
+  defp init_terminal(nil), do: Native.init_terminal(false)
   defp init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
 
   defp local_polling_enabled?(nil), do: true

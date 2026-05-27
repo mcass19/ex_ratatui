@@ -148,12 +148,22 @@ defmodule ExRatatui do
   and ensures terminal cleanup on exit.
 
       ExRatatui.run(fn terminal ->
-        # your TUI loop here
+        # TUI loop here
       end)
+
+  ## Options
+
+    * `:focus_events` — enable terminal-window focus reporting
+      (`%Event.FocusGained{}` / `%Event.FocusLost{}` from
+      `poll_event/1`). Defaults to `false`. Off by default because
+      enabling it leaves focus-event bytes queued in the terminal
+      that leak into unrelated stdin consumers (a plain shell or
+      `mix test` started later) when the user window-switches mid-run.
   """
-  @spec run((terminal_ref() -> term())) :: term() | {:error, term()}
-  def run(fun) when is_function(fun, 1) do
-    Native.init_terminal() |> do_run(fun)
+  @spec run((terminal_ref() -> term()), keyword()) :: term() | {:error, term()}
+  def run(fun, opts \\ []) when is_function(fun, 1) and is_list(opts) do
+    focus_events? = Keyword.get(opts, :focus_events, false)
+    Native.init_terminal(focus_events?) |> do_run(fun)
   end
 
   @doc false

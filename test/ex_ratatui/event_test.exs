@@ -51,5 +51,8 @@ defmodule ExRatatui.EventTest do
   defp valid_poll_result?(%ExRatatui.Event.Key{}), do: true
   defp valid_poll_result?(%ExRatatui.Event.Mouse{}), do: true
   defp valid_poll_result?(%ExRatatui.Event.Resize{}), do: true
+  defp valid_poll_result?(%ExRatatui.Event.Paste{}), do: true
+  defp valid_poll_result?(%ExRatatui.Event.FocusGained{}), do: true
+  defp valid_poll_result?(%ExRatatui.Event.FocusLost{}), do: true
   defp valid_poll_result?(_), do: false
 end

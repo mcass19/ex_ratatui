@@ -171,7 +171,7 @@ defmodule ExRatatui.Distributed.Client do
   end
 
   @doc false
-  def default_init_terminal(nil), do: Native.init_terminal()
+  def default_init_terminal(nil), do: Native.init_terminal(false)
   def default_init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
 
   defp restore_terminal(terminal_ref) do
