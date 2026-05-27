@@ -202,7 +202,7 @@ defmodule ExRatatui do
   Returns an `Event.Key`, `Event.Mouse`, `Event.Resize`, `Event.Paste`
   struct, `nil` if no event within the timeout, or `{:error, reason}`
   on failure. Paste events arrive when the terminal has bracketed paste
-  enabled (the default for `ExRatatui.init/0`).
+  enabled (the default for `ExRatatui.run/1`).
   """
   @spec poll_event(non_neg_integer()) ::
           ExRatatui.Event.t() | nil | {:error, term()}
@@ -348,6 +348,32 @@ defmodule ExRatatui do
     do: Native.text_input_handle_key(state_ref, key_code)
 
   @doc """
+  Inserts a multi-character string at the TextInput cursor in one shot.
+
+  Designed as the consumer for `ExRatatui.Event.Paste` content. Control
+  characters (including `\\n`, `\\r`, `\\t`) are stripped — TextInput is
+  single-line by design. For multi-line paste support use
+  `textarea_insert_str/2` on a Textarea.
+
+  ## Examples
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_insert_str(state, "hello")
+      :ok
+      iex> ExRatatui.text_input_get_value(state)
+      "hello"
+
+      iex> state = ExRatatui.text_input_new()
+      iex> ExRatatui.text_input_insert_str(state, "line1\\nline2")
+      :ok
+      iex> ExRatatui.text_input_get_value(state)
+      "line1line2"
+  """
+  @spec text_input_insert_str(reference(), String.t()) :: :ok
+  def text_input_insert_str(state_ref, content),
+    do: Native.text_input_insert_str(state_ref, content)
+
+  @doc """
   Returns the current text value from the TextInput state.
 
   ## Examples
@@ -429,6 +455,31 @@ defmodule ExRatatui do
   @spec textarea_handle_key(reference(), String.t(), [String.t()]) :: :ok
   def textarea_handle_key(state_ref, key_code, modifiers \\ []),
     do: Native.textarea_handle_key(state_ref, key_code, modifiers)
+
+  @doc """
+  Inserts a multi-character string at the Textarea cursor in one shot.
+
+  Designed as the consumer for `ExRatatui.Event.Paste` content. Both `\\n`
+  and `\\r\\n` are recognised as line breaks and produce real new lines in
+  the textarea; lone `\\r` is dropped. Other characters land verbatim.
+
+  ## Examples
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_insert_str(state, "line1\\nline2")
+      :ok
+      iex> ExRatatui.textarea_get_value(state)
+      "line1\\nline2"
+
+      iex> state = ExRatatui.textarea_new()
+      iex> ExRatatui.textarea_insert_str(state, "a\\r\\nb")
+      :ok
+      iex> ExRatatui.textarea_line_count(state)
+      2
+  """
+  @spec textarea_insert_str(reference(), String.t()) :: :ok
+  def textarea_insert_str(state_ref, content),
+    do: Native.textarea_insert_str(state_ref, content)
 
   @doc """
   Returns the current text from the Textarea as a string (lines joined with \\n).

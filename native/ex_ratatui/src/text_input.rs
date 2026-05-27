@@ -83,6 +83,24 @@ impl TextInputState {
             }
         }
     }
+
+    /// Inserts a multi-character string at the cursor in one shot. All
+    /// control characters (including `\n`, `\r`, `\t`) are stripped —
+    /// TextInput is single-line by design, so pasted multi-line content
+    /// collapses to its non-control characters. For multi-line paste
+    /// support use [`crate::textarea::TextareaState::insert_str`] on a
+    /// Textarea widget instead.
+    fn insert_str(&mut self, s: &str) {
+        let cleaned: String = s.chars().filter(|c| !c.is_control()).collect();
+        if cleaned.is_empty() {
+            return;
+        }
+
+        let chars: Vec<char> = self.value.chars().collect();
+        let byte_idx: usize = chars[..self.cursor].iter().map(|c| c.len_utf8()).sum();
+        self.value.insert_str(byte_idx, &cleaned);
+        self.cursor += cleaned.chars().count();
+    }
 }
 
 pub struct TextInputResource {
@@ -111,6 +129,19 @@ fn text_input_handle_key(
         .lock()
         .map_err(|_| Error::Term(Box::new("text_input lock poisoned")))?;
     state.handle_key(&key_code);
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
+fn text_input_insert_str(
+    resource: ResourceArc<TextInputResource>,
+    content: String,
+) -> Result<Atom, Error> {
+    let mut state = resource
+        .state
+        .lock()
+        .map_err(|_| Error::Term(Box::new("text_input lock poisoned")))?;
+    state.insert_str(&content);
     Ok(atoms::ok())
 }
 
@@ -420,6 +451,46 @@ mod tests {
         state.handle_key("left");
         assert_eq!(state.cursor, 3);
         state.handle_key("right");
+        assert_eq!(state.cursor, 4);
+    }
+
+    #[test]
+    fn test_insert_str_at_cursor() {
+        let mut state = new_state_with("hello", 5);
+        state.insert_str(" world");
+        assert_eq!(state.value, "hello world");
+        assert_eq!(state.cursor, 11);
+    }
+
+    #[test]
+    fn test_insert_str_mid_text() {
+        let mut state = new_state_with("hed", 2);
+        state.insert_str("llo wor");
+        assert_eq!(state.value, "hello word");
+        assert_eq!(state.cursor, 9);
+    }
+
+    #[test]
+    fn test_insert_str_strips_control_chars() {
+        let mut state = new_state_with("a", 1);
+        state.insert_str("b\nc\rd\te");
+        assert_eq!(state.value, "abcde");
+        assert_eq!(state.cursor, 5);
+    }
+
+    #[test]
+    fn test_insert_str_empty_after_filter_is_noop() {
+        let mut state = new_state_with("hello", 3);
+        state.insert_str("\n\r\t");
+        assert_eq!(state.value, "hello");
+        assert_eq!(state.cursor, 3);
+    }
+
+    #[test]
+    fn test_insert_str_multibyte_chars() {
+        let mut state = new_state_with("a", 1);
+        state.insert_str("é日本");
+        assert_eq!(state.value, "aé日本");
         assert_eq!(state.cursor, 4);
     }
 

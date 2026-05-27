@@ -225,5 +225,29 @@ defmodule ExRatatui.Widgets.TextareaTest do
       {_row, col} = ExRatatui.textarea_cursor(state)
       assert col == 5
     end
+
+    test "insert_str pastes multi-line content as real new lines" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_insert_str(state, "line1\nline2\nline3")
+      assert ExRatatui.textarea_get_value(state) == "line1\nline2\nline3"
+      assert ExRatatui.textarea_line_count(state) == 3
+      assert ExRatatui.textarea_cursor(state) == {2, 5}
+    end
+
+    test "insert_str normalizes CRLF to LF" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_insert_str(state, "a\r\nb")
+      assert ExRatatui.textarea_get_value(state) == "a\nb"
+      assert ExRatatui.textarea_line_count(state) == 2
+    end
+
+    test "insert_str inserts at current cursor position" do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "hello world")
+      ExRatatui.textarea_handle_key(state, "home", [])
+      for _ <- 1..5, do: ExRatatui.textarea_handle_key(state, "right", [])
+      ExRatatui.textarea_insert_str(state, " cruel")
+      assert ExRatatui.textarea_get_value(state) == "hello cruel world"
+    end
   end
 end

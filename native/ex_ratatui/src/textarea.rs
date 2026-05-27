@@ -111,6 +111,24 @@ fn textarea_handle_key(
 }
 
 #[rustler::nif]
+fn textarea_insert_str(
+    resource: ResourceArc<TextareaResource>,
+    content: String,
+) -> Result<Atom, Error> {
+    let mut textarea = resource
+        .state
+        .lock()
+        .map_err(|_| Error::Term(Box::new("textarea lock poisoned")))?;
+
+    // ratatui_textarea::TextArea::insert_str handles `\n` and `\r\n` as
+    // newlines natively (lone `\r` is dropped). Multi-byte / multi-line
+    // pasted content lands intact at the cursor.
+    textarea.insert_str(&content);
+
+    Ok(atoms::ok())
+}
+
+#[rustler::nif]
 fn textarea_get_value(resource: ResourceArc<TextareaResource>) -> Result<String, Error> {
     let textarea = resource
         .state
@@ -318,6 +336,33 @@ mod tests {
         assert_eq!(textarea.cursor(), (0, 5));
         input_char(&mut textarea, "home");
         assert_eq!(textarea.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn test_insert_str_multiline_paste() {
+        let mut textarea = new_textarea();
+        textarea.insert_str("line1\nline2\nline3");
+        assert_eq!(textarea.lines(), &["line1", "line2", "line3"]);
+        assert_eq!(textarea.cursor(), (2, 5));
+    }
+
+    #[test]
+    fn test_insert_str_crlf_normalized() {
+        let mut textarea = new_textarea();
+        textarea.insert_str("a\r\nb");
+        assert_eq!(textarea.lines(), &["a", "b"]);
+    }
+
+    #[test]
+    fn test_insert_str_at_cursor_position() {
+        let mut textarea = TextArea::new(vec!["hello world".to_string()]);
+        use ratatui_textarea::CursorMove;
+        textarea.move_cursor(CursorMove::Head);
+        for _ in 0..5 {
+            textarea.move_cursor(CursorMove::Forward);
+        }
+        textarea.insert_str(" cruel");
+        assert_eq!(textarea.lines(), &["hello cruel world"]);
     }
 
     #[test]

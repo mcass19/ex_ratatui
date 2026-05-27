@@ -199,5 +199,38 @@ defmodule ExRatatui.Widgets.TextInputTest do
       ExRatatui.text_input_handle_key(state, "right")
       assert ExRatatui.text_input_cursor(state) == 3
     end
+
+    test "insert_str appends at cursor" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "hello")
+      ExRatatui.text_input_insert_str(state, " world")
+      assert ExRatatui.text_input_get_value(state) == "hello world"
+      assert ExRatatui.text_input_cursor(state) == 11
+    end
+
+    test "insert_str inserts at cursor position" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "ac")
+      ExRatatui.text_input_handle_key(state, "home")
+      ExRatatui.text_input_handle_key(state, "right")
+      ExRatatui.text_input_insert_str(state, "BBB")
+      assert ExRatatui.text_input_get_value(state) == "aBBBc"
+      assert ExRatatui.text_input_cursor(state) == 4
+    end
+
+    test "insert_str strips newlines and other control characters" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_insert_str(state, "a\nb\rc\tde")
+      assert ExRatatui.text_input_get_value(state) == "abcde"
+      assert ExRatatui.text_input_cursor(state) == 5
+    end
+
+    test "insert_str all-control input is a no-op" do
+      state = ExRatatui.text_input_new()
+      ExRatatui.text_input_set_value(state, "x")
+      ExRatatui.text_input_insert_str(state, "\n\r\t")
+      assert ExRatatui.text_input_get_value(state) == "x"
+      assert ExRatatui.text_input_cursor(state) == 1
+    end
   end
 end
