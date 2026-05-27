@@ -107,6 +107,15 @@ defmodule ExRatatuiTest do
                ExRatatui.decode_event({:resize, 80, 24})
     end
 
+    test "decodes paste event" do
+      assert %ExRatatui.Event.Paste{content: "hello\nworld"} =
+               ExRatatui.decode_event({:paste, "hello\nworld"})
+    end
+
+    test "decodes empty paste event" do
+      assert %ExRatatui.Event.Paste{content: ""} = ExRatatui.decode_event({:paste, ""})
+    end
+
     test "passes through errors" do
       assert {:error, "test"} = ExRatatui.decode_event({:error, "test"})
     end

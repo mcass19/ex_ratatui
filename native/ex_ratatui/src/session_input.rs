@@ -317,6 +317,7 @@ mod tests {
             NifEvent::Key(code, mods, kind) => (code.as_str(), mods.as_slice(), kind.as_str()),
             NifEvent::Mouse(_, _, _, _, _) => panic!("expected Key event, got Mouse"),
             NifEvent::Resize(_, _) => panic!("expected Key event, got Resize"),
+            NifEvent::Paste(_) => panic!("expected Key event, got Paste"),
         }
     }
 

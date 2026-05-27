@@ -12,7 +12,7 @@ defmodule ExRatatui.Property.EventDecodePropertyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias ExRatatui.Event.{Key, Mouse, Resize}
+  alias ExRatatui.Event.{Key, Mouse, Paste, Resize}
 
   @key_codes ~w(
     a b c q z 1 5 9 space enter esc tab back_tab backspace delete insert
@@ -64,6 +64,12 @@ defmodule ExRatatui.Property.EventDecodePropertyTest do
     end
   end
 
+  defp paste_tuple_gen do
+    gen all(content <- string(:printable, max_length: 64)) do
+      {:paste, content}
+    end
+  end
+
   property "decode_event/1 on a :key tuple yields an Event.Key with all fields preserved" do
     check all({:key, code, mods, kind} = raw <- key_tuple_gen()) do
       assert %Key{code: ^code, modifiers: ^mods, kind: ^kind} =
@@ -81,6 +87,12 @@ defmodule ExRatatui.Property.EventDecodePropertyTest do
   property "decode_event/1 on a :resize tuple yields an Event.Resize with all fields preserved" do
     check all({:resize, w, h} = raw <- resize_tuple_gen()) do
       assert %Resize{width: ^w, height: ^h} = ExRatatui.decode_event(raw)
+    end
+  end
+
+  property "decode_event/1 on a :paste tuple yields an Event.Paste with content preserved" do
+    check all({:paste, content} = raw <- paste_tuple_gen()) do
+      assert %Paste{content: ^content} = ExRatatui.decode_event(raw)
     end
   end
 

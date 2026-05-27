@@ -10,11 +10,13 @@ use rustler::Error;
 ///   {:key, code, modifiers, kind}
 ///   {:mouse, kind, button, x, y, modifiers}
 ///   {:resize, width, height}
+///   {:paste, content}
 #[derive(rustler::NifTaggedEnum)]
 pub enum NifEvent {
     Key(String, Vec<String>, String),
     Mouse(String, String, u16, u16, Vec<String>),
     Resize(u16, u16),
+    Paste(String),
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
@@ -33,7 +35,8 @@ fn poll_event(timeout_ms: u64) -> Result<Option<NifEvent>, Error> {
         Event::Key(key_event) => Ok(Some(convert_key_event(key_event))),
         Event::Mouse(mouse_event) => Ok(Some(convert_mouse_event(mouse_event))),
         Event::Resize(width, height) => Ok(Some(NifEvent::Resize(width, height))),
-        _ => Ok(None), // FocusGained, FocusLost, Paste — ignore for now
+        Event::Paste(content) => Ok(Some(NifEvent::Paste(content))),
+        _ => Ok(None), // FocusGained, FocusLost — ignore for now
     }
 }
 
@@ -300,5 +303,17 @@ mod tests {
         assert_eq!(convert_mouse_button(MouseButton::Left), "left");
         assert_eq!(convert_mouse_button(MouseButton::Right), "right");
         assert_eq!(convert_mouse_button(MouseButton::Middle), "middle");
+    }
+
+    #[test]
+    fn test_paste_variant_constructs() {
+        // The Event::Paste -> NifEvent::Paste mapping in poll_event is a
+        // direct rebind; this just pins the variant shape and string
+        // ownership so future refactors of NifEvent can't silently drop
+        // the contents.
+        match NifEvent::Paste("hello\nworld".into()) {
+            NifEvent::Paste(content) => assert_eq!(content, "hello\nworld"),
+            _ => panic!("expected Paste"),
+        }
     }
 }
