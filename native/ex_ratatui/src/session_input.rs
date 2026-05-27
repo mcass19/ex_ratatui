@@ -318,6 +318,8 @@ mod tests {
             NifEvent::Mouse(_, _, _, _, _) => panic!("expected Key event, got Mouse"),
             NifEvent::Resize(_, _) => panic!("expected Key event, got Resize"),
             NifEvent::Paste(_) => panic!("expected Key event, got Paste"),
+            NifEvent::FocusGained => panic!("expected Key event, got FocusGained"),
+            NifEvent::FocusLost => panic!("expected Key event, got FocusLost"),
         }
     }
 

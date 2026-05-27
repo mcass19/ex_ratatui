@@ -199,10 +199,11 @@ defmodule ExRatatui do
   @doc """
   Polls for terminal events with a timeout (default 250ms).
 
-  Returns an `Event.Key`, `Event.Mouse`, `Event.Resize`, `Event.Paste`
-  struct, `nil` if no event within the timeout, or `{:error, reason}`
-  on failure. Paste events arrive when the terminal has bracketed paste
-  enabled (the default for `ExRatatui.run/1`).
+  Returns an `Event.Key`, `Event.Mouse`, `Event.Resize`, `Event.Paste`,
+  `Event.FocusGained`, or `Event.FocusLost` struct; `nil` if no event
+  within the timeout; or `{:error, reason}` on failure. Paste and
+  Focus events arrive when the terminal has bracketed paste and focus
+  reporting enabled (both default-on for `ExRatatui.run/1`).
   """
   @spec poll_event(non_neg_integer()) ::
           ExRatatui.Event.t() | nil | {:error, term()}
@@ -224,6 +225,9 @@ defmodule ExRatatui do
 
   def decode_event({:paste, content}),
     do: %Event.Paste{content: content}
+
+  def decode_event(:focus_gained), do: %Event.FocusGained{}
+  def decode_event(:focus_lost), do: %Event.FocusLost{}
 
   def decode_event({:error, _} = err), do: err
 

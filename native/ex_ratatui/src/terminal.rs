@@ -1,7 +1,9 @@
 use std::io::Stdout;
 use std::sync::Mutex;
 
-use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
+use crossterm::event::{
+    DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste, EnableFocusChange,
+};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
 use ratatui::backend::{CrosstermBackend, TestBackend};
@@ -49,6 +51,7 @@ impl Drop for TerminalResource {
 
         if self.is_crossterm {
             if let Some(AnyTerminal::Crossterm(_)) = guard.take() {
+                let _ = std::io::stdout().execute(DisableFocusChange);
                 let _ = std::io::stdout().execute(DisableBracketedPaste);
                 let _ = terminal::disable_raw_mode();
                 let _ = std::io::stdout().execute(LeaveAlternateScreen);
@@ -95,10 +98,17 @@ fn init_terminal() -> Result<ResourceArc<TerminalResource>, Error> {
     // fall back to per-char Key events, the pre-bracketed-paste behavior.
     let _ = std::io::stdout().execute(EnableBracketedPaste);
 
+    // Enable terminal-window focus reporting (CSI ?1004h). crossterm
+    // emits Event::FocusGained / Event::FocusLost when the parent
+    // emulator window gains or loses focus. Terminals without focus
+    // reporting silently ignore the sequence — no Focus events arrive.
+    let _ = std::io::stdout().execute(EnableFocusChange);
+
     let backend = CrosstermBackend::new(std::io::stdout());
     let terminal = match Terminal::new(backend) {
         Ok(t) => t,
         Err(e) => {
+            let _ = std::io::stdout().execute(DisableFocusChange);
             let _ = std::io::stdout().execute(DisableBracketedPaste);
             let _ = std::io::stdout().execute(LeaveAlternateScreen);
             let _ = terminal::disable_raw_mode();
@@ -123,6 +133,7 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
 
     match guard.take() {
         Some(AnyTerminal::Crossterm(_)) => {
+            let _ = std::io::stdout().execute(DisableFocusChange);
             let _ = std::io::stdout().execute(DisableBracketedPaste);
             terminal::disable_raw_mode().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
             std::io::stdout()

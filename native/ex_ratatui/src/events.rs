@@ -11,12 +11,16 @@ use rustler::Error;
 ///   {:mouse, kind, button, x, y, modifiers}
 ///   {:resize, width, height}
 ///   {:paste, content}
+///   :focus_gained
+///   :focus_lost
 #[derive(rustler::NifTaggedEnum)]
 pub enum NifEvent {
     Key(String, Vec<String>, String),
     Mouse(String, String, u16, u16, Vec<String>),
     Resize(u16, u16),
     Paste(String),
+    FocusGained,
+    FocusLost,
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
@@ -36,7 +40,8 @@ fn poll_event(timeout_ms: u64) -> Result<Option<NifEvent>, Error> {
         Event::Mouse(mouse_event) => Ok(Some(convert_mouse_event(mouse_event))),
         Event::Resize(width, height) => Ok(Some(NifEvent::Resize(width, height))),
         Event::Paste(content) => Ok(Some(NifEvent::Paste(content))),
-        _ => Ok(None), // FocusGained, FocusLost — ignore for now
+        Event::FocusGained => Ok(Some(NifEvent::FocusGained)),
+        Event::FocusLost => Ok(Some(NifEvent::FocusLost)),
     }
 }
 
@@ -315,5 +320,11 @@ mod tests {
             NifEvent::Paste(content) => assert_eq!(content, "hello\nworld"),
             _ => panic!("expected Paste"),
         }
+    }
+
+    #[test]
+    fn test_focus_variants_construct() {
+        assert!(matches!(NifEvent::FocusGained, NifEvent::FocusGained));
+        assert!(matches!(NifEvent::FocusLost, NifEvent::FocusLost));
     }
 }

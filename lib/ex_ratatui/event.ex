@@ -10,6 +10,8 @@ defmodule ExRatatui.Event do
     * `ExRatatui.Event.Resize` — terminal resize events
     * `ExRatatui.Event.Paste` — bracketed-paste events with the full
       pasted payload
+    * `ExRatatui.Event.FocusGained` / `ExRatatui.Event.FocusLost` —
+      terminal-window focus reporting
 
   ## Example
 
@@ -19,6 +21,8 @@ defmodule ExRatatui.Event do
         %ExRatatui.Event.Mouse{kind: "scroll_down"} -> :scroll_down
         %ExRatatui.Event.Resize{width: w, height: h} -> {:resize, w, h}
         %ExRatatui.Event.Paste{content: text} -> {:paste, text}
+        %ExRatatui.Event.FocusGained{} -> :resume_animations
+        %ExRatatui.Event.FocusLost{} -> :pause_animations
         nil -> :no_event
       end
   """
@@ -28,4 +32,6 @@ defmodule ExRatatui.Event do
           | ExRatatui.Event.Mouse.t()
           | ExRatatui.Event.Resize.t()
           | ExRatatui.Event.Paste.t()
+          | ExRatatui.Event.FocusGained.t()
+          | ExRatatui.Event.FocusLost.t()
 end

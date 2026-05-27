@@ -116,6 +116,14 @@ defmodule ExRatatuiTest do
       assert %ExRatatui.Event.Paste{content: ""} = ExRatatui.decode_event({:paste, ""})
     end
 
+    test "decodes focus_gained" do
+      assert %ExRatatui.Event.FocusGained{} = ExRatatui.decode_event(:focus_gained)
+    end
+
+    test "decodes focus_lost" do
+      assert %ExRatatui.Event.FocusLost{} = ExRatatui.decode_event(:focus_lost)
+    end
+
     test "passes through errors" do
       assert {:error, "test"} = ExRatatui.decode_event({:error, "test"})
     end

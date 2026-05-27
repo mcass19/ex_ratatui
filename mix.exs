@@ -174,7 +174,9 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Event.Key,
           ExRatatui.Event.Mouse,
           ExRatatui.Event.Resize,
-          ExRatatui.Event.Paste
+          ExRatatui.Event.Paste,
+          ExRatatui.Event.FocusGained,
+          ExRatatui.Event.FocusLost
         ],
         Focus: [
           ExRatatui.Focus
