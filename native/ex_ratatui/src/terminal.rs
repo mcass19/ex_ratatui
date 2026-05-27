@@ -2,7 +2,8 @@ use std::io::Stdout;
 use std::sync::Mutex;
 
 use crossterm::event::{
-    DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste, EnableFocusChange,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    EnableFocusChange, EnableMouseCapture,
 };
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
@@ -51,6 +52,7 @@ impl Drop for TerminalResource {
 
         if self.is_crossterm {
             if let Some(AnyTerminal::Crossterm(_)) = guard.take() {
+                let _ = std::io::stdout().execute(DisableMouseCapture);
                 let _ = std::io::stdout().execute(DisableFocusChange);
                 let _ = std::io::stdout().execute(DisableBracketedPaste);
                 let _ = terminal::disable_raw_mode();
@@ -83,7 +85,10 @@ where
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
-fn init_terminal(focus_events: bool) -> Result<ResourceArc<TerminalResource>, Error> {
+fn init_terminal(
+    focus_events: bool,
+    mouse_capture: bool,
+) -> Result<ResourceArc<TerminalResource>, Error> {
     terminal::enable_raw_mode().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
 
     if let Err(e) = std::io::stdout().execute(EnterAlternateScreen) {
@@ -108,10 +113,22 @@ fn init_terminal(focus_events: bool) -> Result<ResourceArc<TerminalResource>, Er
         let _ = std::io::stdout().execute(EnableFocusChange);
     }
 
+    // Mouse capture (CSI ?1000h + ?1006h SGR mode) is opt-in. When
+    // enabled, the terminal reports clicks / scroll / drag / move as
+    // Event::Mouse and the user's normal text selection is captured by
+    // the app. Off by default — apps that want mouse routing pair this
+    // with ExRatatui.Focus.handle_mouse/2 or roll their own dispatcher.
+    if mouse_capture {
+        let _ = std::io::stdout().execute(EnableMouseCapture);
+    }
+
     let backend = CrosstermBackend::new(std::io::stdout());
     let terminal = match Terminal::new(backend) {
         Ok(t) => t,
         Err(e) => {
+            if mouse_capture {
+                let _ = std::io::stdout().execute(DisableMouseCapture);
+            }
             if focus_events {
                 let _ = std::io::stdout().execute(DisableFocusChange);
             }
@@ -139,6 +156,7 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
 
     match guard.take() {
         Some(AnyTerminal::Crossterm(_)) => {
+            let _ = std::io::stdout().execute(DisableMouseCapture);
             let _ = std::io::stdout().execute(DisableFocusChange);
             let _ = std::io::stdout().execute(DisableBracketedPaste);
             terminal::disable_raw_mode().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;

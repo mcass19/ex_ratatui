@@ -30,10 +30,42 @@ Line.new([
 
 Accepted by `Paragraph.text`, `List.items`, `Table.rows`/`header`, `Tabs.titles`, `Block.title`.
 
-## Layout
+## Events
 {: .col-2}
 
-### `Layout.split/3`
+### `poll_event/1` returns
+
+```elixir
+case ExRatatui.poll_event(timeout) do
+  %Event.Key{code: "q"} -> :quit
+  %Event.Mouse{kind: "down", button: "left", x: x, y: y} ->
+    {:click, x, y}
+  %Event.Resize{width: w, height: h} -> {:resize, w, h}
+  %Event.Paste{content: text} -> {:paste, text}
+  %Event.FocusGained{} -> :resume_animations
+  %Event.FocusLost{} -> :pause_animations
+  nil -> :no_event
+end
+```
+
+`Event.Paste` arrives only on the local terminal today (byte-stream transports' VTE parser doesn't decode `CSI 200~/201~` yet). Focus events are **opt-in**: `ExRatatui.run(fun, focus_events: true)`.
+
+### Consuming Paste in widgets
+
+```elixir
+case event do
+  %Event.Paste{content: text} ->
+    ExRatatui.text_input_insert_str(state.input, text)
+  # ...
+end
+```
+
+`text_input_insert_str/2` strips every control character (single-line). `textarea_insert_str/2` preserves `\n` and `\r\n` as line breaks; lone `\r` is dropped. Both batch the insert as one NIF call.
+
+## Layout
+{: .col-3}
+
+### `Layout.split/4`
 
 ```elixir
 alias ExRatatui.Layout
@@ -45,7 +77,21 @@ alias ExRatatui.Layout
   ])
 ```
 
-Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, `:min`, `:max`, `:ratio`.
+Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, `:min`, `:max`, `:ratio`, `{:fill, weight}`.
+
+### Flex + spacing
+
+```elixir
+# Centered fixed-width popup
+[popup] = Layout.split(area, :horizontal,
+  [{:length, 40}], flex: :center)
+
+# Two growable panels with a 2-cell gutter
+[a, b] = Layout.split(area, :horizontal,
+  [{:fill, 1}, {:fill, 1}], spacing: 2)
+```
+
+`:flex` is one of `:legacy`, `:start`, `:end`, `:center`, `:space_between`, `:space_around`. `:spacing` is non-negative cells between adjacent segments.
 
 ### `%Rect{}`
 
@@ -53,7 +99,64 @@ Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, 
 %ExRatatui.Layout.Rect{x: 0, y: 0, width: 80, height: 24}
 ```
 
-All widgets render into a `Rect`. Returned from `Layout.split/3`, derived from `%Frame{}`, or built manually for absolute placement.
+All widgets render into a `Rect`. Returned from `Layout.split/4`, derived from `%Frame{}`, or built manually for absolute placement.
+
+## Focus & theming
+{: .col-2}
+
+### Focus ring
+
+```elixir
+alias ExRatatui.{Focus, Event}
+
+# Build the ring once.
+focus = Focus.new([:search, :results, :details])
+
+# Register hit-test regions after layout (typically on resize).
+focus =
+  focus
+  |> Focus.set_region(:search, search_rect)
+  |> Focus.set_regions(%{results: results_rect, details: details_rect})
+
+# Route keys: Tab / Shift+Tab move focus, everything else passes through.
+{focus, key} = Focus.handle_key(focus, key_event)
+
+# Route mouse: left-click in a region focuses that ID + passes event through.
+{focus, mouse} = Focus.handle_mouse(focus, mouse_event)
+
+# Style off the focused ID — Focus never touches widget structs.
+border = if Focus.focused?(focus, :search),
+  do: %Style{fg: :yellow},
+  else: %Style{fg: :gray}
+```
+
+`Focus.at(focus, x, y)` returns the ID under a point (smallest region wins on overlap). Scroll routing is intentionally not built in — pick `Focus.current/1` for "scroll the focused widget" or `Focus.at/3` for "scroll the widget under the cursor".
+
+### Theme palette
+
+```elixir
+alias ExRatatui.Theme
+
+theme = Theme.default()                 # dark-friendly; surface nil
+# or  Theme.light()                     # dark text on white surface
+# or  %Theme{primary: :magenta, accent: {:rgb, 245, 158, 11}, ...}
+
+%Block{
+  borders: [:all],
+  border_style: Theme.border_style(theme, focused: focused?)
+}
+
+%List{
+  items: results,
+  highlight_style: Theme.selection_style(theme)
+}
+
+# Body text + dim hint
+Theme.text_style(theme)                 # %Style{fg: theme.text, bg: theme.surface}
+Theme.text_style(theme, dim: true)      # %Style{fg: theme.text_dim, ...}
+```
+
+Eleven semantic slots: `:primary`, `:accent`, `:border`, `:border_focused`, `:surface`, `:surface_alt`, `:text`, `:text_dim`, `:success`, `:warning`, `:danger`. Each accepts any `t:ExRatatui.Style.color/0`. Apps thread the theme through render code by hand; no global config, no automatic widget injection.
 
 ## Text & content
 {: .col-2}
@@ -137,6 +240,9 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
   selected: 0,
   highlight_style: %Style{fg: :yellow, modifiers: [:bold]},
   highlight_symbol: ">> ",
+  direction: :bottom_to_top,            # default :top_to_bottom (chat logs)
+  scroll_padding: 2,                     # default 0; vim's scrolloff
+  repeat_highlight_symbol: true,         # default false; multi-row items
   block: %Block{title: " Menu ", borders: [:all]}
 }
 ```
@@ -146,10 +252,16 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
 ```elixir
 %Table{
   header: ["Name", "Score"],
+  footer: ["Total", "182"],              # optional, renders at bottom
   rows: [["Alice", "95"], ["Bob", "87"]],
   widths: [{:percentage, 70}, {:percentage, 30}],
   selected: 0,
-  highlight_style: %Style{fg: :yellow},
+  highlight_style: %Style{fg: :yellow},          # row highlight
+  header_style: %Style{modifiers: [:bold]},
+  footer_style: %Style{fg: :gray},
+  column_highlight_style: %Style{bg: :dark_gray},
+  cell_highlight_style: %Style{fg: :black, bg: :yellow},
+  highlight_spacing: :always,            # :always | :when_selected (default) | :never
   column_spacing: 1,
   block: %Block{borders: [:all]}
 }
@@ -400,6 +512,27 @@ alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
 ```
 
 Wraps another widget via that widget's `:block` field.
+
+### Block multi-title
+
+```elixir
+alias ExRatatui.Widgets.Block.Title
+
+%Block{
+  title: "src/lib.rs",                  # top-left, single-title shortcut
+  titles: [
+    %Title{content: "[3/12]", alignment: :right},
+    %Title{content: "modified", position: :bottom, alignment: :left},
+    %Title{content: "L42:7",   position: :bottom, alignment: :right}
+  ],
+  title_position: :top,                 # default for titles without one
+  title_alignment: :left,               # default alignment
+  title_style: %Style{fg: :gray},       # default style
+  borders: [:all]
+}
+```
+
+Each `%Block.Title{}` carries optional `:position`, `:alignment`, `:style` overrides over the block defaults. Raw line-like entries in `:titles` (e.g. `titles: ["status"]`) inherit the defaults.
 
 ### Popup
 

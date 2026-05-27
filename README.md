@@ -17,8 +17,8 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - **Image rendering** via [ratatui-image](https://github.com/ratatui/ratatui-image): PNG / JPEG / GIF / WebP / BMP, with Kitty / Sixel / iTerm2 / halfblocks protocols. Same model code adapts to the terminal at hand — pixel-perfect Kitty graphics locally, halfblocks fallback over SSH or in Livebook. See the [Images guide](guides/images.md).
 - **Oversized 8×8 pixel text** via [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text): drop-in `BigText` widget for slide titles, splash screens, and end-of-game banners. Eight `pixel_size` densities from `:full` (one cell per pixel) to `:octant` (1 row × half cols).
 - **Syntax-highlighted code** via [syntect](https://github.com/trishume/syntect): drop-in `CodeBlock` widget with seven curated themes, optional line-number gutter, and highlightable line ranges. `ExRatatui.CodeBlock.highlight/3` exposes the raw `[%Line{}]` data for users composing their own diff viewers / inspectors / pretty-printers.
-- Constraint-based layout engine (percentage, length, min, max, ratio)
-- Non-blocking keyboard, mouse, and resize event polling
+- Constraint-based layout engine: percentage, length, min, max, ratio, and `{:fill, weight}` for growable panels; `Layout.split/4` accepts `:flex` (start/center/end/space_between/space_around) and `:spacing` opts for centered popups, end-aligned status bars, and segment gutters
+- Non-blocking keyboard, mouse, resize, paste, and focus event polling — mouse capture, focus reporting, and bracketed paste exposed via `ExRatatui.run(fun, mouse_capture: true, focus_events: true)`. Bracketed paste lands as a single `%Event.Paste{}` instead of being shredded across keystrokes; `text_input_insert_str/2` and `textarea_insert_str/2` consume the payload in one NIF call
 - OTP-supervised TUI apps: via `ExRatatui.App` behaviour with LiveView-inspired callbacks
 - Reducer runtime: for command/subscription driven apps via `use ExRatatui.App, runtime: :reducer`
 - Built-in SSH transport: serve any `ExRatatui.App` as a remote TUI, standalone or under `nerves_ssh`
@@ -27,8 +27,10 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 - Full color support: named, RGB, and 256-color indexed
 - Text modifiers: bold, italic, underlined, and more
 - Rich text on text-bearing widget fields (`Paragraph.text`, `List.items`, `Table` cells, `Tabs.titles`, `Block.title`): per-span colors and modifiers via `ExRatatui.Text.Span`/`Line`
+- Multi-title blocks: top + bottom titles, per-title alignment, default styles — model patterns like `filename │ [3/12]` headers or bottom status bars in one struct
 - Custom widgets in pure Elixir via the `ExRatatui.Widget` protocol: compose primitives into reusable composite widgets without touching Rust
-- Focus management for multi-panel apps via `ExRatatui.Focus`: declare a ring of focusable IDs, cycle with Tab/Shift+Tab, dispatch keystrokes to the active widget
+- **Focus management** for multi-panel apps via `ExRatatui.Focus`: declare a ring of focusable IDs, cycle with Tab/Shift+Tab, register hit-test regions for `Focus.handle_mouse/2` so left-clicks focus the panel under the cursor (with the event passing through so widgets can still react), dispatch keystrokes to the active widget
+- **Theming**: `ExRatatui.Theme` palette struct with eleven semantic slots (`:primary`, `:accent`, `:border`, `:border_focused`, `:surface`, `:text`, `:success`, `:warning`, `:danger`, …); `default/0` and `light/0` constructors plus `border_style/2`, `text_style/2`, `selection_style/1` helpers. Pure data — apps thread it through render code without globals
 - Headless test backend for CI-friendly rendering verification
 - Precompiled NIF binaries: no Rust toolchain needed
 - Runs on BEAM's DirtyIo scheduler: never blocks your processes
@@ -159,10 +161,12 @@ All transports serve the same `ExRatatui.App` module — switch by changing a si
 | [Debugging](guides/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
 | [Performance](guides/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
 | [Telemetry](guides/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
+| [Transports](guides/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / Distributed / CellSession |
 | [Running TUIs over SSH](guides/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs over Erlang Distribution](guides/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/custom_transports.md) | Plug in your own transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
 | [Rendering to Non-Terminal Surfaces](guides/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers |
+| [Paste and Clipboard](guides/paste_and_clipboard.md) | Bracketed paste behaviour, `text_input_insert_str`/`textarea_insert_str` helpers, and an OSC 52 copy snippet |
 | [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |
 
 ## How It Works

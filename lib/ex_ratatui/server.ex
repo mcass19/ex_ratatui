@@ -69,10 +69,12 @@ defmodule ExRatatui.Server do
       :local ->
         mod = Keyword.fetch!(opts, :mod)
         test_mode = Keyword.get(opts, :test_mode)
+        focus_events? = Keyword.get(opts, :focus_events, false)
+        mouse_capture? = Keyword.get(opts, :mouse_capture, false)
 
         terminal_ref =
           Telemetry.span([:transport, :connect], %{mod: mod, transport: :local}, fn ->
-            init_terminal(test_mode)
+            init_terminal(test_mode, focus_events?, mouse_capture?)
           end)
 
         continue_init(terminal_ref, opts)
@@ -652,8 +654,10 @@ defmodule ExRatatui.Server do
     end
   end
 
-  defp init_terminal(nil), do: Native.init_terminal(false)
-  defp init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
+  defp init_terminal(nil, focus?, mouse?), do: Native.init_terminal(focus?, mouse?)
+
+  defp init_terminal({width, height}, _focus?, _mouse?),
+    do: ExRatatui.init_test_terminal(width, height)
 
   defp local_polling_enabled?(nil), do: true
   defp local_polling_enabled?({_width, _height}), do: false

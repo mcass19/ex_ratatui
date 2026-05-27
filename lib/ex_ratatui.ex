@@ -159,11 +159,20 @@ defmodule ExRatatui do
       enabling it leaves focus-event bytes queued in the terminal
       that leak into unrelated stdin consumers (a plain shell or
       `mix test` started later) when the user window-switches mid-run.
+    * `:mouse_capture` — enable mouse reporting (clicks, scroll, drag,
+      move) as `%Event.Mouse{}` from `poll_event/1`. Defaults to
+      `false`. When on, the terminal's native text-selection is
+      captured by the app; pair with `ExRatatui.Focus.handle_mouse/2`
+      (or a custom dispatcher) to route the events. SSH and
+      distributed transports decode mouse sequences regardless of this
+      flag because their VTE-based input parser handles them
+      unconditionally.
   """
   @spec run((terminal_ref() -> term()), keyword()) :: term() | {:error, term()}
   def run(fun, opts \\ []) when is_function(fun, 1) and is_list(opts) do
     focus_events? = Keyword.get(opts, :focus_events, false)
-    Native.init_terminal(focus_events?) |> do_run(fun)
+    mouse_capture? = Keyword.get(opts, :mouse_capture, false)
+    Native.init_terminal(focus_events?, mouse_capture?) |> do_run(fun)
   end
 
   @doc false

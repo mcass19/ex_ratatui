@@ -7,7 +7,7 @@ defmodule ExRatatui.TerminalTest do
 
   describe "NIF loading" do
     test "init_terminal NIF is loaded and callable" do
-      result = Native.init_terminal(false)
+      result = Native.init_terminal(false, false)
       assert is_reference(result) or match?({:error, _}, result)
 
       if is_reference(result), do: Native.restore_terminal(result)
@@ -72,14 +72,14 @@ defmodule ExRatatui.TerminalTest do
 
   describe "terminal lifecycle" do
     test "init and restore complete successfully" do
-      case Native.init_terminal(false) do
+      case Native.init_terminal(false, false) do
         {:error, _} -> :ok
         ref -> assert :ok = Native.restore_terminal(ref)
       end
     end
 
     test "terminal_size returns integers after init" do
-      case Native.init_terminal(false) do
+      case Native.init_terminal(false, false) do
         {:error, _} ->
           :ok
 

@@ -1,18 +1,29 @@
-# Example: Focus management — three-panel app demonstrating ExRatatui.Focus.
+# Example: Focus management — three-panel app showcasing the full
+# ExRatatui.Focus surface plus the surrounding Theme + multi-title +
+# bracketed-paste features that landed alongside it.
 #
 # Panels:
-#   :search  (TextInput, top-left)  — type to filter the results list
+#   :search  (TextInput, top-left)    — type to filter; paste accepts URLs / blobs
 #   :results (List,      bottom-left) — up/down to move selection
-#   :details (Paragraph, right)       — up/down to scroll description
+#   :details (Paragraph, right)        — up/down to scroll description
 #
-# Tab / Shift+Tab cycle focus. Esc quits.
+# Interaction:
+#   * Tab / Shift+Tab cycle focus through the three panels.
+#   * Left-click any panel to focus it directly — the click is passed
+#     through so widgets that care (TextInput cursor placement, etc.)
+#     can still react.
+#   * Mouse-wheel scroll routes to whichever panel currently has focus.
+#   * Pasting (Ctrl+Shift+V / Cmd+V / middle-click) into :search lands
+#     as one Event.Paste even with multi-line / multi-byte content.
+#   * Esc quits.
 #
-# Run with: mix run examples/focus_multi_panel.exs
+# Run with:  mix run examples/focus_multi_panel.exs
 
-alias ExRatatui.{Event, Focus, Layout, Style}
+alias ExRatatui.{Event, Focus, Layout, Style, Theme}
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Text.{Line, Span}
 alias ExRatatui.Widgets.{Block, List, Paragraph, TextInput}
+alias ExRatatui.Widgets.Block.Title
 
 defmodule FocusExample do
   use ExRatatui.App
@@ -49,6 +60,7 @@ defmodule FocusExample do
   def mount(_opts) do
     state = %{
       focus: Focus.new([:search, :results, :details]),
+      theme: Theme.default(),
       search: ExRatatui.text_input_new(),
       items: @items,
       selected: 0,
@@ -62,11 +74,7 @@ defmodule FocusExample do
   def render(state, frame) do
     filtered = filtered_items(state)
     selected = clamp(state.selected, length(filtered))
-    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
-
-    [body, footer] = Layout.split(area, :vertical, [{:min, 0}, {:length, 1}])
-    [left, right] = Layout.split(body, :horizontal, [{:percentage, 45}, {:min, 0}])
-    [search_rect, results_rect] = Layout.split(left, :vertical, [{:length, 3}, {:min, 0}])
+    {search_rect, results_rect, details_rect, footer_rect} = panels(frame)
 
     detail_text =
       case Enum.at(filtered, selected) do
@@ -77,14 +85,59 @@ defmodule FocusExample do
     [
       {search_widget(state), search_rect},
       {results_widget(state, filtered, selected), results_rect},
-      {details_widget(state, detail_text), right},
-      {footer_widget(), footer}
+      {details_widget(state, detail_text), details_rect},
+      {footer_widget(state), footer_rect}
     ]
   end
 
   @impl true
   def handle_event(%Event.Key{code: "esc", kind: "press"}, state) do
     {:stop, state}
+  end
+
+  # Re-register hit-test regions whenever layout changes. The Resize
+  # event arrives on every terminal-size change; Focus carries the
+  # regions so handle_mouse/2 below can use them without re-deriving.
+  def handle_event(%Event.Resize{} = resize, state) do
+    {search_rect, results_rect, details_rect, _footer} =
+      panels(%{width: resize.width, height: resize.height})
+
+    focus =
+      Focus.set_regions(state.focus, %{
+        search: search_rect,
+        results: results_rect,
+        details: details_rect
+      })
+
+    {:noreply, %{state | focus: focus}}
+  end
+
+  def handle_event(%Event.Mouse{} = mouse, state) do
+    {focus, mouse} = Focus.handle_mouse(state.focus, mouse)
+    state = %{state | focus: focus}
+
+    case mouse do
+      %Event.Mouse{kind: kind} when kind in ["scroll_up", "scroll_down"] ->
+        # Route scroll to whichever panel is focused.
+        {:noreply, dispatch_scroll(state, kind)}
+
+      _ ->
+        # Other mouse kinds (click pass-through, drag, move, up) are
+        # currently a no-op in this example — focus already moved.
+        {:noreply, state}
+    end
+  end
+
+  # Pasted blobs land in the search field as one Event.Paste,
+  # regardless of multi-line / multi-byte content. text_input_insert_str
+  # strips newlines for us (single-line widget).
+  def handle_event(%Event.Paste{content: text}, state) do
+    if Focus.focused?(state.focus, :search) do
+      :ok = ExRatatui.text_input_insert_str(state.search, text)
+      {:noreply, %{state | selected: 0, detail_scroll: 0}}
+    else
+      {:noreply, state}
+    end
   end
 
   def handle_event(%Event.Key{kind: "press"} = key, state) do
@@ -105,6 +158,16 @@ defmodule FocusExample do
   end
 
   def handle_event(_event, state), do: {:noreply, state}
+
+  # --- layout -----------------------------------------------------------
+
+  defp panels(%{width: w, height: h}) do
+    area = %Rect{x: 0, y: 0, width: w, height: h}
+    [body, footer] = Layout.split(area, :vertical, [{:min, 0}, {:length, 1}])
+    [left, right] = Layout.split(body, :horizontal, [{:percentage, 45}, {:min, 0}])
+    [search, results] = Layout.split(left, :vertical, [{:length, 3}, {:min, 0}])
+    {search, results, right, footer}
+  end
 
   # --- dispatch ---------------------------------------------------------
 
@@ -134,17 +197,35 @@ defmodule FocusExample do
 
   defp dispatch_details(state, _), do: state
 
+  defp dispatch_scroll(state, "scroll_up") do
+    case Focus.current(state.focus) do
+      :results -> %{state | selected: max(state.selected - 1, 0), detail_scroll: 0}
+      :details -> %{state | detail_scroll: max(state.detail_scroll - 1, 0)}
+      _ -> state
+    end
+  end
+
+  defp dispatch_scroll(state, "scroll_down") do
+    case Focus.current(state.focus) do
+      :results ->
+        max_index = max(length(filtered_items(state)) - 1, 0)
+        %{state | selected: min(state.selected + 1, max_index), detail_scroll: 0}
+
+      :details ->
+        %{state | detail_scroll: state.detail_scroll + 1}
+
+      _ ->
+        state
+    end
+  end
+
   # --- widgets ----------------------------------------------------------
 
   defp search_widget(state) do
     %TextInput{
       state: state.search,
-      placeholder: "Type to filter…",
-      block: %Block{
-        title: "Search",
-        borders: [:all],
-        border_style: border_style(state.focus, :search)
-      }
+      placeholder: "Type to filter (paste also works)",
+      block: panel_block(state, :search, "Search")
     }
   end
 
@@ -153,12 +234,11 @@ defmodule FocusExample do
       items: Enum.map(items, & &1.name),
       selected: if(items == [], do: nil, else: selected),
       highlight_symbol: "> ",
-      highlight_style: %Style{fg: :black, bg: :yellow, modifiers: [:bold]},
-      block: %Block{
-        title: "Results",
-        borders: [:all],
-        border_style: border_style(state.focus, :results)
-      }
+      highlight_style: Theme.selection_style(state.theme),
+      # Demonstrate the new scroll_padding field; small list so it's
+      # subtle but the moduledoc explains the effect.
+      scroll_padding: 1,
+      block: panel_block(state, :results, "Results", "#{length(items)}")
     }
   end
 
@@ -167,35 +247,51 @@ defmodule FocusExample do
       text: text,
       wrap: true,
       scroll: {state.detail_scroll, 0},
-      block: %Block{
-        title: "Details",
-        borders: [:all],
-        border_style: border_style(state.focus, :details)
-      }
+      block: panel_block(state, :details, "Details", "L#{state.detail_scroll + 1}")
     }
   end
 
-  defp footer_widget do
+  # Multi-title block: panel name on the top-left, optional status
+  # token on the top-right. focused? swaps the border color via Theme.
+  defp panel_block(state, id, title, status \\ nil) do
+    focused? = Focus.focused?(state.focus, id)
+
+    titles =
+      case status do
+        nil -> []
+        s -> [%Title{content: s, alignment: :right, style: %Style{fg: state.theme.text_dim}}]
+      end
+
+    %Block{
+      title: title,
+      titles: titles,
+      borders: [:all],
+      border_type: :rounded,
+      border_style: Theme.border_style(state.theme, focused: focused?)
+    }
+  end
+
+  defp footer_widget(state) do
     %Paragraph{
       text:
         Line.new([
-          Span.new(" Tab ", style: %Style{fg: :black, bg: :cyan}),
+          chip("Tab", state.theme.accent),
           Span.new(" cycle focus  "),
-          Span.new(" ↑/↓ ", style: %Style{fg: :black, bg: :cyan}),
-          Span.new(" navigate / scroll  "),
-          Span.new(" Esc ", style: %Style{fg: :black, bg: :red}),
+          chip("Click", state.theme.accent),
+          Span.new(" focus panel  "),
+          chip("↑/↓", state.theme.accent),
+          Span.new(" navigate/scroll  "),
+          chip("Esc", state.theme.danger),
           Span.new(" quit")
         ])
     }
   end
 
-  # --- helpers ----------------------------------------------------------
-
-  defp border_style(focus, id) do
-    if Focus.focused?(focus, id),
-      do: %Style{fg: :yellow, modifiers: [:bold]},
-      else: %Style{fg: :dark_gray}
+  defp chip(label, bg_color) do
+    Span.new(" #{label} ", style: %Style{fg: :black, bg: bg_color, modifiers: [:bold]})
   end
+
+  # --- helpers ----------------------------------------------------------
 
   defp filtered_items(state) do
     needle = state.search |> ExRatatui.text_input_get_value() |> String.downcase()
@@ -210,7 +306,10 @@ defmodule FocusExample do
   defp clamp(n, len), do: n |> max(0) |> min(len - 1)
 end
 
-{:ok, pid} = FocusExample.start_link([])
+# Opt-in to mouse capture so the example can demonstrate click-to-focus
+# and scroll-wheel routing on the local terminal. SSH / distributed
+# transports get mouse events from their VTE input parser regardless.
+{:ok, pid} = FocusExample.start_link(mouse_capture: true)
 ref = Process.monitor(pid)
 
 receive do

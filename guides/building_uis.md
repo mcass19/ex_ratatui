@@ -724,6 +724,93 @@ Focus.new([:search, :results, :details],
 
 See [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) for a full three-panel demo.
 
+### Mouse routing
+
+`Focus` carries a `regions: %{id => Rect}` map alongside the ring. Register the regions after layout (typically inside a `%Event.Resize{}` handler) and `Focus.handle_mouse/2` will focus the panel under a left-click — passing the event through so widgets that care (cursor placement, drag start) can still react.
+
+```elixir
+def handle_event(%Event.Resize{width: w, height: h}, state) do
+  area = %Rect{x: 0, y: 0, width: w, height: h}
+  [search_rect, body_rect] = Layout.split(area, :vertical, [{:length, 3}, {:min, 0}])
+  [results_rect, details_rect] = Layout.split(body_rect, :horizontal, [
+    {:percentage, 40}, {:min, 0}
+  ])
+
+  focus =
+    Focus.set_regions(state.focus, %{
+      search: search_rect,
+      results: results_rect,
+      details: details_rect
+    })
+
+  {:noreply, %{state | focus: focus}}
+end
+
+def handle_event(%Event.Mouse{} = mouse, state) do
+  {focus, mouse} = Focus.handle_mouse(state.focus, mouse)
+  # Left-click in a known region just moved focus; the click is still
+  # in `mouse` so the widget can react (Checkbox toggle, cursor place).
+  {:noreply, %{state | focus: focus}}
+end
+```
+
+The local terminal needs mouse capture explicitly turned on — pass `mouse_capture: true` to `ExRatatui.run/2` or as a `start_link` option on the `:local` `ExRatatui.App`. SSH and distributed transports decode mouse events regardless. Scroll-wheel routing is intentionally not built in; `Focus.current/1` after `handle_mouse/2` routes "to the focused widget", `Focus.at/3` routes "to the widget under the cursor" — pick whichever fits.
+
+Overlapping regions resolve to the smallest by area (leaf-inside-container picks the leaf). Boundaries are half-open (`x >= rx and x < rx + w`) — natural for ratatui rect semantics. Registering a region for an ID that isn't in the ring raises.
+
+## Theming
+
+Most apps want consistent colors across borders, highlights, text, and status indicators without scattering literal `%Style{fg: :cyan}` calls everywhere. `ExRatatui.Theme` is a pure-data palette struct designed for exactly that — apps thread it through render code by hand, no globals, no automatic injection.
+
+```elixir
+alias ExRatatui.Theme
+
+theme = Theme.default()                 # dark-friendly; :surface nil so light and dark terminals both look right
+# or  Theme.light()                     # dark text on white surface
+# or  %Theme{primary: :magenta, accent: {:rgb, 245, 158, 11}, ...}
+```
+
+Eleven semantic slots cover the common needs:
+
+| Slot | Purpose |
+|---|---|
+| `:primary` | Brand color for titles and major headers |
+| `:accent` | Interactive / focused / selected elements |
+| `:border` / `:border_focused` | Panel border colors |
+| `:surface` / `:surface_alt` | Background and striped-row background |
+| `:text` / `:text_dim` | Body text and secondary text (hints, placeholders, disabled) |
+| `:success` / `:warning` / `:danger` | Status messages and severity indicators |
+
+Every slot accepts the full `t:ExRatatui.Style.color/0` shape (named atoms, `{:rgb, r, g, b}`, `{:indexed, n}`, or `nil`).
+
+Three helpers cover the most common patterns:
+
+```elixir
+# Border styling, with a focused override.
+%Block{
+  borders: [:all],
+  border_style: Theme.border_style(theme, focused: Focus.focused?(focus, :search))
+}
+
+# Body text and dim hint text.
+%Paragraph{text: "Hello", style: Theme.text_style(theme)}
+%Paragraph{text: "(empty)", style: Theme.text_style(theme, dim: true)}
+
+# Selection inversion for List / Table / Tabs highlights.
+%List{items: results, highlight_style: Theme.selection_style(theme)}
+```
+
+Anything more specialised — gradient-style accents, severity-tinted text — destructures the slots inline:
+
+```elixir
+%Paragraph{
+  text: " #{count} failures ",
+  style: %Style{fg: theme.surface, bg: theme.danger, modifiers: [:bold]}
+}
+```
+
+`Theme` is intentionally Layer A: pure data with three helpers. A later Layer B may add opt-in auto-injection (Block borders pick up `theme.border` unless overridden, etc.); Layer A stays explicit.
+
 ## Examples
 
   * [`examples/widget_showcase.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widget_showcase.exs) — interactive showcase of tabs, progress bars, checkboxes, text input, and scrollable logs
