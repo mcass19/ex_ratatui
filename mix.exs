@@ -161,7 +161,8 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Layout.Rect
         ],
         Style: [
-          ExRatatui.Style
+          ExRatatui.Style,
+          ExRatatui.Theme
         ],
         "Rich Text": [
           ExRatatui.Text,
