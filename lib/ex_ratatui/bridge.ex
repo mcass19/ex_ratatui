@@ -108,6 +108,7 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(%Table{} = table) do
     selected = validate_selected!(table.selected, length(table.rows), "table.selected")
+    validate_highlight_spacing!(table.highlight_spacing)
 
     %{
       "type" => "table",
@@ -118,9 +119,23 @@ defmodule ExRatatui.Bridge do
       "widths" => Enum.map(table.widths, &encode_constraint(&1, "table.widths")),
       "style" => encode_style(table.style, "table.style"),
       "highlight_style" => encode_style(table.highlight_style, "table.highlight_style"),
+      "highlight_spacing" => Atom.to_string(table.highlight_spacing),
       "column_spacing" => table.column_spacing
     }
     |> maybe_put("header", encode_table_header(table.header))
+    |> maybe_put("footer", encode_table_header(table.footer))
+    |> maybe_put_style(
+      "column_highlight_style",
+      table.column_highlight_style,
+      "table.column_highlight_style"
+    )
+    |> maybe_put_style(
+      "cell_highlight_style",
+      table.cell_highlight_style,
+      "table.cell_highlight_style"
+    )
+    |> maybe_put_style("header_style", table.header_style, "table.header_style")
+    |> maybe_put_style("footer_style", table.footer_style, "table.footer_style")
     |> maybe_put("highlight_symbol", table.highlight_symbol)
     |> maybe_put("selected", selected)
     |> maybe_put_block(table.block, "table.block")
@@ -524,6 +539,15 @@ defmodule ExRatatui.Bridge do
 
   defp validate_boolean!(other, context) do
     raise ArgumentError, "#{context} expected a boolean, got: #{inspect(other)}"
+  end
+
+  defp validate_highlight_spacing!(value)
+       when value in [:always, :when_selected, :never],
+       do: :ok
+
+  defp validate_highlight_spacing!(other) do
+    raise ArgumentError,
+          "table.highlight_spacing expected :always, :when_selected, or :never, got: #{inspect(other)}"
   end
 
   defp encode_bar_groups(_data, groups) when not is_list(groups) do

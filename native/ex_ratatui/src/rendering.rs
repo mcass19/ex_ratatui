@@ -308,6 +308,21 @@ fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
         None => None,
     };
 
+    let footer = match optional_term(map, "footer") {
+        Some(term) => {
+            let cell_terms: Vec<Term<'_>> = term
+                .decode()
+                .map_err(|_| invalid_field("table", "footer", "expected a list"))?;
+            Some(
+                cell_terms
+                    .into_iter()
+                    .map(text::decode_line)
+                    .collect::<Result<_, _>>()?,
+            )
+        }
+        None => None,
+    };
+
     let widths = match optional_term(map, "widths") {
         Some(term) => {
             let width_terms: Vec<Term<'_>> = term
@@ -331,20 +346,56 @@ fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
         None => ratatui::style::Style::default(),
     };
 
+    let column_highlight_style = match optional_term(map, "column_highlight_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
+    let cell_highlight_style = match optional_term(map, "cell_highlight_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
+    let header_style = match optional_term(map, "header_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
+    let footer_style = match optional_term(map, "footer_style") {
+        Some(term) => Some(decode_style(term)?),
+        None => None,
+    };
+
     let highlight_symbol: Option<String> = decode_optional(map, "highlight_symbol", "table")?;
     let selected: Option<usize> = decode_optional(map, "selected", "table")?;
     let column_spacing: u16 = decode_optional(map, "column_spacing", "table")?.unwrap_or(1);
+
+    let highlight_spacing = match optional_term(map, "highlight_spacing") {
+        Some(term) => {
+            let s: String = term
+                .decode()
+                .map_err(|_| invalid_field("table", "highlight_spacing", "expected a string"))?;
+            crate::widgets::table::parse_highlight_spacing(&s)?
+        }
+        None => ratatui::widgets::HighlightSpacing::default(),
+    };
 
     let block = decode_optional_block(map)?;
 
     Ok(TableData {
         rows,
         header,
+        footer,
         widths,
         style,
         block,
         highlight_style,
+        column_highlight_style,
+        cell_highlight_style,
+        header_style,
+        footer_style,
         highlight_symbol,
+        highlight_spacing,
         selected,
         column_spacing,
     })

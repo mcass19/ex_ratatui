@@ -75,5 +75,51 @@ defmodule ExRatatui.Widgets.TableTest do
       assert content =~ "B"
       assert content =~ "C"
     end
+
+    test "footer renders at the bottom of the table area", %{terminal: terminal} do
+      table = %Table{
+        rows: [["Alice", "30"]],
+        header: ["Name", "Age"],
+        footer: ["Total", "1 row"],
+        widths: [{:length, 10}, {:length, 10}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 30, height: 6}
+
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      lines = ExRatatui.get_buffer_content(terminal) |> String.split("\n")
+      assert hd(lines) =~ "Name"
+      assert Enum.at(lines, 5) =~ "Total"
+    end
+
+    test "highlight_spacing :always reserves the symbol column without a selection",
+         %{terminal: terminal} do
+      table = %Table{
+        rows: [["only"]],
+        widths: [{:length, 10}],
+        highlight_symbol: ">> ",
+        highlight_spacing: :always
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+      [row | _] = ExRatatui.get_buffer_content(terminal) |> String.split("\n")
+      # Symbol-column gap pushes "only" to the right even with no selection.
+      assert String.starts_with?(row, "   only")
+    end
+
+    test "header_style colors the header row", %{terminal: terminal} do
+      table = %Table{
+        rows: [["a"]],
+        header: ["Name"],
+        header_style: %ExRatatui.Style{fg: :magenta},
+        widths: [{:length, 10}]
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+    end
   end
 end

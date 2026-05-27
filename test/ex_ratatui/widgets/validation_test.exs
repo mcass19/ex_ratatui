@@ -906,6 +906,18 @@ defmodule ExRatatui.Widgets.ValidationTest do
       end
     end
 
+    test "table rejects unknown :highlight_spacing" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError,
+                   ~r/highlight_spacing expected :always, :when_selected, or :never/,
+                   fn ->
+                     ExRatatui.Bridge.encode_commands!([
+                       {%Table{highlight_spacing: :sometimes}, rect}
+                     ])
+                   end
+    end
+
     test "tabs accepts nil and valid selected index", %{terminal: terminal} do
       rect = %Rect{x: 0, y: 0, width: 30, height: 1}
       titles = ["One", "Two", "Three"]
