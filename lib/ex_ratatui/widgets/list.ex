@@ -11,7 +11,9 @@ defmodule ExRatatui.Widgets.List do
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected item
     * `:highlight_symbol` - string prefix for the selected item (e.g., `">> "`)
-    * `:selected` - zero-based index of the selected item, or `nil` for no selection
+    * `:selected` - zero-based index of the selected item, or `nil` for no
+      selection. Must be in `0..length(items) - 1`; any other value raises
+      `ArgumentError` at render time.
 
   ## Examples
 

@@ -15,7 +15,8 @@ defmodule ExRatatui.Widgets.Table do
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected row
     * `:highlight_symbol` - string prefix for the selected row
-    * `:selected` - zero-based index of the selected row, or `nil`
+    * `:selected` - zero-based index of the selected row, or `nil`. Must be in
+      `0..length(rows) - 1`; any other value raises `ArgumentError` at render time.
     * `:column_spacing` - spacing between columns (default: 1)
 
   ## Examples

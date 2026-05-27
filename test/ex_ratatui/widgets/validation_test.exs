@@ -25,7 +25,8 @@ defmodule ExRatatui.Widgets.ValidationTest do
     Scrollbar,
     Sparkline,
     Table,
-    Tabs
+    Tabs,
+    WidgetList
   }
 
   alias ExRatatui.Widgets.Canvas.{Circle, Label, Line, Points, Rectangle}
@@ -807,6 +808,142 @@ defmodule ExRatatui.Widgets.ValidationTest do
       assert_raise ArgumentError, ~r/Label\.color is required/, fn ->
         ExRatatui.Bridge.encode_commands!([{canvas, rect}])
       end
+    end
+
+    test "list accepts nil and valid selected index", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+      items = ["a", "b", "c"]
+      assert :ok = ExRatatui.draw(terminal, [{%List{items: items, selected: nil}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%List{items: items, selected: 2}, rect}])
+    end
+
+    test "list rejects out-of-bounds selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/list\.selected expected nil or an integer in 0\.\.2/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{items: ["a", "b", "c"], selected: 3}, rect}])
+      end
+    end
+
+    test "list rejects negative selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/list\.selected expected nil or an integer in 0\.\.2/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{items: ["a", "b", "c"], selected: -1}, rect}])
+      end
+    end
+
+    test "list rejects non-integer selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/list\.selected expected nil or an integer in 0\.\.2/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{items: ["a", "b", "c"], selected: 1.0}, rect}])
+      end
+    end
+
+    test "list rejects selected on empty items" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/list\.selected expected nil \(collection is empty\)/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{items: [], selected: 0}, rect}])
+      end
+    end
+
+    test "table accepts nil and valid selected index", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+      rows = [["a"], ["b"]]
+      assert :ok = ExRatatui.draw(terminal, [{%Table{rows: rows, selected: nil}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%Table{rows: rows, selected: 1}, rect}])
+    end
+
+    test "table rejects out-of-bounds selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/table\.selected expected nil or an integer in 0\.\.1/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Table{rows: [["a"], ["b"]], selected: 2}, rect}])
+      end
+    end
+
+    test "table rejects negative selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/table\.selected expected nil or an integer in 0\.\.1/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Table{rows: [["a"], ["b"]], selected: -1}, rect}])
+      end
+    end
+
+    test "table rejects selected on empty rows" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/table\.selected expected nil \(collection is empty\)/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Table{rows: [], selected: 0}, rect}])
+      end
+    end
+
+    test "tabs accepts nil and valid selected index", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+      titles = ["One", "Two", "Three"]
+      assert :ok = ExRatatui.draw(terminal, [{%Tabs{titles: titles, selected: nil}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%Tabs{titles: titles, selected: 2}, rect}])
+    end
+
+    test "tabs rejects out-of-bounds selected" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert_raise ArgumentError, ~r/tabs\.selected expected nil or an integer in 0\.\.2/, fn ->
+        ExRatatui.Bridge.encode_commands!([
+          {%Tabs{titles: ["a", "b", "c"], selected: 5}, rect}
+        ])
+      end
+    end
+
+    test "tabs rejects negative selected" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert_raise ArgumentError, ~r/tabs\.selected expected nil or an integer in 0\.\.2/, fn ->
+        ExRatatui.Bridge.encode_commands!([
+          {%Tabs{titles: ["a", "b", "c"], selected: -1}, rect}
+        ])
+      end
+    end
+
+    test "tabs rejects selected on empty titles" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert_raise ArgumentError, ~r/tabs\.selected expected nil \(collection is empty\)/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Tabs{titles: [], selected: 0}, rect}])
+      end
+    end
+
+    test "widget_list accepts nil and valid selected index", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 20, height: 4}
+      items = [{%Block{}, 1}, {%Block{}, 1}]
+      assert :ok = ExRatatui.draw(terminal, [{%WidgetList{items: items, selected: nil}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%WidgetList{items: items, selected: 1}, rect}])
+    end
+
+    test "widget_list rejects out-of-bounds selected" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError,
+                   ~r/widget_list\.selected expected nil or an integer in 0\.\.1/,
+                   fn ->
+                     ExRatatui.Bridge.encode_commands!([
+                       {%WidgetList{items: [{%Block{}, 1}, {%Block{}, 1}], selected: 2}, rect}
+                     ])
+                   end
+    end
+
+    test "widget_list rejects selected on empty items" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 4}
+
+      assert_raise ArgumentError,
+                   ~r/widget_list\.selected expected nil \(collection is empty\)/,
+                   fn ->
+                     ExRatatui.Bridge.encode_commands!([
+                       {%WidgetList{items: [], selected: 0}, rect}
+                     ])
+                   end
     end
   end
 end

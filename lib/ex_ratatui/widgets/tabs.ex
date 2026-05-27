@@ -8,7 +8,9 @@ defmodule ExRatatui.Widgets.Tabs do
       line-like value: a `String.t()`, a `%ExRatatui.Text.Span{}`, a
       `%ExRatatui.Text.Line{}`, or a list of spans. Titles are single-line —
       strings with embedded newlines raise.
-    * `:selected` - zero-based index of the selected tab, or `nil` for no selection
+    * `:selected` - zero-based index of the selected tab, or `nil` for no
+      selection. Must be in `0..length(titles) - 1`; any other value raises
+      `ArgumentError` at render time.
     * `:style` - `%ExRatatui.Style{}` for non-selected tabs
     * `:highlight_style` - `%ExRatatui.Style{}` for the selected tab
     * `:divider` - separator string between tabs (default: `nil`; the Rust backend uses `"│"`)

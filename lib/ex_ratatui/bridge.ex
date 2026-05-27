@@ -84,6 +84,8 @@ defmodule ExRatatui.Bridge do
   end
 
   defp encode_widget(%List{} = list) do
+    selected = validate_selected!(list.selected, length(list.items), "list.selected")
+
     %{
       "type" => "list",
       "items" =>
@@ -94,11 +96,13 @@ defmodule ExRatatui.Bridge do
       "highlight_style" => encode_style(list.highlight_style, "list.highlight_style")
     }
     |> maybe_put("highlight_symbol", list.highlight_symbol)
-    |> maybe_put("selected", list.selected)
+    |> maybe_put("selected", selected)
     |> maybe_put_block(list.block, "list.block")
   end
 
   defp encode_widget(%Table{} = table) do
+    selected = validate_selected!(table.selected, length(table.rows), "table.selected")
+
     %{
       "type" => "table",
       "rows" =>
@@ -112,7 +116,7 @@ defmodule ExRatatui.Bridge do
     }
     |> maybe_put("header", encode_table_header(table.header))
     |> maybe_put("highlight_symbol", table.highlight_symbol)
-    |> maybe_put("selected", table.selected)
+    |> maybe_put("selected", selected)
     |> maybe_put_block(table.block, "table.block")
   end
 
@@ -260,6 +264,8 @@ defmodule ExRatatui.Bridge do
   end
 
   defp encode_widget(%Tabs{} = tabs) do
+    selected = validate_selected!(tabs.selected, length(tabs.titles), "tabs.selected")
+
     %{
       "type" => "tabs",
       "titles" => Enum.map(tabs.titles, &encode_line_like/1),
@@ -268,7 +274,7 @@ defmodule ExRatatui.Bridge do
       "padding_left" => elem(tabs.padding, 0),
       "padding_right" => elem(tabs.padding, 1)
     }
-    |> maybe_put("selected", tabs.selected)
+    |> maybe_put("selected", selected)
     |> maybe_put("divider", tabs.divider)
     |> maybe_put_block(tabs.block, "tabs.block")
   end
@@ -439,6 +445,9 @@ defmodule ExRatatui.Bridge do
                 "widget_list.items must contain {widget, non_neg_integer()} tuples, got: #{inspect(other)}"
       end)
 
+    selected =
+      validate_selected!(widget_list.selected, length(items), "widget_list.selected")
+
     %{
       "type" => "widget_list",
       "items" => items,
@@ -447,7 +456,7 @@ defmodule ExRatatui.Bridge do
         encode_style(widget_list.highlight_style, "widget_list.highlight_style"),
       "scroll_offset" => widget_list.scroll_offset
     }
-    |> maybe_put("selected", widget_list.selected)
+    |> maybe_put("selected", selected)
     |> maybe_put_block(widget_list.block, "widget_list.block")
   end
 
@@ -473,6 +482,22 @@ defmodule ExRatatui.Bridge do
   defp encode_ratio(value, context) do
     raise ArgumentError,
           "#{context} expected a number in 0.0..1.0, got: #{inspect(value)}"
+  end
+
+  defp validate_selected!(nil, _count, _context), do: nil
+
+  defp validate_selected!(index, count, _context)
+       when is_integer(index) and index >= 0 and index < count,
+       do: index
+
+  defp validate_selected!(other, 0, context) do
+    raise ArgumentError,
+          "#{context} expected nil (collection is empty), got: #{inspect(other)}"
+  end
+
+  defp validate_selected!(other, count, context) do
+    raise ArgumentError,
+          "#{context} expected nil or an integer in 0..#{count - 1}, got: #{inspect(other)}"
   end
 
   defp encode_bar_groups(_data, groups) when not is_list(groups) do
