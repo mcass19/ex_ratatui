@@ -108,6 +108,14 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(%Table{} = table) do
     selected = validate_selected!(table.selected, length(table.rows), "table.selected")
+
+    selected_column =
+      validate_selected!(
+        table.selected_column,
+        table_column_count(table),
+        "table.selected_column"
+      )
+
     validate_highlight_spacing!(table.highlight_spacing)
 
     %{
@@ -138,6 +146,7 @@ defmodule ExRatatui.Bridge do
     |> maybe_put_style("footer_style", table.footer_style, "table.footer_style")
     |> maybe_put("highlight_symbol", table.highlight_symbol)
     |> maybe_put("selected", selected)
+    |> maybe_put("selected_column", selected_column)
     |> maybe_put_block(table.block, "table.block")
   end
 
@@ -496,6 +505,19 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(widget) do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
   end
+
+  # Column count for Table's :selected_column validation: the widest
+  # of widths, header, and first data row. Matches ratatui's internal
+  # max() over the same three sources.
+  defp table_column_count(%Table{widths: widths, header: header, rows: rows}) do
+    Enum.max([length(widths), header_length(header), row_length(rows)])
+  end
+
+  defp header_length(nil), do: 0
+  defp header_length(header), do: length(header)
+
+  defp row_length([]), do: 0
+  defp row_length([first | _]), do: length(first)
 
   defp encode_ratio(value, _context) when is_number(value) and value >= 0.0 and value <= 1.0,
     do: value * 1.0

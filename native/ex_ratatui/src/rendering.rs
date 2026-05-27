@@ -368,6 +368,7 @@ fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
 
     let highlight_symbol: Option<String> = decode_optional(map, "highlight_symbol", "table")?;
     let selected: Option<usize> = decode_optional(map, "selected", "table")?;
+    let selected_column: Option<usize> = decode_optional(map, "selected_column", "table")?;
     let column_spacing: u16 = decode_optional(map, "column_spacing", "table")?.unwrap_or(1);
 
     let highlight_spacing = match optional_term(map, "highlight_spacing") {
@@ -397,6 +398,7 @@ fn decode_table(map: &TermMap<'_>) -> Result<TableData, Error> {
         highlight_symbol,
         highlight_spacing,
         selected,
+        selected_column,
         column_spacing,
     })
 }

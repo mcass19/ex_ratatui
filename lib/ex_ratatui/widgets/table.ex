@@ -31,6 +31,11 @@ defmodule ExRatatui.Widgets.Table do
       ratatui), or `:never`.
     * `:selected` - zero-based index of the selected row, or `nil`. Must be in
       `0..length(rows) - 1`; any other value raises `ArgumentError` at render time.
+    * `:selected_column` - zero-based index of the selected column, or
+      `nil`. Required to activate `:column_highlight_style` and
+      `:cell_highlight_style` — without it, the column / cell styles
+      never fire (ratatui's `TableState::select_column/1` is the
+      gating mechanism). Must be in `0..widths_count - 1`.
     * `:column_spacing` - spacing between columns (default: 1)
 
   ## Examples
@@ -55,6 +60,7 @@ defmodule ExRatatui.Widgets.Table do
         highlight_symbol: nil,
         highlight_spacing: :when_selected,
         selected: nil,
+        selected_column: nil,
         column_spacing: 1
       }
   """
@@ -82,6 +88,7 @@ defmodule ExRatatui.Widgets.Table do
           highlight_symbol: String.t() | nil,
           highlight_spacing: highlight_spacing(),
           selected: non_neg_integer() | nil,
+          selected_column: non_neg_integer() | nil,
           column_spacing: non_neg_integer()
         }
 
@@ -99,5 +106,6 @@ defmodule ExRatatui.Widgets.Table do
             highlight_symbol: nil,
             highlight_spacing: :when_selected,
             selected: nil,
+            selected_column: nil,
             column_spacing: 1
 end

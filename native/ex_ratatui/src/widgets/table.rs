@@ -21,6 +21,7 @@ pub struct TableData {
     pub highlight_symbol: Option<String>,
     pub highlight_spacing: HighlightSpacing,
     pub selected: Option<usize>,
+    pub selected_column: Option<usize>,
     pub column_spacing: u16,
 }
 
@@ -41,6 +42,7 @@ impl Default for TableData {
             highlight_symbol: None,
             highlight_spacing: HighlightSpacing::default(),
             selected: None,
+            selected_column: None,
             column_spacing: 1,
         }
     }
@@ -102,9 +104,14 @@ pub fn render(buf: &mut Buffer, data: &TableData, area: Rect) {
         table = table.block(block_data.to_block());
     }
 
-    if let Some(selected) = data.selected {
+    if data.selected.is_some() || data.selected_column.is_some() {
         let mut state = TableState::default();
-        state.select(Some(selected));
+        if let Some(row) = data.selected {
+            state.select(Some(row));
+        }
+        if let Some(col) = data.selected_column {
+            state.select_column(Some(col));
+        }
         StatefulWidget::render(table, area, buf, &mut state);
     } else {
         Widget::render(table, area, buf);
