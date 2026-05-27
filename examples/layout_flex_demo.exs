@@ -1,15 +1,16 @@
-# Example: Layout — every Flex mode, Constraint::Fill, and segment
-# spacing on one screen. Exercises the four new Layout features that
-# landed alongside the focus mouse work.
+# Example: Layout — every Flex mode + Constraint::Fill + segment
+# spacing rendered visually so the demo *shows* the layout instead of
+# describing it.
 #
-# Layout (top to bottom):
-#   * Header — three fixed-length segments centered by `flex: :center`.
-#   * Flex row — five labeled bars demoing each :flex mode side by side.
-#   * Fill row — three growable panels with `{:fill, 1/2/3}` weights and
-#     a 2-cell `spacing:` gutter.
-#   * Footer — :end-aligned status block.
+# Top half: five rows, one per :flex mode. Each row paints three small
+# 6-cell tiles at the positions ratatui's layout engine assigns under
+# that mode. The label on the left names the mode.
 #
-# Press any key (or Esc) to quit.
+# Bottom half: three growable panels with `{:fill, 1/2/3}` weights and
+# a 2-cell `spacing:` gutter. The widths are proportional to the
+# weights — third panel three times wider than the first.
+#
+# Press q or Esc to quit.
 # Run with:  mix run examples/layout_flex_demo.exs
 
 alias ExRatatui.{Event, Layout, Style, Theme}
@@ -22,6 +23,13 @@ defmodule LayoutFlexDemo do
 
   @flex_modes [:start, :center, :end, :space_between, :space_around]
 
+  # Each tile is 6 cells wide; three of them per row.
+  @tile_width 6
+  @tile_count 3
+
+  # Pleasant accent per tile so adjacent tiles stay visually distinct.
+  @tile_colors [:cyan, :magenta, :yellow]
+
   @impl true
   def mount(_opts) do
     {:ok, %{theme: Theme.default()}}
@@ -31,103 +39,139 @@ defmodule LayoutFlexDemo do
   def render(state, frame) do
     area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
 
-    [header, flex_row, fill_row, footer] =
+    # Layout: 1-line header, one 3-line row per :flex mode (plus a
+    # 1-line gap between rows so the strips don't visually run
+    # together), rest goes to the fill row, 1-line footer.
+    flex_rows = length(@flex_modes)
+    flex_row_gap = 1
+    flex_section_height = flex_rows * 3 + (flex_rows - 1) * flex_row_gap
+
+    [header, flex_section, fill_section, footer] =
       Layout.split(area, :vertical, [
-        {:length, 3},
-        {:length, length(@flex_modes) * 5 + 4},
-        {:min, 0},
-        {:length, 3}
+        {:length, 1},
+        {:length, flex_section_height},
+        {:min, 4},
+        {:length, 1}
       ])
 
     [
       {header_widget(state), header}
-      | flex_row_widgets(state, flex_row) ++
-          fill_row_widgets(state, fill_row) ++
+      | flex_section_widgets(state, flex_section) ++
+          fill_section_widgets(state, fill_section) ++
           [{footer_widget(state), footer}]
     ]
   end
 
   @impl true
-  def handle_event(%Event.Key{kind: "press"}, state), do: {:stop, state}
+  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["q", "esc"] do
+    {:stop, state}
+  end
+
   def handle_event(_, state), do: {:noreply, state}
 
-  # --- header: three centered length segments --------------------------
+  # --- header / footer -------------------------------------------------
 
   defp header_widget(state) do
     %Paragraph{
-      text: "Layout flex modes + Constraint::Fill + spacing",
+      text: " ExRatatui.Layout.split/4 — flex modes + Constraint::Fill + spacing ",
       alignment: :center,
-      style: %Style{fg: state.theme.text, modifiers: [:bold]},
-      block: %Block{
-        borders: [:all],
-        border_type: :rounded,
-        border_style: Theme.border_style(state.theme, focused: true),
-        title: "ExRatatui.Layout.split/4",
-        titles: [
-          %Title{content: "demo", alignment: :right, style: %Style{fg: state.theme.text_dim}}
-        ]
-      }
+      style: %Style{fg: state.theme.surface, bg: state.theme.accent, modifiers: [:bold]}
     }
   end
 
-  # --- flex row: one labeled strip per :flex mode ----------------------
+  defp footer_widget(state) do
+    %Paragraph{
+      text: " q or Esc to quit ",
+      alignment: :right,
+      style: %Style{fg: :black, bg: state.theme.warning, modifiers: [:bold]}
+    }
+  end
 
-  defp flex_row_widgets(state, area) do
-    rects =
+  # --- flex section ----------------------------------------------------
+
+  defp flex_section_widgets(state, area) do
+    # One row per flex mode, each row 3 cells tall, separated by a
+    # 1-cell vertical gap (spacing: 1) so adjacent rows don't visually
+    # touch.
+    row_rects =
       Layout.split(
         area,
         :vertical,
-        Enum.map(@flex_modes, fn _ -> {:length, 5} end),
-        spacing: 0
+        Enum.map(@flex_modes, fn _ -> {:length, 3} end),
+        spacing: 1
       )
 
-    Enum.zip(@flex_modes, rects)
-    |> Enum.map(fn {mode, strip_rect} ->
-      {flex_strip_widget(state, mode, strip_rect), strip_rect}
-    end)
+    Enum.zip(@flex_modes, row_rects)
+    |> Enum.flat_map(fn {mode, row_rect} -> flex_row_widgets(state, mode, row_rect) end)
   end
 
-  defp flex_strip_widget(state, mode, strip_rect) do
-    # Inside each strip, lay three fixed-width "tile" placeholders out
-    # with the named Flex mode and inline the resulting rects into the
-    # title bar so the visual matches the layout.
-    inner =
+  defp flex_row_widgets(state, mode, row_rect) do
+    # Reserve 16 cells on the left for the mode label, the rest for
+    # the flex-positioned tiles.
+    [label_rect, tiles_rect] =
+      Layout.split(row_rect, :horizontal, [{:length, 16}, {:min, 0}])
+
+    # Three 6-cell tiles inside the tiles_rect. The flex mode controls
+    # where they land within that area; the returned rects already
+    # carry the absolute x coordinates we need for render. `spacing: 2`
+    # keeps adjacent tiles visually distinct in :start / :center / :end
+    # (where they'd otherwise touch with no gap between the colored
+    # blocks, since each tile is fully filled from edge to edge).
+    tile_rects =
       Layout.split(
-        %Rect{strip_rect | x: 0, y: 0},
+        tiles_rect,
         :horizontal,
-        [{:length, 6}, {:length, 6}, {:length, 6}],
-        flex: mode
+        Enum.map(1..@tile_count, fn _ -> {:length, @tile_width} end),
+        flex: mode,
+        spacing: 2
       )
 
-    positions =
-      inner
-      |> Enum.map(&"#{&1.x}..#{&1.x + &1.width - 1}")
-      |> Enum.join(" / ")
+    tile_widgets =
+      tile_rects
+      |> Enum.zip(@tile_colors)
+      |> Enum.map(fn {rect, color} -> {tile_widget(color), rect} end)
 
+    [{label_widget(state, mode), label_rect} | tile_widgets]
+  end
+
+  defp label_widget(state, mode) do
     %Paragraph{
-      text: "flex: :#{mode}\n  three 6-cell segments → cols #{positions}",
-      style: %Style{fg: state.theme.text_dim},
-      block: %Block{
-        borders: [:all],
-        border_type: :plain,
-        border_style: %Style{fg: state.theme.border},
-        title: " :#{mode} ",
-        title_style: %Style{fg: state.theme.accent, modifiers: [:bold]}
-      }
+      text: " :#{mode}",
+      style: %Style{fg: state.theme.accent, modifiers: [:bold]}
     }
   end
 
-  # --- fill row: three growable panels with a gutter -------------------
+  defp tile_widget(color) do
+    %Block{
+      borders: [:all],
+      border_type: :plain,
+      border_style: %Style{fg: color},
+      style: %Style{bg: color}
+    }
+  end
 
-  defp fill_row_widgets(state, area) do
+  # --- fill section ----------------------------------------------------
+
+  defp fill_section_widgets(state, area) do
+    [title_rect, panels_rect] =
+      Layout.split(area, :vertical, [{:length, 1}, {:min, 0}])
+
     [a, b, c] =
-      Layout.split(area, :horizontal, [{:fill, 1}, {:fill, 2}, {:fill, 3}], spacing: 2)
+      Layout.split(panels_rect, :horizontal, [{:fill, 1}, {:fill, 2}, {:fill, 3}], spacing: 2)
 
     [
-      {fill_panel(state, "{:fill, 1}", "1 share", :primary), a},
+      {fill_title_widget(state), title_rect},
+      {fill_panel(state, "{:fill, 1}", "1 share of leftover space", :primary), a},
       {fill_panel(state, "{:fill, 2}", "2 shares", :accent), b},
-      {fill_panel(state, "{:fill, 3}", "3 shares of leftover", :success), c}
+      {fill_panel(state, "{:fill, 3}", "3 shares — widest panel", :success), c}
     ]
+  end
+
+  defp fill_title_widget(state) do
+    %Paragraph{
+      text: " {:fill, weight} + spacing: 2 ",
+      style: %Style{fg: state.theme.accent, modifiers: [:bold]}
+    }
   end
 
   defp fill_panel(state, title, body, accent_slot) do
@@ -140,23 +184,10 @@ defmodule LayoutFlexDemo do
       block: %Block{
         title: title,
         title_style: %Style{fg: accent, modifiers: [:bold]},
+        titles: [%Title{content: "▶", alignment: :right, style: %Style{fg: accent}}],
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: accent}
-      }
-    }
-  end
-
-  # --- footer: right-aligned status chip -------------------------------
-
-  defp footer_widget(state) do
-    %Paragraph{
-      text: " press any key to quit ",
-      alignment: :right,
-      style: %Style{
-        fg: :black,
-        bg: state.theme.warning,
-        modifiers: [:bold]
       }
     }
   end

@@ -67,7 +67,11 @@ defmodule FocusExample do
       detail_scroll: 0
     }
 
-    {:ok, state}
+    # Resize doesn't fire on initial mount — register regions up front
+    # from the live terminal size so left-click works on the first
+    # frame instead of waiting for the user to resize.
+    {w, h} = ExRatatui.terminal_size()
+    {:ok, register_regions(state, w, h)}
   end
 
   @impl true
@@ -95,21 +99,11 @@ defmodule FocusExample do
     {:stop, state}
   end
 
-  # Re-register hit-test regions whenever layout changes. The Resize
-  # event arrives on every terminal-size change; Focus carries the
-  # regions so handle_mouse/2 below can use them without re-deriving.
+  # Re-register hit-test regions on every layout-changing event. Focus
+  # carries the regions so handle_mouse/2 below can use them without
+  # re-deriving the layout per click.
   def handle_event(%Event.Resize{} = resize, state) do
-    {search_rect, results_rect, details_rect, _footer} =
-      panels(%{width: resize.width, height: resize.height})
-
-    focus =
-      Focus.set_regions(state.focus, %{
-        search: search_rect,
-        results: results_rect,
-        details: details_rect
-      })
-
-    {:noreply, %{state | focus: focus}}
+    {:noreply, register_regions(state, resize.width, resize.height)}
   end
 
   def handle_event(%Event.Mouse{} = mouse, state) do
@@ -167,6 +161,19 @@ defmodule FocusExample do
     [left, right] = Layout.split(body, :horizontal, [{:percentage, 45}, {:min, 0}])
     [search, results] = Layout.split(left, :vertical, [{:length, 3}, {:min, 0}])
     {search, results, right, footer}
+  end
+
+  defp register_regions(state, w, h) do
+    {search_rect, results_rect, details_rect, _footer} = panels(%{width: w, height: h})
+
+    focus =
+      Focus.set_regions(state.focus, %{
+        search: search_rect,
+        results: results_rect,
+        details: details_rect
+      })
+
+    %{state | focus: focus}
   end
 
   # --- dispatch ---------------------------------------------------------
