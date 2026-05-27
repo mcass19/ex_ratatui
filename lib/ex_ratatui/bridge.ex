@@ -85,6 +85,9 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(%List{} = list) do
     selected = validate_selected!(list.selected, length(list.items), "list.selected")
+    validate_list_direction!(list.direction)
+    validate_scroll_padding!(list.scroll_padding)
+    validate_boolean!(list.repeat_highlight_symbol, "list.repeat_highlight_symbol")
 
     %{
       "type" => "list",
@@ -93,7 +96,10 @@ defmodule ExRatatui.Bridge do
           item |> Coerce.coerce_text!() |> Encode.to_wire_text!()
         end),
       "style" => encode_style(list.style, "list.style"),
-      "highlight_style" => encode_style(list.highlight_style, "list.highlight_style")
+      "highlight_style" => encode_style(list.highlight_style, "list.highlight_style"),
+      "direction" => Atom.to_string(list.direction),
+      "scroll_padding" => list.scroll_padding,
+      "repeat_highlight_symbol" => list.repeat_highlight_symbol
     }
     |> maybe_put("highlight_symbol", list.highlight_symbol)
     |> maybe_put("selected", selected)
@@ -498,6 +504,26 @@ defmodule ExRatatui.Bridge do
   defp validate_selected!(other, count, context) do
     raise ArgumentError,
           "#{context} expected nil or an integer in 0..#{count - 1}, got: #{inspect(other)}"
+  end
+
+  defp validate_list_direction!(value) when value in [:top_to_bottom, :bottom_to_top], do: :ok
+
+  defp validate_list_direction!(other) do
+    raise ArgumentError,
+          "list.direction expected :top_to_bottom or :bottom_to_top, got: #{inspect(other)}"
+  end
+
+  defp validate_scroll_padding!(value) when is_integer(value) and value >= 0, do: :ok
+
+  defp validate_scroll_padding!(other) do
+    raise ArgumentError,
+          "list.scroll_padding expected a non-negative integer, got: #{inspect(other)}"
+  end
+
+  defp validate_boolean!(value, _context) when is_boolean(value), do: :ok
+
+  defp validate_boolean!(other, context) do
+    raise ArgumentError, "#{context} expected a boolean, got: #{inspect(other)}"
   end
 
   defp encode_bar_groups(_data, groups) when not is_list(groups) do

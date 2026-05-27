@@ -849,6 +849,32 @@ defmodule ExRatatui.Widgets.ValidationTest do
       end
     end
 
+    test "list rejects unknown :direction" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError,
+                   ~r/list\.direction expected :top_to_bottom or :bottom_to_top/,
+                   fn ->
+                     ExRatatui.Bridge.encode_commands!([{%List{direction: :sideways}, rect}])
+                   end
+    end
+
+    test "list rejects negative :scroll_padding" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/scroll_padding expected a non-negative integer/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{scroll_padding: -1}, rect}])
+      end
+    end
+
+    test "list rejects non-boolean :repeat_highlight_symbol" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 3}
+
+      assert_raise ArgumentError, ~r/repeat_highlight_symbol expected a boolean/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%List{repeat_highlight_symbol: :yes}, rect}])
+      end
+    end
+
     test "table accepts nil and valid selected index", %{terminal: terminal} do
       rect = %Rect{x: 0, y: 0, width: 30, height: 5}
       rows = [["a"], ["b"]]

@@ -252,6 +252,21 @@ fn decode_list(map: &TermMap<'_>) -> Result<ListData, Error> {
     let highlight_symbol: Option<String> = decode_optional(map, "highlight_symbol", "list")?;
     let selected: Option<usize> = decode_optional(map, "selected", "list")?;
 
+    let direction = match optional_term(map, "direction") {
+        Some(term) => {
+            let s: String = term.decode().map_err(|_| {
+                crate::decode::invalid_field("list", "direction", "expected a string")
+            })?;
+            crate::widgets::list::parse_list_direction(&s)?
+        }
+        None => ratatui::widgets::ListDirection::TopToBottom,
+    };
+
+    let scroll_padding: usize = decode_optional(map, "scroll_padding", "list")?.unwrap_or(0);
+
+    let repeat_highlight_symbol: bool =
+        decode_optional(map, "repeat_highlight_symbol", "list")?.unwrap_or(false);
+
     let block = decode_optional_block(map)?;
 
     Ok(ListData {
@@ -261,6 +276,9 @@ fn decode_list(map: &TermMap<'_>) -> Result<ListData, Error> {
         highlight_style,
         highlight_symbol,
         selected,
+        direction,
+        scroll_padding,
+        repeat_highlight_symbol,
     })
 }
 

@@ -57,5 +57,59 @@ defmodule ExRatatui.Widgets.ListTest do
       assert content =~ "My List"
       assert content =~ "Item A"
     end
+
+    test "bottom_to_top reverses item order on screen", %{terminal: terminal} do
+      list = %List{
+        items: ["first", "second", "third"],
+        direction: :bottom_to_top
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 3}
+
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+
+      [row0, row1, row2 | _] =
+        ExRatatui.get_buffer_content(terminal) |> String.split("\n")
+
+      assert row0 =~ "third"
+      assert row1 =~ "second"
+      assert row2 =~ "first"
+    end
+
+    test "scroll_padding keeps the selected item rendered when it would otherwise scroll off",
+         %{terminal: terminal} do
+      items = for i <- 0..9, do: "item #{i}"
+      list = %List{items: items, selected: 9, scroll_padding: 2}
+      rect = %Rect{x: 0, y: 0, width: 12, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "item 9"
+    end
+
+    test "repeat_highlight_symbol marks every wrapped row of the selected item",
+         %{terminal: terminal} do
+      alias ExRatatui.Text.{Line, Span}
+
+      multi_line = %ExRatatui.Text{
+        lines: [
+          %Line{spans: [%Span{content: "line one"}]},
+          %Line{spans: [%Span{content: "line two"}]}
+        ]
+      }
+
+      list = %List{
+        items: [multi_line, "other"],
+        selected: 0,
+        highlight_symbol: ">> ",
+        repeat_highlight_symbol: true
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 5}
+
+      assert :ok = ExRatatui.draw(terminal, [{list, rect}])
+      [row0, row1 | _] = ExRatatui.get_buffer_content(terminal) |> String.split("\n")
+      assert row0 =~ ">> "
+      assert row1 =~ ">> "
+    end
   end
 end
