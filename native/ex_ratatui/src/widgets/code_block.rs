@@ -224,9 +224,7 @@ mod tests {
                 title: Some(ratatui::text::Line::from("code")),
                 borders: ratatui::widgets::Borders::ALL,
                 border_type: ratatui::widgets::BorderType::Rounded,
-                border_style: Style::default(),
-                style: Style::default(),
-                padding: ratatui::widgets::Padding::ZERO,
+                ..Default::default()
             }),
             ..make("x = 1", Some("elixir"))
         };

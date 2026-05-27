@@ -57,7 +57,7 @@ mod tests {
     use crate::widgets::paragraph::ParagraphData;
     use ratatui::backend::TestBackend;
     use ratatui::style::Style;
-    use ratatui::widgets::{BorderType, Borders, Padding};
+    use ratatui::widgets::{BorderType, Borders};
     use ratatui::Terminal;
 
     fn make_paragraph_content(text: &str) -> Box<WidgetData> {
@@ -76,9 +76,7 @@ mod tests {
             title: Some(ratatui::text::Line::from(title.to_string())),
             borders: Borders::ALL,
             border_type: BorderType::Rounded,
-            border_style: Style::default(),
-            style: Style::default(),
-            padding: Padding::ZERO,
+            ..Default::default()
         }
     }
 

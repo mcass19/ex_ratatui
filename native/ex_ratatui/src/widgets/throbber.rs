@@ -140,9 +140,7 @@ mod tests {
                 title: Some(ratatui::text::Line::from("Status")),
                 borders: ratatui::widgets::Borders::ALL,
                 border_type: ratatui::widgets::BorderType::Rounded,
-                border_style: Style::default(),
-                style: Style::default(),
-                padding: ratatui::widgets::Padding::ZERO,
+                ..Default::default()
             }),
         };
 

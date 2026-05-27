@@ -1013,6 +1013,9 @@ defmodule ExRatatui.Bridge do
   defp encode_table_header(cells), do: Enum.map(cells, &encode_line_like/1)
 
   defp encode_block(%Block{} = block, context) do
+    validate_title_position!(block.title_position, "#{context}.title_position")
+    validate_title_alignment!(block.title_alignment, "#{context}.title_alignment")
+
     %{
       "borders" => Enum.map(block.borders, &Atom.to_string/1),
       "border_style" => encode_style(block.border_style, "#{context}.border_style"),
@@ -1021,13 +1024,79 @@ defmodule ExRatatui.Bridge do
       "padding_left" => elem(block.padding, 0),
       "padding_right" => elem(block.padding, 1),
       "padding_top" => elem(block.padding, 2),
-      "padding_bottom" => elem(block.padding, 3)
+      "padding_bottom" => elem(block.padding, 3),
+      "title_position" => Atom.to_string(block.title_position),
+      "title_alignment" => Atom.to_string(block.title_alignment),
+      "titles" => Enum.map(block.titles, &encode_block_title(&1, "#{context}.titles"))
     }
     |> maybe_put("title", encode_optional_line(block.title))
+    |> maybe_put_style("title_style", block.title_style, "#{context}.title_style")
   end
 
   defp encode_block(other, context) do
     raise ArgumentError, "#{context} expected %ExRatatui.Widgets.Block{}, got: #{inspect(other)}"
+  end
+
+  defp encode_block_title(%Block.Title{content: nil}, context) do
+    raise ArgumentError, "#{context} entry has nil :content"
+  end
+
+  defp encode_block_title(%Block.Title{} = title, context) do
+    validate_title_position!(title.position, "#{context}.position", allow_nil: true)
+    validate_title_alignment!(title.alignment, "#{context}.alignment", allow_nil: true)
+
+    %{"content" => encode_line_like(title.content)}
+    |> maybe_put("position", title.position && Atom.to_string(title.position))
+    |> maybe_put("alignment", title.alignment && Atom.to_string(title.alignment))
+    |> maybe_put_style("style", title.style, "#{context}.style")
+  end
+
+  defp encode_block_title(other, context) do
+    %{"content" => encode_line_like(other), "position" => nil, "alignment" => nil}
+    |> Map.reject(fn {_, v} -> is_nil(v) end)
+  rescue
+    e in ArgumentError ->
+      reraise ArgumentError,
+              "#{context} entry expected %Block.Title{} or a line-like value, got: #{inspect(other)} (#{Exception.message(e)})",
+              __STACKTRACE__
+  end
+
+  defp validate_title_position!(value, context, opts \\ [])
+
+  defp validate_title_position!(nil, _context, opts) do
+    if Keyword.get(opts, :allow_nil, false), do: :ok, else: raise_title_position_error!(nil, "")
+  end
+
+  defp validate_title_position!(value, _context, _opts) when value in [:top, :bottom], do: :ok
+
+  defp validate_title_position!(value, context, _opts) do
+    raise_title_position_error!(value, context)
+  end
+
+  defp raise_title_position_error!(value, context) do
+    raise ArgumentError,
+          "#{context} expected :top or :bottom, got: #{inspect(value)}"
+  end
+
+  defp validate_title_alignment!(value, context, opts \\ [])
+
+  defp validate_title_alignment!(nil, _context, opts) do
+    if Keyword.get(opts, :allow_nil, false),
+      do: :ok,
+      else: raise_title_alignment_error!(nil, "")
+  end
+
+  defp validate_title_alignment!(value, _context, _opts)
+       when value in [:left, :center, :right],
+       do: :ok
+
+  defp validate_title_alignment!(value, context, _opts) do
+    raise_title_alignment_error!(value, context)
+  end
+
+  defp raise_title_alignment_error!(value, context) do
+    raise ArgumentError,
+          "#{context} expected :left, :center, or :right, got: #{inspect(value)}"
   end
 
   defp encode_constraint({:percentage, value}, _context),

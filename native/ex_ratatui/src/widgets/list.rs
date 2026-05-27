@@ -49,7 +49,7 @@ mod tests {
     use crate::test_utils::helpers::buffer_line;
     use ratatui::backend::TestBackend;
     use ratatui::style::Color;
-    use ratatui::widgets::{BorderType, Borders, Padding};
+    use ratatui::widgets::Borders;
     use ratatui::Terminal;
 
     #[test]
@@ -116,10 +116,7 @@ mod tests {
             block: Some(BlockData {
                 title: Some(ratatui::text::Line::from("My List")),
                 borders: Borders::ALL,
-                border_style: Style::default(),
-                border_type: BorderType::Plain,
-                style: Style::default(),
-                padding: Padding::ZERO,
+                ..Default::default()
             }),
             highlight_style: Style::default(),
             highlight_symbol: None,

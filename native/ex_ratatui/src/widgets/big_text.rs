@@ -69,7 +69,7 @@ mod tests {
     use ratatui::backend::TestBackend;
     use ratatui::style::Color;
     use ratatui::text::Span;
-    use ratatui::widgets::{BorderType, Borders, Padding};
+    use ratatui::widgets::{BorderType, Borders};
     use ratatui::Terminal;
 
     fn data_with(
@@ -228,9 +228,7 @@ mod tests {
                 title: Some(Line::from("title".to_string())),
                 borders: Borders::ALL,
                 border_type: BorderType::Rounded,
-                border_style: Style::default(),
-                style: Style::default(),
-                padding: Padding::ZERO,
+                ..Default::default()
             }),
         };
 

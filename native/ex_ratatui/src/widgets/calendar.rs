@@ -175,10 +175,7 @@ mod tests {
         data.block = Some(BlockData {
             title: Some(ratatui::text::Line::from("Calendar")),
             borders: ratatui::widgets::Borders::ALL,
-            border_type: ratatui::widgets::BorderType::Plain,
-            border_style: Style::default(),
-            style: Style::default(),
-            padding: ratatui::widgets::Padding::new(0, 0, 0, 0),
+            ..Default::default()
         });
         let terminal = render_to_terminal(&data, 24, 10);
         let rendered = buffer_to_string(&terminal);

@@ -181,9 +181,7 @@ mod tests {
                 title: Some(ratatui::text::Line::from("Response")),
                 borders: ratatui::widgets::Borders::ALL,
                 border_type: ratatui::widgets::BorderType::Rounded,
-                border_style: Style::default(),
-                style: Style::default(),
-                padding: ratatui::widgets::Padding::ZERO,
+                ..Default::default()
             }),
             scroll: (0, 0),
             wrap: true,

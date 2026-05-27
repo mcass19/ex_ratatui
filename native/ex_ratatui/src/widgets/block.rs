@@ -1,8 +1,8 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Padding, Widget};
+use ratatui::widgets::{Block, BorderType, Borders, Padding, TitlePosition, Widget};
 use rustler::{Error, Term};
 use std::collections::HashMap;
 
@@ -10,13 +10,42 @@ use crate::style::decode_style;
 use crate::text;
 
 #[derive(Clone)]
+pub struct TitleData {
+    pub line: Line<'static>,
+    pub position: Option<TitlePosition>,
+    pub alignment: Option<Alignment>,
+    pub style: Option<Style>,
+}
+
+#[derive(Clone)]
 pub struct BlockData {
     pub title: Option<Line<'static>>,
+    pub titles: Vec<TitleData>,
+    pub title_position: TitlePosition,
+    pub title_alignment: Alignment,
+    pub title_style: Option<Style>,
     pub borders: Borders,
     pub border_style: Style,
     pub border_type: BorderType,
     pub style: Style,
     pub padding: Padding,
+}
+
+impl Default for BlockData {
+    fn default() -> Self {
+        Self {
+            title: None,
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
+            borders: Borders::NONE,
+            border_style: Style::default(),
+            border_type: BorderType::Plain,
+            style: Style::default(),
+            padding: Padding::ZERO,
+        }
+    }
 }
 
 impl BlockData {
@@ -26,10 +55,43 @@ impl BlockData {
             .border_style(self.border_style)
             .border_type(self.border_type)
             .style(self.style)
-            .padding(self.padding);
+            .padding(self.padding)
+            .title_position(self.title_position)
+            .title_alignment(self.title_alignment);
+
+        if let Some(style) = self.title_style {
+            block = block.title_style(style);
+        }
 
         if let Some(ref title) = self.title {
             block = block.title(title.clone());
+        }
+
+        for title in &self.titles {
+            let mut line = title.line.clone();
+
+            // Per-title style overrides the block's title_style for this
+            // particular title only. Apply by merging into the line's
+            // style — ratatui's per-title style API works on `Line`.
+            if let Some(style) = title.style {
+                line = line.patch_style(style);
+            }
+
+            // Per-title alignment is carried on the `Line` itself; the
+            // block's default title_alignment applies when the line has
+            // no alignment of its own.
+            let line = match title.alignment {
+                Some(Alignment::Left) => line.left_aligned(),
+                Some(Alignment::Center) => line.centered(),
+                Some(Alignment::Right) => line.right_aligned(),
+                None => line,
+            };
+
+            block = match title.position {
+                Some(TitlePosition::Top) => block.title_top(line),
+                Some(TitlePosition::Bottom) => block.title_bottom(line),
+                None => block.title(line),
+            };
         }
 
         block
@@ -48,6 +110,38 @@ pub fn decode_block(term: Term) -> Result<BlockData, Error> {
 pub fn decode_block_from_map(map: &HashMap<String, Term>) -> Result<BlockData, Error> {
     let title = match map.get("title") {
         Some(term) => Some(text::decode_line(*term)?),
+        None => None,
+    };
+
+    let titles = match map.get("titles") {
+        Some(term) => {
+            let entries: Vec<HashMap<String, Term>> = term.decode()?;
+            entries
+                .iter()
+                .map(decode_title)
+                .collect::<Result<Vec<_>, _>>()?
+        }
+        None => Vec::new(),
+    };
+
+    let title_position = match map.get("title_position") {
+        Some(term) => {
+            let s: String = term.decode()?;
+            parse_title_position(&s)?
+        }
+        None => TitlePosition::Top,
+    };
+
+    let title_alignment = match map.get("title_alignment") {
+        Some(term) => {
+            let s: String = term.decode()?;
+            parse_alignment(&s)?
+        }
+        None => Alignment::Left,
+    };
+
+    let title_style = match map.get("title_style") {
+        Some(term) => Some(decode_style(*term)?),
         None => None,
     };
 
@@ -96,12 +190,70 @@ pub fn decode_block_from_map(map: &HashMap<String, Term>) -> Result<BlockData, E
 
     Ok(BlockData {
         title,
+        titles,
+        title_position,
+        title_alignment,
+        title_style,
         borders,
         border_style,
         border_type,
         style,
         padding: Padding::new(left, right, top, bottom),
     })
+}
+
+fn decode_title(map: &HashMap<String, Term>) -> Result<TitleData, Error> {
+    let content_term = map
+        .get("content")
+        .ok_or_else(|| Error::Term(Box::new("block title missing :content".to_string())))?;
+    let line = text::decode_line(*content_term)?;
+
+    let position = match map.get("position") {
+        Some(term) => {
+            let s: String = term.decode()?;
+            Some(parse_title_position(&s)?)
+        }
+        None => None,
+    };
+
+    let alignment = match map.get("alignment") {
+        Some(term) => {
+            let s: String = term.decode()?;
+            Some(parse_alignment(&s)?)
+        }
+        None => None,
+    };
+
+    let style = match map.get("style") {
+        Some(term) => Some(decode_style(*term)?),
+        None => None,
+    };
+
+    Ok(TitleData {
+        line,
+        position,
+        alignment,
+        style,
+    })
+}
+
+fn parse_title_position(s: &str) -> Result<TitlePosition, Error> {
+    match s {
+        "top" => Ok(TitlePosition::Top),
+        "bottom" => Ok(TitlePosition::Bottom),
+        other => Err(Error::Term(Box::new(format!(
+            "unknown title position: {other}"
+        )))),
+    }
+}
+
+fn parse_alignment(s: &str) -> Result<Alignment, Error> {
+    match s {
+        "left" => Ok(Alignment::Left),
+        "center" => Ok(Alignment::Center),
+        "right" => Ok(Alignment::Right),
+        other => Err(Error::Term(Box::new(format!("unknown alignment: {other}")))),
+    }
 }
 
 pub fn parse_borders(names: &[String]) -> Result<Borders, Error> {
@@ -146,6 +298,10 @@ mod tests {
 
         let data = BlockData {
             title: None,
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
             borders: Borders::ALL,
             border_style: Style::default(),
             border_type: BorderType::Plain,
@@ -173,6 +329,10 @@ mod tests {
 
         let data = BlockData {
             title: Some(Line::from("Hello")),
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
             borders: Borders::ALL,
             border_style: Style::default(),
             border_type: BorderType::Plain,
@@ -195,6 +355,10 @@ mod tests {
 
         let data = BlockData {
             title: None,
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
             borders: Borders::ALL,
             border_style: Style::default(),
             border_type: BorderType::Rounded,
@@ -233,6 +397,10 @@ mod tests {
 
         let data = BlockData {
             title: Some(title),
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
             borders: Borders::ALL,
             border_style: Style::default(),
             border_type: BorderType::Plain,
@@ -261,6 +429,10 @@ mod tests {
 
         let data = BlockData {
             title: None,
+            titles: Vec::new(),
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
             borders: Borders::ALL,
             border_style: Style::default().fg(Color::Red),
             border_type: BorderType::Plain,
@@ -274,6 +446,93 @@ mod tests {
 
         let buf = terminal.backend().buffer();
         assert_eq!(buf.cell((0, 0)).unwrap().fg, Color::Red);
+    }
+
+    #[test]
+    fn test_render_multi_title_top_left_and_right() {
+        let backend = TestBackend::new(30, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let data = BlockData {
+            title: Some(Line::from("src/lib.rs")),
+            titles: vec![TitleData {
+                line: Line::from("[3/12]"),
+                position: Some(TitlePosition::Top),
+                alignment: Some(Alignment::Right),
+                style: None,
+            }],
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
+            borders: Borders::ALL,
+            border_style: Style::default(),
+            border_type: BorderType::Plain,
+            style: Style::default(),
+            padding: Padding::ZERO,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 30, 3)))
+            .unwrap();
+
+        let top = buffer_line(&terminal, 0, 30);
+        assert!(top.contains("src/lib.rs"));
+        assert!(top.contains("[3/12]"));
+        // Right-aligned text should sit at the right side of the top border.
+        let right_idx = top.find("[3/12]").unwrap();
+        assert!(
+            right_idx > 15,
+            "expected [3/12] right-aligned, found at col {right_idx}: {top:?}"
+        );
+    }
+
+    #[test]
+    fn test_render_bottom_title() {
+        let backend = TestBackend::new(20, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let data = BlockData {
+            title: None,
+            titles: vec![TitleData {
+                line: Line::from("status"),
+                position: Some(TitlePosition::Bottom),
+                alignment: None,
+                style: None,
+            }],
+            title_position: TitlePosition::Top,
+            title_alignment: Alignment::Left,
+            title_style: None,
+            borders: Borders::ALL,
+            border_style: Style::default(),
+            border_type: BorderType::Plain,
+            style: Style::default(),
+            padding: Padding::ZERO,
+        };
+
+        terminal
+            .draw(|frame| render(frame.buffer_mut(), &data, Rect::new(0, 0, 20, 3)))
+            .unwrap();
+
+        let bottom = buffer_line(&terminal, 2, 20);
+        assert!(bottom.contains("status"));
+    }
+
+    #[test]
+    fn test_parse_title_position() {
+        assert_eq!(parse_title_position("top").unwrap(), TitlePosition::Top);
+        assert_eq!(
+            parse_title_position("bottom").unwrap(),
+            TitlePosition::Bottom
+        );
+        assert!(parse_title_position("middle").is_err());
+    }
+
+    #[test]
+    fn test_parse_alignment() {
+        assert_eq!(parse_alignment("left").unwrap(), Alignment::Left);
+        assert_eq!(parse_alignment("center").unwrap(), Alignment::Center);
+        assert_eq!(parse_alignment("right").unwrap(), Alignment::Right);
+        assert!(parse_alignment("justified").is_err());
     }
 
     #[test]
