@@ -58,19 +58,55 @@ defmodule ExRatatui.Focus do
         next_keys: [%Event.Key{code: "tab"}, %Event.Key{code: "right", modifiers: ["ctrl"]}],
         prev_keys: [%Event.Key{code: "left", modifiers: ["ctrl"]}]
       )
+
+  ## Mouse routing
+
+  Associate each focusable ID with a hit-test `%ExRatatui.Layout.Rect{}`
+  after computing layout (typically inside a `%Event.Resize{}` handler
+  or any state change that affects geometry). `handle_mouse/2` then
+  focuses the widget under a left-click, passing the event through so
+  the underlying widget can also react.
+
+      def handle_event(%Event.Resize{width: w, height: h}, state) do
+        [search_rect, body_rect] =
+          Layout.split(%Rect{x: 0, y: 0, width: w, height: h}, :vertical,
+            [{:length, 3}, {:min, 0}])
+
+        focus =
+          state.focus
+          |> Focus.set_region(:search, search_rect)
+          |> Focus.set_region(:body, body_rect)
+
+        %{state | focus: focus}
+      end
+
+      def handle_event(%Event.Mouse{} = mouse, state) do
+        {focus, mouse} = Focus.handle_mouse(state.focus, mouse)
+        # mouse is always returned for downstream handling — left-click
+        # focuses the region's ID; scroll/drag/right-click are pass-through.
+        ...
+      end
+
+  Scroll-wheel routing is intentionally not built in: the conventional
+  contract is "scroll goes to the focused widget", which the app can
+  implement by inspecting `Focus.current/1` after `handle_mouse/2`
+  returns. Apps that prefer "scroll goes to the widget under the
+  cursor" can call `Focus.at/3` directly.
   """
 
   alias ExRatatui.Event
+  alias ExRatatui.Layout.Rect
 
   @enforce_keys [:ids, :index, :next_keys, :prev_keys]
-  defstruct [:ids, :index, :next_keys, :prev_keys]
+  defstruct [:ids, :index, :next_keys, :prev_keys, regions: %{}]
 
   @type id :: atom()
   @type t :: %__MODULE__{
           ids: [id(), ...],
           index: non_neg_integer(),
           next_keys: [Event.Key.t()],
-          prev_keys: [Event.Key.t()]
+          prev_keys: [Event.Key.t()],
+          regions: %{id() => Rect.t()}
         }
 
   @default_next_keys [%Event.Key{code: "tab"}]
@@ -180,6 +216,133 @@ defmodule ExRatatui.Focus do
       matches?(event, focus.prev_keys) -> {prev(focus), nil}
       true -> {focus, event}
     end
+  end
+
+  @doc """
+  Associates a hit-test region with a focusable ID.
+
+  Apps call this after computing layout (typically inside a `%Event.Resize{}`
+  handler, or any state change that affects the on-screen geometry of the
+  focusable widgets). `handle_mouse/2` uses the registered regions to focus
+  the widget under a click.
+
+  Raises `ArgumentError` if `id` is not in the ring.
+
+  ## Examples
+
+      iex> focus = ExRatatui.Focus.new([:search, :results])
+      iex> rect = %ExRatatui.Layout.Rect{x: 0, y: 0, width: 40, height: 3}
+      iex> focus |> ExRatatui.Focus.set_region(:search, rect) |> ExRatatui.Focus.region(:search)
+      %ExRatatui.Layout.Rect{x: 0, y: 0, width: 40, height: 3}
+  """
+  @spec set_region(t(), id(), Rect.t()) :: t()
+  def set_region(%__MODULE__{ids: ids, regions: regions} = focus, id, %Rect{} = rect) do
+    _ = index_of!(ids, id)
+    %{focus | regions: Map.put(regions, id, rect)}
+  end
+
+  @doc """
+  Batch-registers multiple regions in one call.
+
+  Equivalent to calling `set_region/3` for each entry. Raises if any ID
+  is missing from the ring.
+
+  ## Examples
+
+      iex> focus = ExRatatui.Focus.new([:a, :b])
+      iex> rects = %{
+      ...>   a: %ExRatatui.Layout.Rect{x: 0, y: 0, width: 10, height: 1},
+      ...>   b: %ExRatatui.Layout.Rect{x: 0, y: 1, width: 10, height: 1}
+      ...> }
+      iex> focus |> ExRatatui.Focus.set_regions(rects) |> ExRatatui.Focus.region(:b)
+      %ExRatatui.Layout.Rect{x: 0, y: 1, width: 10, height: 1}
+  """
+  @spec set_regions(t(), %{id() => Rect.t()}) :: t()
+  def set_regions(%__MODULE__{} = focus, regions) when is_map(regions) do
+    Enum.reduce(regions, focus, fn {id, rect}, acc -> set_region(acc, id, rect) end)
+  end
+
+  @doc """
+  Returns the region registered for `id`, or `nil` if none is registered.
+  """
+  @spec region(t(), id()) :: Rect.t() | nil
+  def region(%__MODULE__{regions: regions}, id), do: Map.get(regions, id)
+
+  @doc """
+  Returns the focusable ID whose region contains the point `(x, y)`, or
+  `nil` if no registered region contains the point.
+
+  When regions overlap, the smallest one (by area) wins — overlap usually
+  means a focusable widget sits inside a larger focusable container, and
+  the leaf should claim the click.
+
+  ## Examples
+
+      iex> alias ExRatatui.{Focus, Layout.Rect}
+      iex> focus =
+      ...>   Focus.new([:a, :b])
+      ...>   |> Focus.set_region(:a, %Rect{x: 0, y: 0, width: 10, height: 10})
+      ...>   |> Focus.set_region(:b, %Rect{x: 2, y: 2, width: 2, height: 2})
+      iex> Focus.at(focus, 3, 3)
+      :b
+      iex> Focus.at(focus, 8, 8)
+      :a
+      iex> Focus.at(focus, 50, 50)
+      nil
+  """
+  @spec at(t(), non_neg_integer(), non_neg_integer()) :: id() | nil
+  def at(%__MODULE__{regions: regions}, x, y)
+      when is_integer(x) and is_integer(y) and x >= 0 and y >= 0 do
+    regions
+    |> Enum.filter(fn {_id, rect} -> contains?(rect, x, y) end)
+    |> Enum.min_by(fn {_id, rect} -> rect.width * rect.height end, fn -> nil end)
+    |> case do
+      nil -> nil
+      {id, _rect} -> id
+    end
+  end
+
+  @doc """
+  Routes a mouse event through the focus ring.
+
+  On a left-button **down** event inside a registered region, focus
+  moves to that region's ID and the event is **passed through** so the
+  underlying widget can also react (toggle a checkbox, place a cursor,
+  start a drag). Every other mouse event — clicks outside any
+  registered region, right/middle clicks, scroll, drag, move, up — is
+  returned unchanged with focus untouched.
+
+  Returns `{focus, event}` regardless. Mirrors `handle_key/2` shape so
+  the same caller pattern (`{focus, event} = Focus.handle_*(focus, event)`)
+  works for both event types.
+
+  ## Examples
+
+      iex> alias ExRatatui.{Focus, Event, Layout.Rect}
+      iex> focus =
+      ...>   Focus.new([:a, :b])
+      ...>   |> Focus.set_region(:a, %Rect{x: 0, y: 0, width: 10, height: 3})
+      ...>   |> Focus.set_region(:b, %Rect{x: 0, y: 3, width: 10, height: 3})
+      iex> click = %Event.Mouse{kind: "down", button: "left", x: 5, y: 4}
+      iex> {focus, _event} = Focus.handle_mouse(focus, click)
+      iex> Focus.current(focus)
+      :b
+  """
+  @spec handle_mouse(t(), Event.Mouse.t()) :: {t(), Event.Mouse.t()}
+  def handle_mouse(
+        %__MODULE__{} = focus,
+        %Event.Mouse{kind: "down", button: "left", x: x, y: y} = event
+      ) do
+    case at(focus, x, y) do
+      nil -> {focus, event}
+      id -> {focus(focus, id), event}
+    end
+  end
+
+  def handle_mouse(%__MODULE__{} = focus, %Event.Mouse{} = event), do: {focus, event}
+
+  defp contains?(%Rect{x: rx, y: ry, width: w, height: h}, x, y) do
+    x >= rx and x < rx + w and y >= ry and y < ry + h
   end
 
   defp matches?(%Event.Key{code: code, modifiers: mods}, entries) do
