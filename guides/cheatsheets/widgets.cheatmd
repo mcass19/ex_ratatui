@@ -255,7 +255,8 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
   footer: ["Total", "182"],              # optional, renders at bottom
   rows: [["Alice", "95"], ["Bob", "87"]],
   widths: [{:percentage, 70}, {:percentage, 30}],
-  selected: 0,
+  selected: 0,                           # row index
+  selected_column: 1,                    # required to fire column/cell styles below
   highlight_style: %Style{fg: :yellow},          # row highlight
   header_style: %Style{modifiers: [:bold]},
   footer_style: %Style{fg: :gray},
@@ -266,6 +267,8 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
   block: %Block{borders: [:all]}
 }
 ```
+
+Without `:selected_column` set, `:column_highlight_style` and `:cell_highlight_style` are no-ops (the activation gate is ratatui's `TableState::select_column/1`).
 
 ### WidgetList
 

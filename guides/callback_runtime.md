@@ -211,6 +211,21 @@ children = [
 
 See the [Running TUIs over SSH](ssh_transport.md) and [Running TUIs over Erlang Distribution](distributed_transport.md) guides for transport-specific setup, options, and authentication.
 
+### Local terminal opts
+
+The `:local` transport (default when no `:transport` is given) accepts two extra opts on `start_link`:
+
+  * `:mouse_capture` — enable mouse reporting (clicks, scroll, drag, move) as `%Event.Mouse{}` from `poll_event/1`. Off by default because mouse-capture mode disables the terminal's native text-selection while the app is running. Pair with `ExRatatui.Focus.handle_mouse/2` to route clicks.
+  * `:focus_events` — enable terminal-window focus reporting (`%Event.FocusGained{}` / `%Event.FocusLost{}`). Off by default because the request leaves `CSI ?1004h` on the user's tty; any window-switch then queues focus bytes that can leak into unrelated stdin consumers (a plain shell or `mix test` started later).
+
+```elixir
+children = [
+  {MyApp.TUI, mouse_capture: true, focus_events: true}
+]
+```
+
+SSH and Distributed transports decode mouse events unconditionally because their VTE-based input parser handles them regardless; the opts above only matter for `:local`.
+
 ## Testing
 
 Start the app under `test_mode` with explicit dimensions and use `ExRatatui.Runtime.inject_event/2` for deterministic input:
