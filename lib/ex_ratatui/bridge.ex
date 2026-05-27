@@ -123,7 +123,7 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%Gauge{} = gauge) do
     %{
       "type" => "gauge",
-      "ratio" => gauge.ratio * 1.0,
+      "ratio" => encode_ratio(gauge.ratio, "gauge.ratio"),
       "style" => encode_style(gauge.style, "gauge.style"),
       "gauge_style" => encode_style(gauge.gauge_style, "gauge.gauge_style")
     }
@@ -134,7 +134,7 @@ defmodule ExRatatui.Bridge do
   defp encode_widget(%LineGauge{} = line_gauge) do
     %{
       "type" => "line_gauge",
-      "ratio" => line_gauge.ratio * 1.0,
+      "ratio" => encode_ratio(line_gauge.ratio, "line_gauge.ratio"),
       "style" => encode_style(line_gauge.style, "line_gauge.style"),
       "filled_style" => encode_style(line_gauge.filled_style, "line_gauge.filled_style"),
       "unfilled_style" => encode_style(line_gauge.unfilled_style, "line_gauge.unfilled_style")
@@ -465,6 +465,14 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(widget) do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
+  end
+
+  defp encode_ratio(value, _context) when is_number(value) and value >= 0.0 and value <= 1.0,
+    do: value * 1.0
+
+  defp encode_ratio(value, context) do
+    raise ArgumentError,
+          "#{context} expected a number in 0.0..1.0, got: #{inspect(value)}"
   end
 
   defp encode_bar_groups(_data, groups) when not is_list(groups) do

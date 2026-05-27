@@ -249,6 +249,66 @@ defmodule ExRatatui.Widgets.ValidationTest do
       end
     end
 
+    test "gauge accepts integer ratio 0 and 1", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+      assert :ok = ExRatatui.draw(terminal, [{%Gauge{ratio: 0}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%Gauge{ratio: 1}, rect}])
+    end
+
+    test "gauge rejects ratio above 1.0" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Gauge{ratio: 1.5}, rect}])
+      end
+    end
+
+    test "gauge rejects negative ratio" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Gauge{ratio: -0.1}, rect}])
+      end
+    end
+
+    test "gauge rejects non-numeric ratio" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%Gauge{ratio: "half"}, rect}])
+      end
+    end
+
+    test "line_gauge accepts integer ratio 0 and 1", %{terminal: terminal} do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+      assert :ok = ExRatatui.draw(terminal, [{%LineGauge{ratio: 0}, rect}])
+      assert :ok = ExRatatui.draw(terminal, [{%LineGauge{ratio: 1}, rect}])
+    end
+
+    test "line_gauge rejects ratio above 1.0" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/line_gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%LineGauge{ratio: 2.0}, rect}])
+      end
+    end
+
+    test "line_gauge rejects negative ratio" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/line_gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%LineGauge{ratio: -0.5}, rect}])
+      end
+    end
+
+    test "line_gauge rejects non-numeric ratio" do
+      rect = %Rect{x: 0, y: 0, width: 10, height: 1}
+
+      assert_raise ArgumentError, ~r/line_gauge\.ratio expected a number in 0\.0\.\.1\.0/, fn ->
+        ExRatatui.Bridge.encode_commands!([{%LineGauge{ratio: :full}, rect}])
+      end
+    end
+
     test "sparkline struct has correct defaults" do
       sparkline = %Sparkline{}
       assert sparkline.data == []

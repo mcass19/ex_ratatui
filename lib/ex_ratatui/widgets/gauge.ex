@@ -4,7 +4,9 @@ defmodule ExRatatui.Widgets.Gauge do
 
   ## Fields
 
-    * `:ratio` - progress value from `0.0` to `1.0` (clamped automatically)
+    * `:ratio` - progress value, a number in `0.0..1.0`. Integers `0` and `1`
+      are accepted and coerced to floats. Any other value raises
+      `ArgumentError` at render time.
     * `:label` - optional label string displayed on the gauge
     * `:style` - `%ExRatatui.Style{}` for the widget background
     * `:block` - optional `%ExRatatui.Widgets.Block{}` container
