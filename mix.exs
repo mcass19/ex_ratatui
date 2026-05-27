@@ -121,6 +121,7 @@ defmodule ExRatatui.MixProject do
         "guides/debugging.md": [title: "Debugging"],
         "guides/performance.md": [title: "Performance"],
         "guides/telemetry.md": [title: "Telemetry"],
+        "guides/transports.md": [title: "Transports"],
         "guides/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/distributed_transport.md": [title: "Running TUIs over Erlang Distribution"],
         "guides/custom_transports.md": [title: "Custom Transports"],
