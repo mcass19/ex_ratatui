@@ -87,4 +87,83 @@ defmodule ExRatatui.LayoutTest do
       assert {:error, _reason} = Layout.split(area, :vertical, [{:ratio, 1, 0}])
     end
   end
+
+  describe "split/4 with :fill constraints" do
+    test "distributes remaining space by weight" do
+      area = %Rect{x: 0, y: 0, width: 60, height: 1}
+      [a, b, c] = Layout.split(area, :horizontal, [{:fill, 1}, {:fill, 2}, {:fill, 3}])
+
+      assert a.width + b.width + c.width == 60
+      assert a.width < b.width
+      assert b.width < c.width
+    end
+
+    test "fill yields remaining space after Length is satisfied" do
+      area = %Rect{x: 0, y: 0, width: 50, height: 1}
+      [fixed, growable] = Layout.split(area, :horizontal, [{:length, 10}, {:fill, 1}])
+
+      assert fixed.width == 10
+      assert growable.width == 40
+    end
+  end
+
+  describe "split/4 with :flex" do
+    test ":center pushes a fixed-length segment to the middle of the area" do
+      area = %Rect{x: 0, y: 0, width: 30, height: 1}
+      [popup] = Layout.split(area, :horizontal, [{:length, 10}], flex: :center)
+
+      assert popup.x == 10
+      assert popup.width == 10
+    end
+
+    test ":end packs segments toward the end of the area" do
+      area = %Rect{x: 0, y: 0, width: 30, height: 1}
+      [seg] = Layout.split(area, :horizontal, [{:length, 5}], flex: :end)
+
+      assert seg.x == 25
+      assert seg.width == 5
+    end
+
+    test ":space_between distributes extra space between segments" do
+      area = %Rect{x: 0, y: 0, width: 30, height: 1}
+      [a, b] = Layout.split(area, :horizontal, [{:length, 5}, {:length, 5}], flex: :space_between)
+
+      assert a.x == 0
+      assert b.x == 25
+    end
+
+    test "raises on unknown :flex atom" do
+      area = %Rect{x: 0, y: 0, width: 30, height: 1}
+
+      assert_raise ArgumentError, ~r/:flex expected one of/, fn ->
+        Layout.split(area, :horizontal, [{:length, 5}], flex: :diagonal)
+      end
+    end
+  end
+
+  describe "split/4 with :spacing" do
+    test "inserts a gap between adjacent segments" do
+      area = %Rect{x: 0, y: 0, width: 22, height: 1}
+
+      [a, b] =
+        Layout.split(area, :horizontal, [{:length, 10}, {:length, 10}], spacing: 2)
+
+      assert a.x == 0
+      assert a.width == 10
+      assert b.x == 12
+      assert b.width == 10
+    end
+
+    test "raises on non-integer or negative :spacing" do
+      area = %Rect{x: 0, y: 0, width: 22, height: 1}
+
+      assert_raise ArgumentError, ~r/:spacing expected a non-negative integer/, fn ->
+        Layout.split(area, :horizontal, [{:length, 10}], spacing: -1)
+      end
+
+      assert_raise ArgumentError, ~r/:spacing expected a non-negative integer/, fn ->
+        Layout.split(area, :horizontal, [{:length, 10}], spacing: 1.5)
+      end
+    end
+  end
 end

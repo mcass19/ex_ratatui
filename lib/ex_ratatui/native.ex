@@ -10,7 +10,7 @@ defmodule ExRatatui.Native do
     terminal_size: 0,
     draw_frame: 2,
     poll_event: 1,
-    layout_split: 3,
+    layout_split: 4,
     init_test_terminal: 2,
     get_buffer_content: 1,
     text_input_new: 0,

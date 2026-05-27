@@ -41,6 +41,7 @@ defmodule ExRatatui.Property.LayoutPropertyTest do
       tuple({constant(:percentage), integer(0..100)}),
       tuple({constant(:min), integer(0..100)}),
       tuple({constant(:max), integer(0..100)}),
+      tuple({constant(:fill), integer(0..10)}),
       gen all(num <- integer(0..10), den <- integer(1..10)) do
         {:ratio, num, den}
       end
