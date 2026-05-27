@@ -906,6 +906,60 @@ defmodule ExRatatui.Widgets.ValidationTest do
       end
     end
 
+    test "table rejects out-of-bounds :selected_column" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      table = %Table{
+        header: ["A", "B", "C"],
+        rows: [["1", "2", "3"]],
+        widths: [{:length, 5}, {:length, 5}, {:length, 5}],
+        selected_column: 5
+      }
+
+      assert_raise ArgumentError,
+                   ~r/table\.selected_column expected nil or an integer in 0\.\.2/,
+                   fn -> ExRatatui.Bridge.encode_commands!([{table, rect}]) end
+    end
+
+    test "table rejects negative :selected_column" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      table = %Table{
+        widths: [{:length, 5}, {:length, 5}],
+        selected_column: -1
+      }
+
+      assert_raise ArgumentError,
+                   ~r/table\.selected_column expected nil or an integer in 0\.\.1/,
+                   fn -> ExRatatui.Bridge.encode_commands!([{table, rect}]) end
+    end
+
+    test "table accepts nil :selected_column", %{terminal: terminal} do
+      table = %Table{
+        header: ["A", "B"],
+        rows: [["1", "2"]],
+        widths: [{:length, 5}, {:length, 5}],
+        selected_column: nil
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 5}
+      assert :ok = ExRatatui.draw(terminal, [{table, rect}])
+    end
+
+    test "table column_count derives from header when widths is empty" do
+      rect = %Rect{x: 0, y: 0, width: 30, height: 5}
+
+      table = %Table{
+        header: ["A", "B", "C"],
+        rows: [["1", "2", "3"]],
+        selected_column: 3
+      }
+
+      assert_raise ArgumentError,
+                   ~r/table\.selected_column expected nil or an integer in 0\.\.2/,
+                   fn -> ExRatatui.Bridge.encode_commands!([{table, rect}]) end
+    end
+
     test "table rejects unknown :highlight_spacing" do
       rect = %Rect{x: 0, y: 0, width: 10, height: 3}
 
