@@ -32,7 +32,7 @@
 # Run with:  mix run examples/chat_log.exs
 
 alias ExRatatui.{Event, Focus, Layout, Style, Theme}
-alias ExRatatui.Layout.Rect
+alias ExRatatui.Layout.{Padding, Rect}
 alias ExRatatui.Text.{Line, Span}
 alias ExRatatui.Widgets.{Block, List, Paragraph, Textarea}
 alias ExRatatui.Widgets.Block.Title
@@ -59,7 +59,17 @@ defmodule ChatLog do
       typing_user: "me"
     }
 
+    update_window_title(state)
     {:ok, state}
+  end
+
+  # Reflect the channel + message count in the terminal window/tab
+  # title via OSC 0/2. Called from mount and after each send rather
+  # than from render/2 (a side-effecting NIF doesn't belong in the
+  # render path).
+  defp update_window_title(state) do
+    ExRatatui.set_terminal_title("ex_ratatui — #general (#{length(state.messages)})")
+    state
   end
 
   @impl true
@@ -138,7 +148,9 @@ defmodule ChatLog do
 
       text ->
         :ok = ExRatatui.textarea_set_value(state.composer, "")
+
         %{state | messages: state.messages ++ [{state.typing_user, text}]}
+        |> update_window_title()
     end
   end
 
@@ -176,7 +188,8 @@ defmodule ChatLog do
         titles: unread_title,
         borders: [:all],
         border_type: :rounded,
-        border_style: %Style{fg: state.theme.border}
+        border_style: %Style{fg: state.theme.border},
+        padding: Padding.horizontal(1)
       }
     }
   end

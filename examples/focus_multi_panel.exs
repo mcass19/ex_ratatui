@@ -15,6 +15,8 @@
 #   * Mouse-wheel scroll routes to whichever panel currently has focus.
 #   * Pasting (Ctrl+Shift+V / Cmd+V / middle-click) into :search lands
 #     as one Event.Paste even with multi-line / multi-byte content.
+#   * Terminal-window focus reporting (focus_events: true) — switch to
+#     another window and the footer shows "window in background".
 #   * Esc quits.
 #
 # Run with:  mix run examples/focus_multi_panel.exs
@@ -64,7 +66,8 @@ defmodule FocusExample do
       search: ExRatatui.text_input_new(),
       items: @items,
       selected: 0,
-      detail_scroll: 0
+      detail_scroll: 0,
+      window_focused?: true
     }
 
     # Resize doesn't fire on initial mount — register regions up front
@@ -98,6 +101,15 @@ defmodule FocusExample do
   def handle_event(%Event.Key{code: "esc", kind: "press"}, state) do
     {:stop, state}
   end
+
+  # Terminal-window focus reporting (enabled via focus_events: true on
+  # start_link). A real app would pause animations / polling while the
+  # window is in the background; here we just reflect it in the title bar.
+  def handle_event(%Event.FocusGained{}, state),
+    do: {:noreply, %{state | window_focused?: true}}
+
+  def handle_event(%Event.FocusLost{}, state),
+    do: {:noreply, %{state | window_focused?: false}}
 
   # Re-register hit-test regions on every layout-changing event. Focus
   # carries the regions so handle_mouse/2 below can use them without
@@ -279,6 +291,11 @@ defmodule FocusExample do
   end
 
   defp footer_widget(state) do
+    {focus_label, focus_color} =
+      if state.window_focused?,
+        do: {"window focused", state.theme.success},
+        else: {"window in background", state.theme.warning}
+
     %Paragraph{
       text:
         Line.new([
@@ -289,7 +306,8 @@ defmodule FocusExample do
           chip("↑/↓", state.theme.accent),
           Span.new(" navigate/scroll  "),
           chip("Esc", state.theme.danger),
-          Span.new(" quit")
+          Span.new(" quit   "),
+          Span.new(focus_label, style: %Style{fg: focus_color, modifiers: [:bold]})
         ])
     }
   end
@@ -316,7 +334,7 @@ end
 # Opt-in to mouse capture so the example can demonstrate click-to-focus
 # and scroll-wheel routing on the local terminal. SSH / distributed
 # transports get mouse events from their VTE input parser regardless.
-{:ok, pid} = FocusExample.start_link(mouse_capture: true)
+{:ok, pid} = FocusExample.start_link(mouse_capture: true, focus_events: true)
 ref = Process.monitor(pid)
 
 receive do

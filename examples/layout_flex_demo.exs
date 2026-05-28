@@ -46,13 +46,20 @@ defmodule LayoutFlexDemo do
     flex_row_gap = 1
     flex_section_height = flex_rows * 3 + (flex_rows - 1) * flex_row_gap
 
+    # `margin: 1` insets the whole screen by one cell before splitting,
+    # leaving a one-cell breathing border around the entire demo.
     [header, flex_section, fill_section, footer] =
-      Layout.split(area, :vertical, [
-        {:length, 1},
-        {:length, flex_section_height},
-        {:min, 4},
-        {:length, 1}
-      ])
+      Layout.split(
+        area,
+        :vertical,
+        [
+          {:length, 1},
+          {:length, flex_section_height},
+          {:min, 4},
+          {:length, 1}
+        ],
+        margin: 1
+      )
 
     [
       {header_widget(state), header}

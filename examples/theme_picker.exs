@@ -297,7 +297,9 @@ defmodule ThemePicker do
       style: style,
       block: %Block{
         borders: [:all],
-        border_type: :thick,
+        # :quadrant_inside is one of the eight extended BorderType
+        # variants — a blocky half-cell border that frames the swatch.
+        border_type: :quadrant_inside,
         border_style: %Style{fg: color || theme.text_dim}
       }
     }
@@ -336,10 +338,24 @@ defmodule ThemePicker do
   defp slot_demo_widget(theme, slot) when slot in [:primary, :accent] do
     color = Map.fetch!(theme, slot)
 
+    # Multi-line items + repeat_highlight_symbol so the "› " marker
+    # shows on every wrapped row of the selected entry.
+    items = [
+      "first item",
+      %ExRatatui.Text{
+        lines: [
+          Line.new([Span.new("second item (selected)")]),
+          Line.new([Span.new("  wraps to a second line")])
+        ]
+      },
+      "third item"
+    ]
+
     %List{
-      items: ["first item", "second item (selected)", "third item"],
+      items: items,
       selected: 1,
       highlight_symbol: "› ",
+      repeat_highlight_symbol: true,
       highlight_style: %Style{fg: theme.surface, bg: color, modifiers: [:bold]},
       style: Theme.text_style(theme),
       block: %Block{
@@ -407,12 +423,20 @@ defmodule ThemePicker do
         :text_dim -> "Theme.text_style(theme, dim: true) — hints, placeholders, disabled"
       end
 
+    # Underlined sample with a colored underline (Style :underline_color,
+    # distinct from :fg). Visible on kitty / wezterm; plain underline
+    # elsewhere.
     %Paragraph{
       text: sample,
       wrap: true,
-      style: %Style{fg: color, bg: theme.surface},
+      style: %Style{
+        fg: color,
+        bg: theme.surface,
+        underline_color: theme.accent,
+        modifiers: [:underlined]
+      },
       block: %Block{
-        title: " text styled with :#{slot} ",
+        title: " text styled with :#{slot} (colored underline) ",
         title_style: %Style{fg: theme.accent},
         borders: [:all],
         border_type: :rounded,
