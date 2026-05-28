@@ -17,6 +17,14 @@ defmodule ExRatatui.TerminalTest do
       result = ExRatatui.terminal_size()
       assert match?({_, _}, result)
     end
+
+    test "set_terminal_title returns :ok" do
+      # The NIF writes the OSC title sequence straight to OS stdout
+      # (fd 1), bypassing the BEAM group leader — CaptureIO can't see
+      # it. Asserting the :ok return confirms the NIF ran without
+      # error; the actual escape is harmless and momentary.
+      assert ExRatatui.set_terminal_title("ex_ratatui test") == :ok
+    end
   end
 
   describe "run/1" do

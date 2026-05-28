@@ -5,7 +5,7 @@ use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture,
 };
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle};
 use crossterm::ExecutableCommand;
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::Terminal;
@@ -178,6 +178,14 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
 #[rustler::nif(schedule = "DirtyIo")]
 fn terminal_size() -> Result<(u16, u16), Error> {
     terminal::size().map_err(|e| Error::Term(Box::new(format!("{e}"))))
+}
+
+#[rustler::nif(schedule = "DirtyIo")]
+fn set_terminal_title(title: String) -> Result<Atom, Error> {
+    std::io::stdout()
+        .execute(SetTitle(title))
+        .map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
+    Ok(atoms::ok())
 }
 
 #[rustler::nif]

@@ -8,6 +8,7 @@ defmodule ExRatatui.Native do
     init_terminal: 2,
     restore_terminal: 1,
     terminal_size: 0,
+    set_terminal_title: 1,
     draw_frame: 2,
     poll_event: 1,
     layout_split: 4,

@@ -101,6 +101,20 @@ Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, 
 
 All widgets render into a `Rect`. Returned from `Layout.split/4`, derived from `%Frame{}`, or built manually for absolute placement.
 
+### Padding helpers
+
+```elixir
+alias ExRatatui.Layout.Padding
+
+%Block{padding: Padding.uniform(1)}        # {1, 1, 1, 1}
+%Block{padding: Padding.symmetric(2, 1)}   # {2, 2, 1, 1}  (horiz, vert)
+%Block{padding: Padding.horizontal(2)}     # {2, 2, 0, 0}
+%Block{padding: Padding.vertical(1)}       # {0, 0, 1, 1}
+%Block{padding: Padding.new(1, 2, 3, 4)}   # {1, 2, 3, 4}
+```
+
+`Block.padding` is a `{left, right, top, bottom}` tuple; these just build it.
+
 ## Focus & theming
 {: .col-2}
 

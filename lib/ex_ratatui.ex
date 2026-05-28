@@ -265,6 +265,24 @@ defmodule ExRatatui do
   def validate_terminal_size({:error, _} = err), do: err
 
   @doc """
+  Sets the terminal window/tab title (OSC 0/2).
+
+  Useful for daemon TUIs, dashboards, and multi-tab terminals where the
+  title bar should reflect the app or its current state. Best-effort:
+  terminals that don't honour the title escape ignore it. Returns `:ok`
+  or `{:error, reason}`.
+
+  ## Examples
+
+      ExRatatui.set_terminal_title("ex_ratatui — dashboard")
+      ExRatatui.set_terminal_title("● 3 alerts")
+  """
+  @spec set_terminal_title(String.t()) :: :ok | {:error, term()}
+  def set_terminal_title(title) when is_binary(title) do
+    Native.set_terminal_title(title)
+  end
+
+  @doc """
   Sets the image protocol hint on a terminal reference.
 
   When an image widget is rendered with `protocol: :auto`, this hint

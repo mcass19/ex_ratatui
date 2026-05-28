@@ -159,7 +159,8 @@ defmodule ExRatatui.MixProject do
         Layout: [
           ExRatatui.Frame,
           ExRatatui.Layout,
-          ExRatatui.Layout.Rect
+          ExRatatui.Layout.Rect,
+          ExRatatui.Layout.Padding
         ],
         Style: [
           ExRatatui.Style,
