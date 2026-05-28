@@ -8,6 +8,11 @@ defmodule ExRatatui.ServerTest do
   alias ExRatatui.Test.ServerApps.Echo, as: TestApp
   alias ExRatatui.Test.ServerApps.{FailingMount, StopOnAnyEvent}
 
+  @doc false
+  def __forward_connect__(_event, _measurements, meta, test_pid) do
+    send(test_pid, {:telemetry_connect, meta})
+  end
+
   defmodule RenderingApp do
     use ExRatatui.App
 
@@ -126,6 +131,56 @@ defmodule ExRatatui.ServerTest do
     def terminate(reason, state) do
       send(state.test_pid, {:terminated, reason})
       :ok
+    end
+  end
+
+  describe "local-terminal opts (mouse_capture, focus_events)" do
+    setup do
+      handler_id = "connect-test-#{inspect(self())}-#{System.unique_integer([:positive])}"
+
+      :telemetry.attach(
+        handler_id,
+        [:ex_ratatui, :transport, :connect, :start],
+        &__MODULE__.__forward_connect__/4,
+        self()
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      :ok
+    end
+
+    test "defaults focus_events and mouse_capture to false on the connect span metadata" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: TestApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      assert_receive {:telemetry_connect,
+                      %{transport: :local, focus_events: false, mouse_capture: false}},
+                     1000
+
+      GenServer.stop(pid)
+    end
+
+    test "passes focus_events and mouse_capture opts through to the connect span" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: TestApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24},
+          focus_events: true,
+          mouse_capture: true
+        )
+
+      assert_receive {:telemetry_connect,
+                      %{transport: :local, focus_events: true, mouse_capture: true}},
+                     1000
+
+      GenServer.stop(pid)
     end
   end
 

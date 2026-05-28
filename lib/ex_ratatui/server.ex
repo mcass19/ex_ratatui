@@ -72,8 +72,15 @@ defmodule ExRatatui.Server do
         focus_events? = Keyword.get(opts, :focus_events, false)
         mouse_capture? = Keyword.get(opts, :mouse_capture, false)
 
+        connect_meta = %{
+          mod: mod,
+          transport: :local,
+          focus_events: focus_events?,
+          mouse_capture: mouse_capture?
+        }
+
         terminal_ref =
-          Telemetry.span([:transport, :connect], %{mod: mod, transport: :local}, fn ->
+          Telemetry.span([:transport, :connect], connect_meta, fn ->
             init_terminal(test_mode, focus_events?, mouse_capture?)
           end)
 

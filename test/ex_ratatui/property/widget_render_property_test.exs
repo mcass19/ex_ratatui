@@ -142,9 +142,29 @@ defmodule ExRatatui.Property.WidgetRenderPropertyTest do
   # Per-widget generators
   # ----------------------------------------------------------------------
 
+  defp block_title_gen do
+    gen all(
+          content <- short_text_gen(),
+          position <- one_of([constant(nil), member_of([:top, :bottom])]),
+          alignment <- one_of([constant(nil), member_of([:left, :center, :right])]),
+          style <- one_of([constant(nil), style_gen()])
+        ) do
+      %ExRatatui.Widgets.Block.Title{
+        content: content,
+        position: position,
+        alignment: alignment,
+        style: style
+      }
+    end
+  end
+
   defp block_gen do
     gen all(
           title <- one_of([constant(nil), short_text_gen()]),
+          titles <- list_of(one_of([short_text_gen(), block_title_gen()]), max_length: 3),
+          title_position <- member_of([:top, :bottom]),
+          title_alignment <- member_of([:left, :center, :right]),
+          title_style <- one_of([constant(nil), style_gen()]),
           borders <-
             list_of(member_of([:top, :right, :bottom, :left]), max_length: 4),
           border_type <- member_of([:plain, :rounded, :double, :thick]),
@@ -152,6 +172,10 @@ defmodule ExRatatui.Property.WidgetRenderPropertyTest do
         ) do
       %Block{
         title: title,
+        titles: titles,
+        title_position: title_position,
+        title_alignment: title_alignment,
+        title_style: title_style,
         borders: Enum.uniq(borders),
         border_type: border_type,
         style: style
@@ -178,9 +202,20 @@ defmodule ExRatatui.Property.WidgetRenderPropertyTest do
           items <- short_items_gen(),
           selected <- selected_for_gen(items),
           highlight_symbol <- one_of([constant(nil), short_text_gen()]),
+          direction <- member_of([:top_to_bottom, :bottom_to_top]),
+          scroll_padding <- integer(0..5),
+          repeat_highlight_symbol <- boolean(),
           block <- optional_block_gen()
         ) do
-      %List{items: items, selected: selected, highlight_symbol: highlight_symbol, block: block}
+      %List{
+        items: items,
+        selected: selected,
+        highlight_symbol: highlight_symbol,
+        direction: direction,
+        scroll_padding: scroll_padding,
+        repeat_highlight_symbol: repeat_highlight_symbol,
+        block: block
+      }
     end
   end
 
@@ -189,15 +224,32 @@ defmodule ExRatatui.Property.WidgetRenderPropertyTest do
           col_count <- integer(1..3),
           row_count <- integer(0..6),
           cell <- short_text_gen(),
+          include_header? <- boolean(),
+          include_footer? <- boolean(),
+          highlight_spacing <- member_of([:always, :when_selected, :never]),
+          header_style <- one_of([constant(nil), style_gen()]),
+          footer_style <- one_of([constant(nil), style_gen()]),
+          column_highlight_style <- one_of([constant(nil), style_gen()]),
+          cell_highlight_style <- one_of([constant(nil), style_gen()]),
           block <- optional_block_gen()
         ) do
       rows = for _ <- 1..row_count//1, do: for(_ <- 1..col_count, do: cell)
       widths = for _ <- 1..col_count, do: {:percentage, div(100, col_count)}
+      header = if include_header?, do: for(_ <- 1..col_count, do: cell), else: nil
+      footer = if include_footer?, do: for(_ <- 1..col_count, do: cell), else: nil
 
       %Table{
         rows: rows,
+        header: header,
+        footer: footer,
         widths: widths,
         selected: if(row_count == 0, do: nil, else: 0),
+        selected_column: 0,
+        highlight_spacing: highlight_spacing,
+        header_style: header_style,
+        footer_style: footer_style,
+        column_highlight_style: column_highlight_style,
+        cell_highlight_style: cell_highlight_style,
         block: block
       }
     end

@@ -42,7 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`Native.init_terminal` arity bumped to 1.** Single `focus_events: bool` parameter. `ExRatatui.run/1` becomes `ExRatatui.run/2` with a `:focus_events` opt; `run/2` with no opts is equivalent to the old `run/1`. The `init_terminal/0` form is gone — direct NIF callers (custom transports, examples) must pass the boolean explicitly.
+- **`Native.init_terminal` arity bumped to 2** — `(focus_events :: bool, mouse_capture :: bool)`. `ExRatatui.run/1` becomes `ExRatatui.run/2` accepting `:focus_events` and `:mouse_capture` opts; `run/2` with no opts is equivalent to the old `run/1`. `ExRatatui.Server.start_link` (and every `ExRatatui.App`) accepts the same two opts for the `:local` transport. The `init_terminal/0` form is gone — direct NIF callers (custom transports, examples) must pass both booleans explicitly.
+
+- **`[:ex_ratatui, :transport, :connect]` span metadata gains `:focus_events` and `:mouse_capture`** for the `:local` transport, reflecting the boolean opts the app started with. Other transports' connect metadata is unchanged.
 
 - **`ExRatatui.Widgets.Block` defaults.** `defstruct` now includes `:titles`, `:title_position`, `:title_alignment`, `:title_style` with backward-compatible defaults (`[]`, `:top`, `:left`, `nil`). Apps constructing blocks with `%Block{...}` and only the old fields are unaffected; the doctest in `Block.moduledoc` shows the new shape.
 
