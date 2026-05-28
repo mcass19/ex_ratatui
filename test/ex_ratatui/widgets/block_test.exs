@@ -48,6 +48,30 @@ defmodule ExRatatui.Widgets.BlockTest do
 
       assert :ok = ExRatatui.draw(terminal, [{block, rect}])
     end
+
+    test "renders every border_type without error", %{terminal: terminal} do
+      types = [
+        :plain,
+        :rounded,
+        :double,
+        :thick,
+        :light_double_dashed,
+        :heavy_double_dashed,
+        :light_triple_dashed,
+        :heavy_triple_dashed,
+        :light_quadruple_dashed,
+        :heavy_quadruple_dashed,
+        :quadrant_inside,
+        :quadrant_outside
+      ]
+
+      rect = %Rect{x: 0, y: 0, width: 20, height: 5}
+
+      for type <- types do
+        block = %Block{borders: [:all], border_type: type}
+        assert :ok = ExRatatui.draw(terminal, [{block, rect}])
+      end
+    end
   end
 
   describe "multi-title rendering" do

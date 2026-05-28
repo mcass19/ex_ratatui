@@ -508,7 +508,9 @@ alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
 %Block{
   title: " Panel ",                     # String | Span | Line | [Span]
   borders: [:all],                      # or [:top, :left, ...]
-  border_type: :rounded,                # :plain | :rounded | :double | :thick
+  border_type: :rounded,                # :plain :rounded :double :thick
+                                        # :light/heavy_{double,triple,quadruple}_dashed
+                                        # :quadrant_inside :quadrant_outside
   border_style: %Style{fg: :cyan},
   padding: {0, 0, 0, 0}                 # {left, right, top, bottom}
 }

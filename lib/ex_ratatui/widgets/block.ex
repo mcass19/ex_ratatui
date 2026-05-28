@@ -27,7 +27,12 @@ defmodule ExRatatui.Widgets.Block do
       that does not carry its own style.
     * `:borders` - list of border sides: `:all`, `:top`, `:right`, `:bottom`, `:left`
     * `:border_style` - `%ExRatatui.Style{}` for border color/modifiers
-    * `:border_type` - `:plain`, `:rounded`, `:double`, or `:thick`
+    * `:border_type` - one of `:plain`, `:rounded`, `:double`, `:thick`,
+      `:light_double_dashed`, `:heavy_double_dashed`, `:light_triple_dashed`,
+      `:heavy_triple_dashed`, `:light_quadruple_dashed`, `:heavy_quadruple_dashed`,
+      `:quadrant_inside`, `:quadrant_outside`. The dashed families break the
+      border line into 2/3/4 dash segments; the quadrant types draw a blocky
+      half-cell border (inside or outside the content area).
     * `:style` - `%ExRatatui.Style{}` for the inner area
     * `:padding` - `{left, right, top, bottom}` inner padding
 
@@ -78,7 +83,19 @@ defmodule ExRatatui.Widgets.Block do
   alias ExRatatui.Widgets.Block.Title
 
   @type border_side :: :all | :top | :right | :bottom | :left
-  @type border_type :: :plain | :rounded | :double | :thick
+  @type border_type ::
+          :plain
+          | :rounded
+          | :double
+          | :thick
+          | :light_double_dashed
+          | :heavy_double_dashed
+          | :light_triple_dashed
+          | :heavy_triple_dashed
+          | :light_quadruple_dashed
+          | :heavy_quadruple_dashed
+          | :quadrant_inside
+          | :quadrant_outside
 
   @type title ::
           String.t()

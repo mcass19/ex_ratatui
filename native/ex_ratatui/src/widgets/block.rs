@@ -277,6 +277,14 @@ pub fn parse_border_type(s: &str) -> Result<BorderType, Error> {
         "rounded" => Ok(BorderType::Rounded),
         "double" => Ok(BorderType::Double),
         "thick" => Ok(BorderType::Thick),
+        "light_double_dashed" => Ok(BorderType::LightDoubleDashed),
+        "heavy_double_dashed" => Ok(BorderType::HeavyDoubleDashed),
+        "light_triple_dashed" => Ok(BorderType::LightTripleDashed),
+        "heavy_triple_dashed" => Ok(BorderType::HeavyTripleDashed),
+        "light_quadruple_dashed" => Ok(BorderType::LightQuadrupleDashed),
+        "heavy_quadruple_dashed" => Ok(BorderType::HeavyQuadrupleDashed),
+        "quadrant_inside" => Ok(BorderType::QuadrantInside),
+        "quadrant_outside" => Ok(BorderType::QuadrantOutside),
         other => Err(Error::Term(Box::new(format!(
             "unknown border type: {other}"
         )))),
@@ -555,6 +563,38 @@ mod tests {
         assert_eq!(parse_border_type("rounded").unwrap(), BorderType::Rounded);
         assert_eq!(parse_border_type("double").unwrap(), BorderType::Double);
         assert_eq!(parse_border_type("thick").unwrap(), BorderType::Thick);
+        assert_eq!(
+            parse_border_type("light_double_dashed").unwrap(),
+            BorderType::LightDoubleDashed
+        );
+        assert_eq!(
+            parse_border_type("heavy_double_dashed").unwrap(),
+            BorderType::HeavyDoubleDashed
+        );
+        assert_eq!(
+            parse_border_type("light_triple_dashed").unwrap(),
+            BorderType::LightTripleDashed
+        );
+        assert_eq!(
+            parse_border_type("heavy_triple_dashed").unwrap(),
+            BorderType::HeavyTripleDashed
+        );
+        assert_eq!(
+            parse_border_type("light_quadruple_dashed").unwrap(),
+            BorderType::LightQuadrupleDashed
+        );
+        assert_eq!(
+            parse_border_type("heavy_quadruple_dashed").unwrap(),
+            BorderType::HeavyQuadrupleDashed
+        );
+        assert_eq!(
+            parse_border_type("quadrant_inside").unwrap(),
+            BorderType::QuadrantInside
+        );
+        assert_eq!(
+            parse_border_type("quadrant_outside").unwrap(),
+            BorderType::QuadrantOutside
+        );
         assert!(parse_border_type("dotted").is_err());
     }
 }
