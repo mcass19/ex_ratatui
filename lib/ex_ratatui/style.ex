@@ -6,6 +6,11 @@ defmodule ExRatatui.Style do
 
     * `:fg` - foreground color (see Colors below), or `nil` for terminal default
     * `:bg` - background color, or `nil` for terminal default
+    * `:underline_color` - color of the underline drawn by the
+      `:underlined` modifier, distinct from `:fg`. `nil` (default) means
+      the underline uses the foreground color. Only terminals that
+      support colored underlines (kitty, wezterm) honour it; others
+      fall back to a plain underline.
     * `:modifiers` - list of text modifiers (see Modifiers below)
 
   ## Colors
@@ -42,16 +47,19 @@ defmodule ExRatatui.Style do
   ## Examples
 
       iex> %ExRatatui.Style{fg: :red, bg: :black, modifiers: [:bold]}
-      %ExRatatui.Style{fg: :red, bg: :black, modifiers: [:bold]}
+      %ExRatatui.Style{fg: :red, bg: :black, underline_color: nil, modifiers: [:bold]}
 
       iex> %ExRatatui.Style{fg: {:rgb, 255, 100, 0}}
-      %ExRatatui.Style{fg: {:rgb, 255, 100, 0}, bg: nil, modifiers: []}
+      %ExRatatui.Style{fg: {:rgb, 255, 100, 0}, bg: nil, underline_color: nil, modifiers: []}
 
       iex> %ExRatatui.Style{}
-      %ExRatatui.Style{fg: nil, bg: nil, modifiers: []}
+      %ExRatatui.Style{fg: nil, bg: nil, underline_color: nil, modifiers: []}
+
+      iex> %ExRatatui.Style{modifiers: [:underlined], underline_color: :red}
+      %ExRatatui.Style{fg: nil, bg: nil, underline_color: :red, modifiers: [:underlined]}
   """
 
-  defstruct fg: nil, bg: nil, modifiers: []
+  defstruct fg: nil, bg: nil, underline_color: nil, modifiers: []
 
   @type color ::
           :black
@@ -79,6 +87,7 @@ defmodule ExRatatui.Style do
   @type t :: %__MODULE__{
           fg: color() | nil,
           bg: color() | nil,
+          underline_color: color() | nil,
           modifiers: [modifier()]
         }
 end

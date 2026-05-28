@@ -37,11 +37,30 @@ fn layout_split(
         None => 0,
     };
 
+    // Margins inset the whole area before splitting. `horizontal` /
+    // `vertical` override the uniform `margin` per-axis when present.
+    let uniform_margin: u16 = match opts.get("margin") {
+        Some(term) => term.decode()?,
+        None => 0,
+    };
+
+    let horizontal_margin: u16 = match opts.get("horizontal_margin") {
+        Some(term) => term.decode()?,
+        None => uniform_margin,
+    };
+
+    let vertical_margin: u16 = match opts.get("vertical_margin") {
+        Some(term) => term.decode()?,
+        None => uniform_margin,
+    };
+
     let chunks = Layout::default()
         .direction(dir)
         .constraints(constraints)
         .flex(flex)
         .spacing(spacing)
+        .horizontal_margin(horizontal_margin)
+        .vertical_margin(vertical_margin)
         .split(area);
 
     Ok(chunks
@@ -268,6 +287,23 @@ mod tests {
         assert_eq!(chunks[0].width, 10);
         assert_eq!(chunks[1].x, 12);
         assert_eq!(chunks[1].width, 10);
+    }
+
+    #[test]
+    fn test_margin_insets_the_area_before_splitting() {
+        let area = Rect::new(0, 0, 20, 10);
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0)])
+            .horizontal_margin(2)
+            .vertical_margin(1)
+            .split(area);
+
+        // 2-cell horizontal inset on each side, 1-cell vertical.
+        assert_eq!(chunks[0].x, 2);
+        assert_eq!(chunks[0].y, 1);
+        assert_eq!(chunks[0].width, 16);
+        assert_eq!(chunks[0].height, 8);
     }
 
     #[test]

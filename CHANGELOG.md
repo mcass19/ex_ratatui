@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Eight additional `Block` border types.** Beyond `:plain` / `:rounded` / `:double` / `:thick`, the widget now accepts `:light_double_dashed`, `:heavy_double_dashed`, `:light_triple_dashed`, `:heavy_triple_dashed`, `:light_quadruple_dashed`, `:heavy_quadruple_dashed` (the border line broken into 2/3/4 dash segments) and `:quadrant_inside` / `:quadrant_outside` (blocky half-cell borders drawn inside or outside the content area). Closes the upstream `BorderType` surface — every ratatui variant is now reachable.
 
+- **Layout `:margin` / `:horizontal_margin` / `:vertical_margin` opts.** `ExRatatui.Layout.split/4` can now inset the area before splitting — `margin: 1` leaves a 1-cell border on all four sides; `:horizontal_margin` / `:vertical_margin` override per-axis. Complements the existing `:spacing` (gaps *between* segments). Validated from Elixir like the other opts.
+
+- **Style `:underline_color`.** `%ExRatatui.Style{}` gains an `:underline_color` field — the color of the underline drawn by the `:underlined` modifier, distinct from `:fg`. `nil` (default) uses the foreground color. Honoured by terminals with colored-underline support (kitty, wezterm); others fall back to a plain underline.
+
 - **`ExRatatui.Layout.Padding` ergonomic constructors.** `uniform/1`, `symmetric/2` (horizontal, vertical), `horizontal/1`, `vertical/1`, and `new/4` return the `{left, right, top, bottom}` tuple that `Block`'s `:padding` field already accepts — `%Block{padding: Padding.uniform(1)}` instead of `padding: {1, 1, 1, 1}`. Pure functions, no struct, no runtime cost beyond building the tuple.
 
 - **`ExRatatui.set_terminal_title/1`.** Sets the terminal window / tab title via OSC 0/2 (crossterm `SetTitle`). Useful for daemon TUIs, dashboards, and multi-tab terminals. Best-effort: terminals that don't honour the escape ignore it. One new NIF `set_terminal_title/1`.

@@ -32,8 +32,18 @@ defmodule ExRatatui.Layout do
       Defaults to ratatui's `Flex::default()` (currently `:start`).
     * `:spacing` — non-negative integer cells inserted between every
       pair of adjacent segments. Defaults to `0`.
+    * `:margin` — non-negative integer cells inset on all four sides of
+      the area before it is split. Defaults to `0`.
+    * `:horizontal_margin` / `:vertical_margin` — per-axis inset that
+      overrides `:margin` for that axis when given. Use these for
+      asymmetric insets (e.g. `horizontal_margin: 2, vertical_margin: 1`).
 
   ## Examples
+
+      area = %Rect{x: 0, y: 0, width: 80, height: 24}
+
+      # Split the area but leave a 1-cell border around the edges.
+      [body] = Layout.split(area, :vertical, [{:min, 0}], margin: 1)
 
       area = %Rect{x: 0, y: 0, width: 80, height: 24}
 
@@ -70,7 +80,12 @@ defmodule ExRatatui.Layout do
   @type flex ::
           :legacy | :start | :end | :center | :space_between | :space_around
 
-  @type split_opt :: {:flex, flex()} | {:spacing, non_neg_integer()}
+  @type split_opt ::
+          {:flex, flex()}
+          | {:spacing, non_neg_integer()}
+          | {:margin, non_neg_integer()}
+          | {:horizontal_margin, non_neg_integer()}
+          | {:vertical_margin, non_neg_integer()}
 
   @doc """
   Splits a `Rect` into sub-regions based on direction and constraints.
@@ -149,6 +164,9 @@ defmodule ExRatatui.Layout do
     %{}
     |> maybe_put_flex(Keyword.get(opts, :flex))
     |> maybe_put_spacing(Keyword.get(opts, :spacing))
+    |> maybe_put_margin("margin", Keyword.get(opts, :margin))
+    |> maybe_put_margin("horizontal_margin", Keyword.get(opts, :horizontal_margin))
+    |> maybe_put_margin("vertical_margin", Keyword.get(opts, :vertical_margin))
   end
 
   defp maybe_put_flex(map, nil), do: map
@@ -171,5 +189,15 @@ defmodule ExRatatui.Layout do
   defp maybe_put_spacing(_map, other) do
     raise ArgumentError,
           "Layout.split :spacing expected a non-negative integer, got: #{inspect(other)}"
+  end
+
+  defp maybe_put_margin(map, _key, nil), do: map
+
+  defp maybe_put_margin(map, key, n) when is_integer(n) and n >= 0,
+    do: Map.put(map, key, n)
+
+  defp maybe_put_margin(_map, key, other) do
+    raise ArgumentError,
+          "Layout.split :#{key} expected a non-negative integer, got: #{inspect(other)}"
   end
 end

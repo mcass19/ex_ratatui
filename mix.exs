@@ -186,6 +186,7 @@ defmodule ExRatatui.MixProject do
         Widgets: [
           ExRatatui.Widgets.Paragraph,
           ExRatatui.Widgets.Block,
+          ExRatatui.Widgets.Block.Title,
           ExRatatui.Widgets.List,
           ExRatatui.Widgets.Table,
           ExRatatui.Widgets.Gauge,

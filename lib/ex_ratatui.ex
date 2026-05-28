@@ -19,10 +19,28 @@ defmodule ExRatatui do
 
   ## Core functions
 
-    * `run/1` — initialize the terminal, run a function, restore on exit
+    * `run/2` — initialize the terminal, run a function, restore on exit
+      (opts: `:focus_events`, `:mouse_capture`)
     * `draw/2` — render a list of `{widget, rect}` tuples in a single frame
-    * `poll_event/1` — non-blocking event polling (keyboard, mouse, resize)
+    * `poll_event/1` — non-blocking event polling (keyboard, mouse, resize,
+      paste, focus)
     * `terminal_size/0` — current terminal dimensions
+    * `set_terminal_title/1` — set the terminal window / tab title (OSC 0/2)
+
+  ## Events
+
+  `poll_event/1` returns one of `ExRatatui.Event.Key`,
+  `ExRatatui.Event.Mouse`, `ExRatatui.Event.Resize`,
+  `ExRatatui.Event.Paste` (bracketed paste, on by default), or
+  `ExRatatui.Event.FocusGained` / `ExRatatui.Event.FocusLost` (opt in via
+  `run(fun, focus_events: true)`).
+
+  ## Focus, theming, layout helpers
+
+    * `ExRatatui.Focus` — keyboard + mouse focus ring for multi-panel apps
+    * `ExRatatui.Theme` — named-slot color palette with helpers
+    * `ExRatatui.Layout` / `ExRatatui.Layout.Padding` — constraint-based
+      splitting (with Flex + `{:fill, w}` + spacing) and padding builders
 
   ## OTP apps
 

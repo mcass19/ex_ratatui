@@ -11,6 +11,7 @@ Quick lookup for every built-in widget and helper. One example per struct, key f
 %Style{
   fg: :green,                         # or {r,g,b}, or 0..255 index
   bg: :reset,
+  underline_color: {:rgb, 255, 0, 0}, # colored underline (kitty/wezterm)
   modifiers: [:bold, :italic, :underlined, :reversed, :dim]
 }
 ```
@@ -79,7 +80,7 @@ alias ExRatatui.Layout
 
 Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, `:min`, `:max`, `:ratio`, `{:fill, weight}`.
 
-### Flex + spacing
+### Flex + spacing + margin
 
 ```elixir
 # Centered fixed-width popup
@@ -89,9 +90,12 @@ Direction: `:horizontal` or `:vertical`. Constraints: `:length`, `:percentage`, 
 # Two growable panels with a 2-cell gutter
 [a, b] = Layout.split(area, :horizontal,
   [{:fill, 1}, {:fill, 1}], spacing: 2)
+
+# Split but leave a 1-cell border around the edges
+[body] = Layout.split(area, :vertical, [{:min, 0}], margin: 1)
 ```
 
-`:flex` is one of `:legacy`, `:start`, `:end`, `:center`, `:space_between`, `:space_around`. `:spacing` is non-negative cells between adjacent segments.
+`:flex` is one of `:legacy`, `:start`, `:end`, `:center`, `:space_between`, `:space_around`. `:spacing` is cells *between* segments; `:margin` (or `:horizontal_margin` / `:vertical_margin`) insets the whole area *before* splitting.
 
 ### `%Rect{}`
 

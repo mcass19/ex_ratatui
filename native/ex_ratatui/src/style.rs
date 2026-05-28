@@ -57,6 +57,10 @@ pub fn decode_style(term: Term) -> Result<Style, Error> {
         style = style.bg(decode_color(*bg_term)?);
     }
 
+    if let Some(uc_term) = map.get("underline_color") {
+        style = style.underline_color(decode_color(*uc_term)?);
+    }
+
     if let Some(mods_term) = map.get("modifiers") {
         let mod_names: Vec<String> = mods_term.decode()?;
         for name in &mod_names {

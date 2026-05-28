@@ -1190,6 +1190,7 @@ defmodule ExRatatui.Bridge do
     %{"modifiers" => Enum.map(style.modifiers, &Atom.to_string/1)}
     |> maybe_put("fg", encode_color(style.fg))
     |> maybe_put("bg", encode_color(style.bg))
+    |> maybe_put("underline_color", encode_color(style.underline_color))
   end
 
   defp encode_style(other, context) do

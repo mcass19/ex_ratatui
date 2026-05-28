@@ -166,4 +166,42 @@ defmodule ExRatatui.LayoutTest do
       end
     end
   end
+
+  describe "split/4 with :margin" do
+    test "uniform :margin insets all four sides before splitting" do
+      area = %Rect{x: 0, y: 0, width: 20, height: 10}
+      [body] = Layout.split(area, :vertical, [{:min, 0}], margin: 1)
+
+      assert body == %Rect{x: 1, y: 1, width: 18, height: 8}
+    end
+
+    test ":horizontal_margin and :vertical_margin inset per-axis" do
+      area = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      [body] =
+        Layout.split(area, :vertical, [{:min, 0}], horizontal_margin: 3, vertical_margin: 1)
+
+      assert body == %Rect{x: 3, y: 1, width: 14, height: 8}
+    end
+
+    test "per-axis margin overrides uniform :margin for that axis" do
+      area = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      [body] = Layout.split(area, :vertical, [{:min, 0}], margin: 2, vertical_margin: 0)
+
+      assert body == %Rect{x: 2, y: 0, width: 16, height: 10}
+    end
+
+    test "raises on negative or non-integer margin" do
+      area = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      assert_raise ArgumentError, ~r/:margin expected a non-negative integer/, fn ->
+        Layout.split(area, :vertical, [{:min, 0}], margin: -1)
+      end
+
+      assert_raise ArgumentError, ~r/:horizontal_margin expected a non-negative integer/, fn ->
+        Layout.split(area, :vertical, [{:min, 0}], horizontal_margin: 1.5)
+      end
+    end
+  end
 end

@@ -78,5 +78,17 @@ defmodule ExRatatui.Widgets.ParagraphTest do
       assert content =~ "Inside a box"
       assert content =~ "Title"
     end
+
+    test "underline_color renders without error", %{terminal: terminal} do
+      paragraph = %Paragraph{
+        text: "colored underline",
+        style: %Style{modifiers: [:underlined], underline_color: {:rgb, 255, 0, 0}}
+      }
+
+      rect = %Rect{x: 0, y: 0, width: 40, height: 1}
+
+      assert :ok = ExRatatui.draw(terminal, [{paragraph, rect}])
+      assert ExRatatui.get_buffer_content(terminal) =~ "colored underline"
+    end
   end
 end
