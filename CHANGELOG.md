@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Per-widget example isolates — every built-in widget now has a focused, copyable demo.** New standalone examples under `examples/widgets/` cover the widgets that previously only appeared inside large multi-tab or app examples: `barchart`, `sparkline`, `chart`, `calendar`, `canvas`, `checkbox`, `gauge`, `line_gauge`, `scrollbar`, `tabs`, `list`, `markdown`, `popup`, `widget_list`, `slash_commands`, `textarea`, and `clear`. Each is a short, single-purpose script so a widget can be lifted out without untangling it from a larger app.
+
+- **Two guide companions under `examples/observability/`.** `telemetry.exs` attaches a `:telemetry` handler to the runtime's own render/event `:stop` spans and renders the live event counts — a runnable counterpart to the Telemetry guide. `state_machine.exs` demonstrates the screen-as-data dispatch and modal-overlay patterns from the State Machine Patterns guide (a `:screen` atom names the active state; an `:overlay` field intercepts input for a confirm-quit `Popup`). `throbber.exs` runs on the reducer runtime, driving its animation from a `Subscription.interval`.
+
+- **Examples catalog published to hexdocs.** `examples/README.md` is now an `ExDoc` extra titled **Examples**, grouped by folder with a "Start here" on-ramp, so the catalog is reachable from the published docs and not just GitHub.
+
+- **`usage-rules.md` ships in the Hex package** (and as a docs extra) for downstream AI-agent context.
+
+- **Elixir 1.20 compatibility** — 1.20 compiler warnings are resolved and 1.20 is part of the CI matrix.
+
+### Changed
+
+- **Examples reorganized into grouped subfolders.** The flat `examples/` directory is now grouped into `basics/`, `widgets/`, `layout/`, `apps/`, `cell_session/`, `images/`, and `observability/`. Run paths change accordingly — e.g. `mix run examples/counter_app.exs` is now `mix run examples/basics/counter_app.exs`. Notable moves and renames: the 1066-line `widget_showcase.exs` is **retired** in favor of the per-widget isolates above, `chat_interface.exs` → `apps/chat.exs`, `data_table.exs` → `widgets/table.exs`, and the Ecto `task_manager/` app → `apps/task_manager_db/`. The full mapping is reflected in the examples catalog.
+
+- **`native/ex_ratatui/Cargo.lock` is committed** for reproducible NIF builds from source.
+
 ## [0.10.1] - 2026-06-01
 
 ### Added
