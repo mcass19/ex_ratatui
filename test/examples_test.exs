@@ -13,10 +13,15 @@ defmodule ExRatatui.ExamplesTest do
               CheckboxDemo,
               CounterApp,
               CustomWidgetsExample,
+              MarkdownDemo,
+              PopupDemo,
               ReducerCounterApp,
               RichTextShowcase,
+              SlashCommandsDemo,
               SparklineDemo,
-              SystemMonitor
+              SystemMonitor,
+              ThrobberDemo,
+              WidgetListDemo
             ]}
 
   @examples_dir Path.expand("../examples", __DIR__)
@@ -95,8 +100,13 @@ defmodule ExRatatui.ExamplesTest do
     {"widgets/canvas.exs", CanvasDemo, :callbacks},
     {"widgets/chart.exs", ChartDemo, :callbacks},
     {"widgets/checkbox.exs", CheckboxDemo, :callbacks},
+    {"widgets/markdown.exs", MarkdownDemo, :callbacks},
+    {"widgets/popup.exs", PopupDemo, :callbacks},
     {"widgets/rich_text.exs", RichTextShowcase, :callbacks},
+    {"widgets/slash_commands.exs", SlashCommandsDemo, :callbacks},
     {"widgets/sparkline.exs", SparklineDemo, :callbacks},
+    {"widgets/throbber.exs", ThrobberDemo, :reducer},
+    {"widgets/widget_list.exs", WidgetListDemo, :callbacks},
     {"widgets/custom_widget.exs", CustomWidgetsExample, :callbacks}
   ]
 

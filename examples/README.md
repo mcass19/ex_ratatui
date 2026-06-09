@@ -46,6 +46,11 @@ Focused, copyable demos — each centered on one widget or text feature.
 | [`calendar.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/calendar.exs) | `mix run examples/widgets/calendar.exs` | `Calendar` month view with styled events and a movable cursor. Arrow keys move by day/week; Space toggles an event. |
 | [`canvas.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/canvas.exs) | `mix run examples/widgets/canvas.exs` | `Canvas` shapes (`Line`, `Circle`, `Rectangle`, `Points`) in a bounded space, plus a world map via `Canvas.Map` + `Label`. Arrow keys move a cursor point. |
 | [`checkbox.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/checkbox.exs) | `mix run examples/widgets/checkbox.exs` | `Checkbox` settings list with a moving cursor. Up/Down moves; Space toggles. |
+| [`markdown.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/markdown.exs) | `mix run examples/widgets/markdown.exs` | `Markdown` rendering bold/italic/lists/tables and a syntax-highlighted code block. Up/Down scrolls. |
+| [`throbber.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/throbber.exs) | `mix run examples/widgets/throbber.exs` | `Throbber` spinners, one per `throbber_set`, animated on the **reducer runtime** via a `Subscription.interval` tick. |
+| [`popup.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/popup.exs) | `mix run examples/widgets/popup.exs` | `Popup` overlaying a centered widget on the background, sized as a percentage of the area. Space toggles it. |
+| [`widget_list.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/widget_list.exs) | `mix run examples/widgets/widget_list.exs` | `WidgetList` composing heterogeneous, multi-line items (labels, paragraphs, markdown) in one scrollable column. Up/Down scrolls. |
+| [`slash_commands.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/slash_commands.exs) | `mix run examples/widgets/slash_commands.exs` | `SlashCommands` autocomplete: type `/` to match commands, Up/Down to select, Enter/Tab to complete. |
 
 ## Layout & styling
 
