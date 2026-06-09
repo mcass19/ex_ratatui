@@ -2,7 +2,7 @@ defmodule ExRatatui.ExamplesTest do
   use ExUnit.Case, async: true
 
   # These modules are compiled at runtime via `compile_example_modules/1`
-  # from examples/*.exs, so the compiler can't see them statically.
+  # from examples/**/*.exs, so the compiler can't see them statically.
   @compile {:no_warn_undefined,
             [
               ChatApp,
@@ -16,11 +16,22 @@ defmodule ExRatatui.ExamplesTest do
 
   @examples_dir Path.expand("../examples", __DIR__)
 
-  for path <- Path.wildcard(Path.expand("../examples/*.exs", __DIR__)) do
-    name = Path.basename(path, ".exs")
+  # The examples directory now uses subfolders. Walk it recursively, but skip
+  # the self-contained mix sub-projects: they ship their own mix.exs / config /
+  # test .exs files (and a `task_manager_db/` Ecto app), which must not be
+  # swept into the parse test. `burrito_demo/` is untracked but still on disk.
+  @excluded_prefixes ["apps/task_manager_db/", "burrito_demo/"]
 
-    test "#{name}.exs parses and compiles" do
-      path = Path.join(@examples_dir, unquote(name) <> ".exs")
+  example_files =
+    Path.join(@examples_dir, "**/*.exs")
+    |> Path.wildcard()
+    |> Enum.map(&Path.relative_to(&1, @examples_dir))
+    |> Enum.reject(fn rel -> Enum.any?(@excluded_prefixes, &String.starts_with?(rel, &1)) end)
+    |> Enum.sort()
+
+  for rel <- example_files do
+    test "#{rel} parses and compiles" do
+      path = Path.join(@examples_dir, unquote(rel))
       code = File.read!(path)
 
       assert {:ok, _ast} = Code.string_to_quoted(code, file: path)
@@ -37,8 +48,8 @@ defmodule ExRatatui.ExamplesTest do
   # script, compile them, and return the list of defined module names. This
   # keeps top-level `alias` directives (needed for struct expansion inside the
   # module) while skipping the tail-end runner code (start_link, receive, etc.).
-  defp compile_example_modules(filename) do
-    path = Path.join(@examples_dir, filename)
+  defp compile_example_modules(rel_path) do
+    path = Path.join(@examples_dir, rel_path)
     code = File.read!(path)
     {:ok, ast} = Code.string_to_quoted(code, file: path)
 
@@ -68,93 +79,42 @@ defmodule ExRatatui.ExamplesTest do
     end
   end
 
+  # App-based examples that are safe to drive headlessly: each starts under
+  # `test_mode`, renders at least once, and stops cleanly on `q`. New isolates
+  # that `use ExRatatui.App` get a row here as they are added.
+  @app_smoke_examples [
+    {"basics/counter_app.exs", CounterApp, :callbacks},
+    {"basics/reducer_counter_app.exs", ReducerCounterApp, :reducer},
+    {"widgets/widget_showcase.exs", WidgetShowcase, :callbacks},
+    {"widgets/rich_text.exs", RichTextShowcase, :callbacks},
+    {"widgets/custom_widget.exs", CustomWidgetsExample, :callbacks}
+  ]
+
   describe "App-based example smoke tests" do
-    test "counter_app starts, renders, and stops on quit event" do
-      compile_example_modules("counter_app.exs")
+    for {rel, mod, mode} <- @app_smoke_examples do
+      test "#{rel} starts, renders, and stops on quit event" do
+        compile_example_modules(unquote(rel))
 
-      {:ok, pid} = CounterApp.start_link(name: nil, test_mode: {40, 10})
-      ref = Process.monitor(pid)
+        {:ok, pid} = unquote(mod).start_link(name: nil, test_mode: {80, 24})
+        ref = Process.monitor(pid)
 
-      snapshot = ExRatatui.Runtime.snapshot(pid)
-      assert snapshot.mode == :callbacks
-      assert snapshot.render_count >= 1
+        snapshot = ExRatatui.Runtime.snapshot(pid)
+        assert snapshot.mode == unquote(mode)
+        assert snapshot.render_count >= 1
 
-      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      :ok = ExRatatui.Runtime.inject_event(pid, quit)
+        quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
+        :ok = ExRatatui.Runtime.inject_event(pid, quit)
 
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
-    end
-
-    test "reducer_counter_app starts, renders, and stops on quit event" do
-      compile_example_modules("reducer_counter_app.exs")
-
-      {:ok, pid} = ReducerCounterApp.start_link(name: nil, test_mode: {40, 10})
-      ref = Process.monitor(pid)
-
-      snapshot = ExRatatui.Runtime.snapshot(pid)
-      assert snapshot.mode == :reducer
-      assert snapshot.render_count >= 1
-
-      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      :ok = ExRatatui.Runtime.inject_event(pid, quit)
-
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
-    end
-
-    test "widget_showcase starts, renders, and stops on Ctrl+C" do
-      compile_example_modules("widget_showcase.exs")
-
-      {:ok, pid} = WidgetShowcase.start_link(name: nil, test_mode: {80, 24})
-      ref = Process.monitor(pid)
-
-      snapshot = ExRatatui.Runtime.snapshot(pid)
-      assert snapshot.mode == :callbacks
-      assert snapshot.render_count >= 1
-
-      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      :ok = ExRatatui.Runtime.inject_event(pid, quit)
-
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
-    end
-
-    test "rich_text_showcase starts, renders, and stops on quit event" do
-      compile_example_modules("rich_text_showcase.exs")
-
-      {:ok, pid} = RichTextShowcase.start_link(name: nil, test_mode: {80, 24})
-      ref = Process.monitor(pid)
-
-      snapshot = ExRatatui.Runtime.snapshot(pid)
-      assert snapshot.mode == :callbacks
-      assert snapshot.render_count >= 1
-
-      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      :ok = ExRatatui.Runtime.inject_event(pid, quit)
-
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
-    end
-
-    test "custom_widgets starts, renders, and stops on quit event" do
-      compile_example_modules("custom_widgets.exs")
-
-      {:ok, pid} = CustomWidgetsExample.start_link(name: nil, test_mode: {80, 24})
-      ref = Process.monitor(pid)
-
-      snapshot = ExRatatui.Runtime.snapshot(pid)
-      assert snapshot.mode == :callbacks
-      assert snapshot.render_count >= 1
-
-      quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
-      :ok = ExRatatui.Runtime.inject_event(pid, quit)
-
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+        assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+      end
     end
 
     # system_monitor reads from /proc, /sys, :os.cmd("df"), :inet.getifaddrs.
     # All readers fall back to safe defaults (nil / %{total: 0, used: 0} / [])
     # when the source is missing, so the test doesn't need to mock the host —
     # it just has to tolerate both "real Linux box" and "CI sandbox" outcomes.
-    test "system_monitor starts, renders, and stops on quit event" do
-      compile_example_modules("system_monitor.exs")
+    test "apps/system_monitor.exs starts, renders, and stops on quit event" do
+      compile_example_modules("apps/system_monitor.exs")
 
       {:ok, pid} = SystemMonitor.start_link(name: nil, test_mode: {80, 24})
       ref = Process.monitor(pid)
@@ -179,7 +139,7 @@ defmodule ExRatatui.ExamplesTest do
     end
   end
 
-  # chat_interface uses the raw `ExRatatui.run/1 + poll_event` loop — no
+  # apps/chat.exs uses the raw `ExRatatui.run/1 + poll_event` loop — no
   # `use ExRatatui.App`, so there's no Server to start_link and no
   # `test_mode` seam. Instead we compile the module, then exercise the
   # two public pieces the example depends on against a test terminal:
@@ -192,8 +152,8 @@ defmodule ExRatatui.ExamplesTest do
     alias ExRatatui.Widgets.SlashCommands
     alias ExRatatui.Widgets.SlashCommands.Command
 
-    test "chat_interface compiles and its widget stack draws to a test terminal" do
-      compile_example_modules("chat_interface.exs")
+    test "apps/chat.exs compiles and its widget stack draws to a test terminal" do
+      compile_example_modules("apps/chat.exs")
 
       # The compiled module must expose `run/0`, the raw entry point.
       assert function_exported?(ChatApp, :run, 0)
