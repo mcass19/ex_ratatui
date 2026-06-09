@@ -39,7 +39,11 @@ defmodule StateMachineDemo do
   @impl true
   def render(state, frame) do
     area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
-    base = render_screen(state.screen, state, area)
+
+    [body_area, footer_area] = Layout.split(area, :vertical, [{:min, 0}, {:length, 1}])
+
+    base =
+      render_screen(state.screen, state, body_area) ++ [{footer(state.screen), footer_area}]
 
     case state.overlay do
       nil -> base
@@ -49,7 +53,7 @@ defmodule StateMachineDemo do
 
   defp render_screen(:main, _state, area) do
     body = %Paragraph{
-      text: "\n  Main screen.\n\n  s = settings\n  q = quit",
+      text: "\n  Main screen — the underlying app.\n\n  Press s to open Settings.",
       style: %Style{fg: :white},
       block: block(" Main ", :cyan)
     }
@@ -72,22 +76,37 @@ defmodule StateMachineDemo do
         }
       end)
 
-    [header_area | rows] =
+    inner = %Rect{
+      x: area.x + 2,
+      y: area.y + 1,
+      width: max(area.width - 4, 0),
+      height: max(area.height - 2, 0)
+    }
+
+    [title_area | rows] =
       Layout.split(
-        area,
+        inner,
         :vertical,
         [{:length, 2} | Enum.map(items, fn _ -> {:length, 1} end)] ++ [{:min, 0}]
       )
 
-    header = %Paragraph{
-      text: "  Settings (Esc = back)",
-      style: %Style{fg: :cyan, modifiers: [:bold]},
-      block: block(" Settings ", :cyan)
-    }
+    frame_widget = %Paragraph{text: "", block: block(" Settings ", :cyan)}
+    title = %Paragraph{text: "  Settings", style: %Style{fg: :cyan, modifiers: [:bold]}}
 
     rows = Enum.drop(rows, -1)
 
-    [{header, header_area} | Enum.zip(items, rows)]
+    [{frame_widget, area}, {title, title_area} | Enum.zip(items, rows)]
+  end
+
+  defp footer(:main) do
+    %Paragraph{text: "  s = settings    q = quit", style: %Style{fg: :dark_gray}}
+  end
+
+  defp footer(:settings) do
+    %Paragraph{
+      text: "  Up/Down = move    Space = toggle    Esc = back    q = quit",
+      style: %Style{fg: :dark_gray}
+    }
   end
 
   defp confirm_quit_popup(area) do
@@ -113,13 +132,18 @@ defmodule StateMachineDemo do
 
   @impl true
   def handle_event(event, %{overlay: :confirm_quit} = state), do: handle_overlay(event, state)
+
+  # q is a global quit from any base screen — opens the confirm overlay.
+  def handle_event(%Event.Key{code: "q", kind: "press"}, state),
+    do: {:noreply, %{state | overlay: :confirm_quit}}
+
   def handle_event(event, %{screen: :main} = state), do: handle_main(event, state)
   def handle_event(event, %{screen: :settings} = state), do: handle_settings(event, state)
   def handle_event(_event, state), do: {:noreply, state}
 
   defp handle_overlay(%Event.Key{code: "y", kind: "press"}, state), do: {:stop, state}
 
-  defp handle_overlay(%Event.Key{code: code, kind: "press"}, state) when code in ["n", "escape"],
+  defp handle_overlay(%Event.Key{code: code, kind: "press"}, state) when code in ["n", "esc"],
     do: {:noreply, %{state | overlay: nil}}
 
   defp handle_overlay(_event, state), do: {:noreply, state}
@@ -127,12 +151,9 @@ defmodule StateMachineDemo do
   defp handle_main(%Event.Key{code: "s", kind: "press"}, state),
     do: {:noreply, %{state | screen: :settings, cursor: 0}}
 
-  defp handle_main(%Event.Key{code: "q", kind: "press"}, state),
-    do: {:noreply, %{state | overlay: :confirm_quit}}
-
   defp handle_main(_event, state), do: {:noreply, state}
 
-  defp handle_settings(%Event.Key{code: "escape", kind: "press"}, state),
+  defp handle_settings(%Event.Key{code: "esc", kind: "press"}, state),
     do: {:noreply, %{state | screen: :main}}
 
   defp handle_settings(%Event.Key{code: code, kind: "press"}, state) when code in ["down", "j"],

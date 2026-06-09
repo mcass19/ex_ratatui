@@ -1,8 +1,8 @@
 # Examples
 
-A catalog of runnable ExRatatui examples, grouped by folder. Each example stands alone — copy any one as a starting point.
+A catalog of runnable ExRatatui examples, grouped by folder. Each example stands alone, copy any one as a starting point.
 
-Most examples run under a real terminal. The two under `cell_session/` are **headless**: they drive `ExRatatui.CellSession` (a `TestBackend`-backed sibling of `ExRatatui.Session`) and print to stdout, so they never touch a tty and exit cleanly.
+Most examples run under a real terminal. The two under `cell_session/` are **headless**: they drive `ExRatatui.CellSession` and print to stdout, so they never touch a tty and exit cleanly.
 
 Some terminal examples also work over SSH (`--ssh`) or Erlang distribution (`--distributed`); the flag is noted where it applies (see the bottom of this file).
 
@@ -126,4 +126,4 @@ iex --sname local --cookie demo -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
-The app node runs the BEAM logic; the client node owns the terminal (and the NIF). Ideal for Nerves-on-a-box workflows where the device has no human console. See [Running TUIs over Erlang Distribution](../guides/distributed_transport.md).
+The app node runs the BEAM logic; the client node owns the terminal (and the NIF). See [Running TUIs over Erlang Distribution](../guides/distributed_transport.md).

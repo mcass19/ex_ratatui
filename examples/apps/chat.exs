@@ -147,7 +147,7 @@ defmodule ChatApp do
     end
   end
 
-  defp handle_key(state, %Event.Key{code: "escape"}) do
+  defp handle_key(state, %Event.Key{code: "esc"}) do
     if state.show_autocomplete do
       %{state | show_autocomplete: false}
     else

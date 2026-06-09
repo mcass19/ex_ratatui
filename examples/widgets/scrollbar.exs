@@ -4,7 +4,6 @@
 # Controls: Up/Down = move selection (scrollbar tracks it), q = quit
 
 alias ExRatatui.Event
-alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
 alias ExRatatui.Widgets.{Block, List, Scrollbar}

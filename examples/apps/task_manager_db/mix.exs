@@ -25,7 +25,7 @@ defmodule TaskManager.MixProject do
 
   defp deps do
     [
-      {:ex_ratatui, path: "../.."},
+      {:ex_ratatui, path: "../../.."},
       {:rustler, ">= 0.0.0", optional: true},
       {:ecto_sqlite3, "~> 0.17"}
     ]

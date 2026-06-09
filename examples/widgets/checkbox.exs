@@ -7,7 +7,7 @@ alias ExRatatui.Event
 alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
-alias ExRatatui.Widgets.{Block, Checkbox, Paragraph}
+alias ExRatatui.Widgets.{Checkbox, Paragraph}
 
 defmodule CheckboxDemo do
   use ExRatatui.App

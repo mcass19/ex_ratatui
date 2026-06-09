@@ -9,7 +9,6 @@
 # is the primitive for hand-rolled overlays.)
 
 alias ExRatatui.Event
-alias ExRatatui.Layout
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
 alias ExRatatui.Widgets.{Block, Clear, Paragraph}

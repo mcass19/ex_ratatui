@@ -92,7 +92,7 @@ defmodule TaskManager.TUI do
 
     input_height = if state.input_mode == :new_task, do: 3, else: 0
 
-    [header_area, tabs_area, body_area, input_area, gauge_area, footer_area] =
+    [header_area, tabs_area, %Rect{} = body_area, input_area, gauge_area, footer_area] =
       Layout.split(area, :vertical, [
         {:length, 3},
         {:length, 3},

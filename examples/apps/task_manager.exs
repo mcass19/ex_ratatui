@@ -90,7 +90,7 @@ defmodule TaskTracker do
       ])
 
     # Body: sidebar (team list) | main (task table)
-    [sidebar_area, main_area] =
+    [sidebar_area, %Rect{} = main_area] =
       Layout.split(body_area, :horizontal, [{:percentage, 25}, {:percentage, 75}])
 
     # Task table area: table + scrollbar

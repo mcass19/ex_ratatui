@@ -25,7 +25,7 @@ defmodule SlashCommandsDemo do
 
   @impl true
   def mount(_opts) do
-    {:ok, %{input: ExRatatui.text_input_new(), show: false, matches: [], selected: 0}}
+    {:ok, %{input: ExRatatui.text_input_new(), show: false, matches: [], selected: 0, last: nil}}
   end
 
   @impl true
@@ -49,9 +49,13 @@ defmodule SlashCommandsDemo do
       }
     }
 
+    selected_line =
+      if state.last, do: "  Selected: /#{state.last}\n\n", else: ""
+
     help = %Paragraph{
       text:
-        "  Type \"/\" to trigger autocomplete.\n" <>
+        selected_line <>
+          "  Type \"/\" to trigger autocomplete.\n" <>
           "  Up/Down = select   Enter/Tab = complete   Esc = dismiss\n" <>
           "  q = quit (when the input is empty)",
       style: %Style{fg: :dark_gray}
@@ -79,7 +83,7 @@ defmodule SlashCommandsDemo do
   def handle_event(%Event.Key{code: "c", modifiers: ["ctrl"], kind: "press"}, state),
     do: {:stop, state}
 
-  def handle_event(%Event.Key{code: "escape", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "esc", kind: "press"}, state),
     do: {:noreply, %{state | show: false}}
 
   def handle_event(%Event.Key{code: code, kind: "press"}, %{show: true} = state)
@@ -93,8 +97,11 @@ defmodule SlashCommandsDemo do
       when code in ["enter", "tab"] do
     case Enum.at(state.matches, state.selected) do
       %Command{name: name} ->
-        ExRatatui.text_input_set_value(state.input, "/#{name} ")
-        {:noreply, %{state | show: false, matches: []}}
+        # Clear the input rather than stuffing "/name " back in — a completed
+        # command still parses as a prefix and would immediately re-open the
+        # popup. Record the choice and show it instead.
+        ExRatatui.text_input_set_value(state.input, "")
+        {:noreply, %{state | show: false, matches: [], last: name}}
 
       nil ->
         {:noreply, state}

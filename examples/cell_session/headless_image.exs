@@ -10,7 +10,7 @@
 #
 # Image source mirrors examples/images/image_demo.exs:
 #   - IMAGE_PATH env var, or
-#   - https://picsum.photos/200/100, or
+#   - https://picsum.photos/400/300, or
 #   - a 1x1 magenta fallback
 
 alias ExRatatui.CellSession
@@ -27,7 +27,7 @@ defmodule HeadlessImage do
   end
 
   defp fetch_or_fallback do
-    case fetch("https://picsum.photos/200/100") do
+    case fetch("https://picsum.photos/400/300") do
       {:ok, bytes} -> bytes
       _ -> fallback_png()
     end
@@ -63,12 +63,20 @@ end
 bytes = HeadlessImage.load_bytes()
 {:ok, image} = Image.new(bytes, resize: :fit)
 
-# 80×40 cells × halfblocks → 80×80 image-pixels of effective output
-# resolution, which is the practical ceiling for what halfblocks can
-# convey from a 200×100 source. Smaller grids look more obviously
-# blocky; larger ones run off the bottom of most terminal windows.
-session = CellSession.new(80, 40)
-:ok = CellSession.draw(session, [{image, %Rect{x: 0, y: 0, width: 80, height: 40}}])
+# Size the grid to where the image will actually land instead of a fixed
+# 80×40. `:fit` preserves aspect ratio and never upscales, so a fixed grid
+# larger than the source leaves the image stranded in the top-left corner
+# with the rest blank. `Image.render_size/4` mirrors ratatui-image's own
+# fit math: feed it the source dimensions, a generous cell ceiling, and the
+# halfblocks default font size ({10, 20}), and it returns the rendered pixel
+# size — which we convert back to a snug cell grid.
+font = {10, 20}
+{out_w, out_h} = Image.render_size(Image.dimensions(image), {120, 60}, font, :fit)
+cols = max(1, div(out_w, elem(font, 0)))
+rows = max(1, div(out_h, elem(font, 1)))
+
+session = CellSession.new(cols, rows)
+:ok = CellSession.draw(session, [{image, %Rect{x: 0, y: 0, width: cols, height: rows}}])
 
 %Snapshot{width: w, cells: cells} = CellSession.take_cells(session)
 :ok = CellSession.close(session)
