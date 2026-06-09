@@ -1,5 +1,5 @@
 # Example: renders a paragraph and waits for any key to exit.
-# Run with: mix run examples/hello_world.exs
+# Run with: mix run examples/basics/hello_world.exs
 
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style

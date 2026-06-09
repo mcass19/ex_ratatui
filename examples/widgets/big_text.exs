@@ -2,7 +2,7 @@
 # color and title at runtime to see how each variant looks.
 #
 # Run with:
-#   mix run examples/big_text_demo.exs
+#   mix run examples/widgets/big_text.exs
 #
 # Controls:
 #   p — cycle pixel size  (full / half_height / half_width / quadrant /

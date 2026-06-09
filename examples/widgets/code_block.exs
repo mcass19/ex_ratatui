@@ -3,7 +3,7 @@
 # bundled syntect themes.
 #
 # Run with:
-#   mix run examples/code_block_demo.exs
+#   mix run examples/widgets/code_block.exs
 #
 # Controls:
 #   t — cycle theme       (base16-ocean-dark / -light / eighties-dark / mocha-dark

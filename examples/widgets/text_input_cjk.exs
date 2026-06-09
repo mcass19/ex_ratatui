@@ -1,5 +1,5 @@
 # Example: TextInput with double-width (CJK) characters.
-# Run with: EX_RATATUI_BUILD=1 mix run examples/text_input_cjk.exs
+# Run with: EX_RATATUI_BUILD=1 mix run examples/widgets/text_input_cjk.exs
 #
 # Demonstrates how the TextInput viewport scrolls correctly when its value
 # contains double-width characters (CJK ideographs, full-width punctuation,

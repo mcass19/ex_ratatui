@@ -11,7 +11,7 @@
 # weights — third panel three times wider than the first.
 #
 # Press q or Esc to quit.
-# Run with:  mix run examples/layout_flex_demo.exs
+# Run with:  mix run examples/layout/flex.exs
 
 alias ExRatatui.{Event, Layout, Style, Theme}
 alias ExRatatui.Layout.Rect

@@ -4,7 +4,7 @@
 # text; a Dashboard custom widget arranges several UserCards and exercises
 # the expander's recursive flattening.
 #
-# Run with: mix run examples/custom_widgets.exs
+# Run with: mix run examples/widgets/custom_widget.exs
 #
 # Controls: up/down = move selection, q = quit
 

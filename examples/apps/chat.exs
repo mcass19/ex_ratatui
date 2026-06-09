@@ -3,7 +3,7 @@
 # Demonstrates all new widgets: Markdown, Textarea, Throbber, Popup,
 # WidgetList, and SlashCommands in a working AI chat interface.
 #
-# Run with: mix run examples/chat_interface.exs
+# Run with: mix run examples/apps/chat.exs
 #
 # Controls:
 #   Ctrl+S       — send message

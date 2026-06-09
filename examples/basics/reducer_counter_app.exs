@@ -1,7 +1,7 @@
 defmodule ReducerCounterApp do
   @moduledoc """
   Example: supervised counter using the reducer runtime.
-  Run with: mix run examples/reducer_counter_app.exs
+  Run with: mix run examples/basics/reducer_counter_app.exs
 
   Controls: Up/k = increment, Down/j = decrement, q = quit
 

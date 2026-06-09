@@ -1,11 +1,11 @@
 # Example: interactive image rendering demo, runnable on every transport.
 #
 # Run modes:
-#   mix run examples/image_demo.exs                # local terminal
-#   mix run --no-halt examples/image_demo.exs --ssh       # serve over SSH
-#   mix run --no-halt examples/image_demo.exs --ssh 2223  # custom port
+#   mix run examples/images/image_demo.exs                # local terminal
+#   mix run --no-halt examples/images/image_demo.exs --ssh       # serve over SSH
+#   mix run --no-halt examples/images/image_demo.exs --ssh 2223  # custom port
 #   elixir --sname app --cookie demo -S mix run --no-halt \
-#     examples/image_demo.exs --distributed         # serve over Erlang distribution
+#     examples/images/image_demo.exs --distributed         # serve over Erlang distribution
 #
 # Controls (all transports):
 #   p — cycle protocol (auto / halfblocks / kitty / sixel / iterm2)
@@ -266,7 +266,7 @@ defmodule ImageDemo.Runner do
       Start it with --sname or --name:
 
           elixir --sname app --cookie demo -S mix run --no-halt \\
-            examples/image_demo.exs --distributed
+            examples/images/image_demo.exs --distributed
       """)
 
       System.halt(1)

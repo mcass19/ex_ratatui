@@ -5,7 +5,7 @@
 # shows the simplest possible consumer of cells: walk the snapshot,
 # print the symbol grid as plain text.
 #
-# Run with: mix run examples/cell_dump.exs
+# Run with: mix run examples/cell_session/cell_dump.exs
 
 alias ExRatatui.CellSession
 alias ExRatatui.CellSession.Snapshot

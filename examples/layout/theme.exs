@@ -16,7 +16,7 @@
 #   1 / 2 / 3   switch theme (default / light / custom)
 #   Esc / q     quit
 #
-# Run with:  mix run examples/theme_picker.exs
+# Run with:  mix run examples/layout/theme.exs
 
 alias ExRatatui.{Event, Layout, Style, Theme}
 alias ExRatatui.Layout.Rect

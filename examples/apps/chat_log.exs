@@ -29,7 +29,7 @@
 #   Ctrl+L               clear the log (resets unread to 0)
 #   Esc                  quit
 #
-# Run with:  mix run examples/chat_log.exs
+# Run with:  mix run examples/apps/chat_log.exs
 
 alias ExRatatui.{Event, Focus, Layout, Style, Theme}
 alias ExRatatui.Layout.{Padding, Rect}

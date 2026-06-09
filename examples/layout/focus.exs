@@ -19,7 +19,7 @@
 #     another window and the footer shows "window in background".
 #   * Esc quits.
 #
-# Run with:  mix run examples/focus_multi_panel.exs
+# Run with:  mix run examples/layout/focus.exs
 
 alias ExRatatui.{Event, Focus, Layout, Style, Theme}
 alias ExRatatui.Layout.Rect

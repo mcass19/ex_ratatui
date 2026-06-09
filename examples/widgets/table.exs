@@ -18,7 +18,7 @@
 #   h         toggle header_style emphasis
 #   Esc / q   quit
 #
-# Run with:  mix run examples/data_table.exs
+# Run with:  mix run examples/widgets/table.exs
 
 alias ExRatatui.{Event, Layout, Style, Theme}
 alias ExRatatui.Layout.Rect

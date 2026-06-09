@@ -1,5 +1,5 @@
 # Example: interactive counter with key events.
-# Run with: mix run examples/counter.exs
+# Run with: mix run examples/basics/counter.exs
 #
 # Controls: Up/k = increment, Down/j = decrement, q = quit
 

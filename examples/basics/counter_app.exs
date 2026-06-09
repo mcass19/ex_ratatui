@@ -1,5 +1,5 @@
 # Example: supervised counter using ExRatatui.App.
-# Run with: mix run examples/counter_app.exs
+# Run with: mix run examples/basics/counter_app.exs
 #
 # Controls: Up/k = increment, Down/j = decrement, q = quit
 #

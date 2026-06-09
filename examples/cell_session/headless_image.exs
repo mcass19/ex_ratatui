@@ -6,9 +6,9 @@
 # (not escape sequences), images always render via halfblocks here,
 # regardless of any :protocol opt set at construction.
 #
-# Run with: mix run examples/headless_image.exs
+# Run with: mix run examples/cell_session/headless_image.exs
 #
-# Image source mirrors examples/image_demo.exs:
+# Image source mirrors examples/images/image_demo.exs:
 #   - IMAGE_PATH env var, or
 #   - https://picsum.photos/200/100, or
 #   - a 1x1 magenta fallback

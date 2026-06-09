@@ -6,7 +6,7 @@
 #
 #  1) Local terminal (what you usually want):
 #
-#         mix run examples/system_monitor.exs
+#         mix run examples/apps/system_monitor.exs
 #
 #  2) Over SSH — generates a throwaway host key and listens on 2222
 #     with user/password "demo/demo". Connect from another terminal
@@ -14,15 +14,15 @@
 #     inside the TUI disconnects *that* client but the daemon keeps
 #     running, so multiple clients can attach concurrently.
 #
-#         mix run --no-halt examples/system_monitor.exs --ssh
-#         mix run --no-halt examples/system_monitor.exs --ssh 2223
+#         mix run --no-halt examples/apps/system_monitor.exs --ssh
+#         mix run --no-halt examples/apps/system_monitor.exs --ssh 2223
 #
 #  3) Over Erlang distribution — starts a Listener that waits for
 #     remote nodes to attach. From another node, call
 #     `ExRatatui.Distributed.attach(:"app@host", SystemMonitor)`.
 #
 #         elixir --sname app --cookie demo -S mix run --no-halt \
-#           examples/system_monitor.exs --distributed
+#           examples/apps/system_monitor.exs --distributed
 #
 # Controls: q = quit, r = refresh (auto-refreshes every 2 seconds).
 #
@@ -504,7 +504,7 @@ defmodule SystemMonitor.Runner do
       Start it with --sname or --name:
 
           elixir --sname app --cookie demo -S mix run --no-halt \\
-            examples/system_monitor.exs --distributed
+            examples/apps/system_monitor.exs --distributed
       """)
 
       System.halt(1)

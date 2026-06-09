@@ -1,6 +1,6 @@
 # Example: Rich Text Showcase — demonstrates per-span styling on Paragraph,
 # List, Table, Tabs, and Block titles via ExRatatui.Text.{Span, Line}.
-# Run with: mix run examples/rich_text_showcase.exs
+# Run with: mix run examples/widgets/rich_text.exs
 #
 # Controls: Tab/Shift+Tab = switch tabs, q = quit
 
