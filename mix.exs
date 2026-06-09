@@ -113,6 +113,7 @@ defmodule ExRatatui.MixProject do
         "README.md": [title: "Overview"],
         "usage-rules.md": [title: "Usage Rules (for AI agents)"],
         "guides/getting_started.md": [title: "Getting Started"],
+        "examples/README.md": [title: "Examples", filename: "examples"],
         "guides/building_uis.md": [title: "Building UIs"],
         "guides/callback_runtime.md": [title: "Callback Runtime"],
         "guides/reducer_runtime.md": [title: "Reducer Runtime"],
