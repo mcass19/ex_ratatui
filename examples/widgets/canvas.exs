@@ -84,16 +84,16 @@ defmodule CanvasDemo do
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state), do: {:stop, state}
 
-  def handle_event(%Event.Key{code: "Right", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "right", kind: "press"}, state),
     do: {:noreply, move(state, 5.0, 0.0)}
 
-  def handle_event(%Event.Key{code: "Left", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "left", kind: "press"}, state),
     do: {:noreply, move(state, -5.0, 0.0)}
 
-  def handle_event(%Event.Key{code: "Up", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "up", kind: "press"}, state),
     do: {:noreply, move(state, 0.0, 5.0)}
 
-  def handle_event(%Event.Key{code: "Down", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "down", kind: "press"}, state),
     do: {:noreply, move(state, 0.0, -5.0)}
 
   def handle_event(_event, state), do: {:noreply, state}

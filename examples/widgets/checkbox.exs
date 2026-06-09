@@ -78,11 +78,11 @@ defmodule CheckboxDemo do
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state), do: {:stop, state}
 
-  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["Down", "j"] do
+  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["down", "j"] do
     {:noreply, %{state | cursor: rem(state.cursor + 1, length(state.settings))}}
   end
 
-  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["Up", "k"] do
+  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["up", "k"] do
     {:noreply,
      %{state | cursor: rem(state.cursor - 1 + length(state.settings), length(state.settings))}}
   end

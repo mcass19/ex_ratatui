@@ -84,16 +84,16 @@ defmodule CalendarDemo do
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state), do: {:stop, state}
 
-  def handle_event(%Event.Key{code: "Right", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "right", kind: "press"}, state),
     do: {:noreply, %{state | date: Date.add(state.date, 1)}}
 
-  def handle_event(%Event.Key{code: "Left", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "left", kind: "press"}, state),
     do: {:noreply, %{state | date: Date.add(state.date, -1)}}
 
-  def handle_event(%Event.Key{code: "Down", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "down", kind: "press"}, state),
     do: {:noreply, %{state | date: Date.add(state.date, 7)}}
 
-  def handle_event(%Event.Key{code: "Up", kind: "press"}, state),
+  def handle_event(%Event.Key{code: "up", kind: "press"}, state),
     do: {:noreply, %{state | date: Date.add(state.date, -7)}}
 
   def handle_event(%Event.Key{code: " ", kind: "press"}, state) do

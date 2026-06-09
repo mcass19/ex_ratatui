@@ -134,11 +134,11 @@ defmodule BarChartDemo do
   @impl true
   def handle_event(%Event.Key{code: "q", kind: "press"}, state), do: {:stop, state}
 
-  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["Right", "l"] do
+  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["right", "l"] do
     {:noreply, %{state | cursor: rem(state.cursor + 1, length(@traffic))}}
   end
 
-  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["Left", "h"] do
+  def handle_event(%Event.Key{code: code, kind: "press"}, state) when code in ["left", "h"] do
     {:noreply, %{state | cursor: rem(state.cursor - 1 + length(@traffic), length(@traffic))}}
   end
 
