@@ -51,6 +51,11 @@ Focused, copyable demos — each centered on one widget or text feature.
 | [`popup.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/popup.exs) | `mix run examples/widgets/popup.exs` | `Popup` overlaying a centered widget on the background, sized as a percentage of the area. Space toggles it. |
 | [`widget_list.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/widget_list.exs) | `mix run examples/widgets/widget_list.exs` | `WidgetList` composing heterogeneous, multi-line items (labels, paragraphs, markdown) in one scrollable column. Up/Down scrolls. |
 | [`slash_commands.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/slash_commands.exs) | `mix run examples/widgets/slash_commands.exs` | `SlashCommands` autocomplete: type `/` to match commands, Up/Down to select, Enter/Tab to complete. |
+| [`gauge.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/gauge.exs) | `mix run examples/widgets/gauge.exs` | `Gauge` block progress bars with percentage labels. Up/Down adjusts the top gauge. |
+| [`line_gauge.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/line_gauge.exs) | `mix run examples/widgets/line_gauge.exs` | `LineGauge` single-line bars (`filled_style`/`unfilled_style`) stacked as a metrics panel. Up/Down adjusts CPU. |
+| [`scrollbar.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/scrollbar.exs) | `mix run examples/widgets/scrollbar.exs` | `Scrollbar` bound to a scrollable `List` — its thumb tracks the selected position. Up/Down moves. |
+| [`tabs.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/tabs.exs) | `mix run examples/widgets/tabs.exs` | `Tabs` bar selecting between content panes. Left/Right or Tab switches the active tab. |
+| [`list.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/list.exs) | `mix run examples/widgets/list.exs` | `List` with a selection highlight and `highlight_symbol`. Up/Down moves; g/G jumps to top/bottom. |
 
 ## Layout & styling
 
@@ -88,6 +93,15 @@ Non-terminal rendering — drive `ExRatatui.CellSession` and consume the cell bu
 | Example | Run | What to see |
 |---------|-----|-------------|
 | [`image_demo.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/images/image_demo.exs) | `mix run examples/images/image_demo.exs` | Interactive image renderer. Loads a photo (picsum.photos or `IMAGE_PATH`) and toggles protocol (auto/halfblocks/kitty/sixel/iterm2) and resize mode (fit/crop/scale) at runtime. Status panel shows live render output dimensions. Also supports `--ssh` and `--distributed`. |
+
+## Observability & patterns
+
+Runnable companions to the Telemetry and State Machine guides.
+
+| Example | Run | What to see |
+|---------|-----|-------------|
+| [`telemetry.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/telemetry.exs) | `mix run examples/observability/telemetry.exs` | A TUI that attaches a `:telemetry` handler to its own runtime/render `:stop` events and renders the live counts. Pairs with [Telemetry](../guides/telemetry.md). |
+| [`state_machine.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/state_machine.exs) | `mix run examples/observability/state_machine.exs` | Screen-as-data dispatch (`:main`/`:settings`) with a modal `:overlay` that intercepts input — a confirm-quit `Popup`. Pairs with [State Machine Patterns](../guides/state_machines.md). |
 
 ## Try an example over SSH
 

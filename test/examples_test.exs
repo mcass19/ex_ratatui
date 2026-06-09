@@ -13,13 +13,20 @@ defmodule ExRatatui.ExamplesTest do
               CheckboxDemo,
               CounterApp,
               CustomWidgetsExample,
+              GaugeDemo,
+              LineGaugeDemo,
+              ListDemo,
               MarkdownDemo,
               PopupDemo,
               ReducerCounterApp,
               RichTextShowcase,
+              ScrollbarDemo,
               SlashCommandsDemo,
               SparklineDemo,
+              StateMachineDemo,
               SystemMonitor,
+              TabsDemo,
+              TelemetryDemo,
               ThrobberDemo,
               WidgetListDemo
             ]}
@@ -107,7 +114,13 @@ defmodule ExRatatui.ExamplesTest do
     {"widgets/sparkline.exs", SparklineDemo, :callbacks},
     {"widgets/throbber.exs", ThrobberDemo, :reducer},
     {"widgets/widget_list.exs", WidgetListDemo, :callbacks},
-    {"widgets/custom_widget.exs", CustomWidgetsExample, :callbacks}
+    {"widgets/custom_widget.exs", CustomWidgetsExample, :callbacks},
+    {"widgets/gauge.exs", GaugeDemo, :callbacks},
+    {"widgets/line_gauge.exs", LineGaugeDemo, :callbacks},
+    {"widgets/scrollbar.exs", ScrollbarDemo, :callbacks},
+    {"widgets/tabs.exs", TabsDemo, :callbacks},
+    {"widgets/list.exs", ListDemo, :callbacks},
+    {"observability/telemetry.exs", TelemetryDemo, :callbacks}
   ]
 
   describe "App-based example smoke tests" do
@@ -154,6 +167,30 @@ defmodule ExRatatui.ExamplesTest do
 
       quit = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
       :ok = ExRatatui.Runtime.inject_event(pid, quit)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+    end
+
+    # state_machine's "q" opens a confirm-quit overlay instead of quitting, so
+    # the generic table can't drive it. Walk the modal flow: q opens it, y
+    # confirms and stops.
+    test "observability/state_machine.exs opens the quit modal and stops on confirm" do
+      compile_example_modules("observability/state_machine.exs")
+
+      {:ok, pid} = StateMachineDemo.start_link(name: nil, test_mode: {80, 24})
+      ref = Process.monitor(pid)
+
+      assert ExRatatui.Runtime.snapshot(pid).render_count >= 1
+
+      # q opens the overlay but must NOT stop the app.
+      quit_key = %ExRatatui.Event.Key{code: "q", modifiers: [], kind: "press"}
+      :ok = ExRatatui.Runtime.inject_event(pid, quit_key)
+      _ = :sys.get_state(pid)
+      refute_received {:DOWN, ^ref, :process, ^pid, _}
+
+      # y confirms and the app shuts down cleanly.
+      confirm = %ExRatatui.Event.Key{code: "y", modifiers: [], kind: "press"}
+      :ok = ExRatatui.Runtime.inject_event(pid, confirm)
 
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
     end
