@@ -107,16 +107,16 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
 
 ## Examples
 
-* [`examples/image_demo.exs`](../examples/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
+* [`examples/images/image_demo.exs`](../examples/images/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
 
   ```sh
-  mix run examples/image_demo.exs                # local terminal
-  mix run --no-halt examples/image_demo.exs --ssh
+  mix run examples/images/image_demo.exs                # local terminal
+  mix run --no-halt examples/images/image_demo.exs --ssh
   elixir --sname app --cookie demo -S mix run --no-halt \
-    examples/image_demo.exs --distributed
+    examples/images/image_demo.exs --distributed
   ```
 
-* [`examples/headless_image.exs`](../examples/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
+* [`examples/cell_session/headless_image.exs`](../examples/cell_session/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
 
 Both accept an `IMAGE_PATH` env var, default to fetching from `picsum.photos` once at startup, and fall back to an embedded 1×1 PNG if the network is unreachable. The SSH demo also honors `IMAGE_PROTOCOL` / `IMAGE_FONT_W` / `IMAGE_FONT_H` env vars.
 
@@ -143,7 +143,7 @@ Both `:fit` and `:crop` clamp output to the **source image's natural pixel size*
 
 The difference between `:fit` and `:crop` only manifests when the **source is *larger* than the target** on at least one axis: `:fit` shrinks to fit (whole image visible, letterboxed); `:crop` keeps natural size and shows a window into the source corner.
 
-This is upstream ratatui-image behavior in `Resize::needs_resize_pixels`, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
+This is upstream ratatui-image behavior in `Resize::needs_resize_pixels`, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
 
 If you want "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
 

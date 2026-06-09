@@ -55,7 +55,7 @@ ssh admin@localhost -p 2222
 Or try it live with the bundled example:
 
 ```sh
-mix run --no-halt examples/system_monitor.exs --ssh
+mix run --no-halt examples/apps/system_monitor.exs --ssh
 # (in another terminal)
 ssh demo@localhost -p 2222   # password: demo
 ```
@@ -228,7 +228,7 @@ mkdir -p priv/host_keys
 ssh-keygen -t ed25519 -f priv/host_keys/ssh_host_ed25519_key -N ""
 ```
 
-Or inside the BEAM at runtime (see `examples/system_monitor.exs` for a ready-to-copy snippet using `:public_key.generate_key/1`).
+Or inside the BEAM at runtime (see `examples/apps/system_monitor.exs` for a ready-to-copy snippet using `:public_key.generate_key/1`).
 
 ### `auto_host_key: true` for the lazy path
 

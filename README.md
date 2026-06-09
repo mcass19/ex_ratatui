@@ -39,8 +39,8 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 | Example | Run | Description |
 |---------|-----|-------------|
-| `hello_world.exs` | `mix run examples/hello_world.exs` | Minimal paragraph display |
-| `counter_app.exs` | `mix run examples/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
+| `hello_world.exs` | `mix run examples/basics/hello_world.exs` | Minimal paragraph display |
+| `counter_app.exs` | `mix run examples/basics/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 
 The full catalog (system monitor, chat interface, task manager, Ecto-backed CRUD, and more — plus SSH and Erlang-distribution one-liners) lives in [`examples/README.md`](examples/README.md).
 
@@ -119,7 +119,7 @@ ExRatatui.run(fn terminal ->
 end)
 ```
 
-Try the [examples](examples/README.md) for more, e.g. `mix run examples/hello_world.exs`.
+Try the [examples](examples/README.md) for more, e.g. `mix run examples/basics/hello_world.exs`.
 
 New here? The [Getting Started](guides/getting_started.md) guide builds a supervised todo app from `mix new` to a working TUI.
 

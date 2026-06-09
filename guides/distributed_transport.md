@@ -69,7 +69,7 @@ The TUI takes over your terminal. Press the app's quit key (or Ctrl-C twice) to 
 
 ```sh
 # Terminal 1 — start the app node
-elixir --sname app --cookie demo -S mix run --no-halt examples/system_monitor.exs --distributed
+elixir --sname app --cookie demo -S mix run --no-halt examples/apps/system_monitor.exs --distributed
 
 # Terminal 2 — attach from another node
 iex --sname mynode --cookie demo -S mix

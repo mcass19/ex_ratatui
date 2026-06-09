@@ -342,7 +342,7 @@ end
 
 ## Examples
 
-  * [`examples/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/reducer_counter_app.exs) — simple reducer-driven counter with subscriptions
+  * [`examples/basics/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/reducer_counter_app.exs) — simple reducer-driven counter with subscriptions
   * [`switchyard`](https://github.com/nshkrdotcom/switchyard) — full-featured workbench exercising command batching, async effects, subscription reconciliation, runtime snapshots, trace toggles, `render?: false` quiet polling, distributed attach, and row-scrolled WidgetList (see [`full_featured_workbench.exs`](https://github.com/nshkrdotcom/switchyard/blob/main/examples/full_featured_workbench.exs) and the [reducer app entrypoint](https://github.com/nshkrdotcom/switchyard/blob/main/apps/terminal_workbench_tui/lib/switchyard/tui/app.ex))
   * [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example) — Phoenix app with a reducer-runtime stats TUI using `Command.async`, `Command.send_after`, `Command.batch`, and `Subscription.interval`, served over SSH and Erlang distribution alongside a public LiveView chat room
   * [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example) — Nerves firmware with a reducer-runtime system monitor using `Command.async` and `Subscription.interval`, reachable over SSH subsystems and Erlang distribution

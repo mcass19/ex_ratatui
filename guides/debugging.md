@@ -182,7 +182,7 @@ Without it, the TUI has nowhere to render. See the [SSH guide](ssh_transport.md)
 The script finished because stdin wasn't a TTY and `poll_event/1` returned without input. Run from a real terminal. For daemon-mode examples (SSH, distributed), use `--no-halt` so the VM stays up after the script returns:
 
 ```sh
-mix run --no-halt examples/system_monitor.exs --ssh
+mix run --no-halt examples/apps/system_monitor.exs --ssh
 ```
 
 ### Render works once, then freezes

@@ -171,7 +171,7 @@ ExRatatui.BigText.new("EX_RATATUI",
 | `:quarter_height` | 0.25 × 1 | |
 | `:octant` | 0.25 × 0.5 | Densest; closer to "bold caps" |
 
-See `examples/big_text_demo.exs` to cycle through every variant interactively.
+See `examples/widgets/big_text.exs` to cycle through every variant interactively.
 
 ### Block
 
@@ -557,7 +557,7 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
 
 `highlight/3` returns the same `[%Line{}]` shape the widget uses internally, so you can drop it into a `Paragraph` or compose it with your own gutter / annotations without re-implementing syntect translation. The call is NIF-backed, runs on a `DirtyCpu` scheduler, and emits a `[:ex_ratatui, :code_block, :highlight]` telemetry span — see the [Telemetry guide](telemetry.md) for the metadata shape.
 
-See `examples/code_block_demo.exs` to cycle through every theme / language / gutter combination interactively.
+See `examples/widgets/code_block.exs` to cycle through every theme / language / gutter combination interactively.
 
 ### Textarea
 
@@ -660,7 +660,7 @@ case SlashCommands.parse(input_text) do
 end
 ```
 
-See [`examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs) for a full integration.
+See [`examples/apps/chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/apps/chat.exs) for a full integration.
 
 ## Focus management
 
@@ -722,7 +722,7 @@ Focus.new([:search, :results, :details],
 )
 ```
 
-See [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) for a full three-panel demo.
+See [`examples/layout/focus.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/layout/focus.exs) for a full three-panel demo.
 
 ### Mouse routing
 
@@ -813,10 +813,10 @@ Anything more specialised — gradient-style accents, severity-tinted text — d
 
 ## Examples
 
-  * [`examples/widget_showcase.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widget_showcase.exs) — interactive showcase of tabs, progress bars, checkboxes, text input, and scrollable logs
-  * [`examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs) — AI chat interface demonstrating markdown, textarea, throbber, popup, and slash commands
-  * [`examples/task_manager/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/task_manager) — full CRUD app using table, tabs, scrollbar, line gauge, and block compositions
-  * [`examples/focus_multi_panel.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/focus_multi_panel.exs) — multi-panel layout with Tab-cycled focus
+  * [`examples/widgets/widget_showcase.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/widget_showcase.exs) — interactive showcase of tabs, progress bars, checkboxes, text input, and scrollable logs
+  * [`examples/apps/chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/apps/chat.exs) — AI chat interface demonstrating markdown, textarea, throbber, popup, and slash commands
+  * [`examples/apps/task_manager_db/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/apps/task_manager_db) — full CRUD app using table, tabs, scrollbar, line gauge, and block compositions
+  * [`examples/layout/focus.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/layout/focus.exs) — multi-panel layout with Tab-cycled focus
 
 ## Related
 
