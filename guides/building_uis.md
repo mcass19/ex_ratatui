@@ -813,7 +813,7 @@ Anything more specialised — gradient-style accents, severity-tinted text — d
 
 ## Examples
 
-  * [`examples/widgets/widget_showcase.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/widget_showcase.exs) — interactive showcase of tabs, progress bars, checkboxes, text input, and scrollable logs
+  * [`examples/widgets/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/widgets) — focused, copyable demos of individual widgets (bar chart, sparkline, chart, calendar, canvas, checkbox, table, and more)
   * [`examples/apps/chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/apps/chat.exs) — AI chat interface demonstrating markdown, textarea, throbber, popup, and slash commands
   * [`examples/apps/task_manager_db/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/apps/task_manager_db) — full CRUD app using table, tabs, scrollbar, line gauge, and block compositions
   * [`examples/layout/focus.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/layout/focus.exs) — multi-panel layout with Tab-cycled focus

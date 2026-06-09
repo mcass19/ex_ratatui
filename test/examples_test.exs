@@ -5,13 +5,18 @@ defmodule ExRatatui.ExamplesTest do
   # from examples/**/*.exs, so the compiler can't see them statically.
   @compile {:no_warn_undefined,
             [
+              BarChartDemo,
+              CalendarDemo,
+              CanvasDemo,
+              ChartDemo,
               ChatApp,
+              CheckboxDemo,
               CounterApp,
               CustomWidgetsExample,
               ReducerCounterApp,
               RichTextShowcase,
-              SystemMonitor,
-              WidgetShowcase
+              SparklineDemo,
+              SystemMonitor
             ]}
 
   @examples_dir Path.expand("../examples", __DIR__)
@@ -85,8 +90,13 @@ defmodule ExRatatui.ExamplesTest do
   @app_smoke_examples [
     {"basics/counter_app.exs", CounterApp, :callbacks},
     {"basics/reducer_counter_app.exs", ReducerCounterApp, :reducer},
-    {"widgets/widget_showcase.exs", WidgetShowcase, :callbacks},
+    {"widgets/barchart.exs", BarChartDemo, :callbacks},
+    {"widgets/calendar.exs", CalendarDemo, :callbacks},
+    {"widgets/canvas.exs", CanvasDemo, :callbacks},
+    {"widgets/chart.exs", ChartDemo, :callbacks},
+    {"widgets/checkbox.exs", CheckboxDemo, :callbacks},
     {"widgets/rich_text.exs", RichTextShowcase, :callbacks},
+    {"widgets/sparkline.exs", SparklineDemo, :callbacks},
     {"widgets/custom_widget.exs", CustomWidgetsExample, :callbacks}
   ]
 
