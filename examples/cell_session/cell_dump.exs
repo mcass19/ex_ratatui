@@ -1,7 +1,7 @@
 # Example: render a small TUI into a CellSession and inspect the cells
 # as plain Elixir data.
 #
-# `ExRatatui.CellSession` gives you cells as structured data. This script
+# `ExRatatui.CellSession` exposes cells as structured data. This script
 # shows the simplest possible consumer of cells: walk the snapshot,
 # print the symbol grid as plain text.
 #

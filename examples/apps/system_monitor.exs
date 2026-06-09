@@ -4,7 +4,7 @@
 # │                              MODES                              │
 # └─────────────────────────────────────────────────────────────────┘
 #
-#  1) Local terminal (what you usually want):
+#  1) Local terminal (the usual choice):
 #
 #         mix run examples/apps/system_monitor.exs
 #

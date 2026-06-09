@@ -11,6 +11,7 @@ defmodule ExRatatui.ExamplesTest do
               ChartDemo,
               ChatApp,
               CheckboxDemo,
+              ClearDemo,
               CounterApp,
               CustomWidgetsExample,
               GaugeDemo,
@@ -27,6 +28,7 @@ defmodule ExRatatui.ExamplesTest do
               SystemMonitor,
               TabsDemo,
               TelemetryDemo,
+              TextareaDemo,
               ThrobberDemo,
               WidgetListDemo
             ]}
@@ -120,6 +122,8 @@ defmodule ExRatatui.ExamplesTest do
     {"widgets/scrollbar.exs", ScrollbarDemo, :callbacks},
     {"widgets/tabs.exs", TabsDemo, :callbacks},
     {"widgets/list.exs", ListDemo, :callbacks},
+    {"widgets/textarea.exs", TextareaDemo, :callbacks},
+    {"widgets/clear.exs", ClearDemo, :callbacks},
     {"observability/telemetry.exs", TelemetryDemo, :callbacks}
   ]
 

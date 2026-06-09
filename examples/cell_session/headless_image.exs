@@ -1,8 +1,8 @@
 # Example: render an image through CellSession and dump the cell grid.
 #
-# `CellSession` lets you produce image output without a terminal — perfect
-# for Livebook / Kino integrations, snapshot tests, or any context where
-# you need cells as plain data. Since CellSession can only carry cells
+# `CellSession` produces image output without a terminal — perfect
+# for Livebook / Kino integrations, snapshot tests, or any context that
+# needs cells as plain data. Since CellSession can only carry cells
 # (not escape sequences), images always render via halfblocks here,
 # regardless of any :protocol opt set at construction.
 #

@@ -56,6 +56,8 @@ Focused, copyable demos — each centered on one widget or text feature.
 | [`scrollbar.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/scrollbar.exs) | `mix run examples/widgets/scrollbar.exs` | `Scrollbar` bound to a scrollable `List` — its thumb tracks the selected position. Up/Down moves. |
 | [`tabs.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/tabs.exs) | `mix run examples/widgets/tabs.exs` | `Tabs` bar selecting between content panes. Left/Right or Tab switches the active tab. |
 | [`list.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/list.exs) | `mix run examples/widgets/list.exs` | `List` with a selection highlight and `highlight_symbol`. Up/Down moves; g/G jumps to top/bottom. |
+| [`textarea.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/textarea.exs) | `mix run examples/widgets/textarea.exs` | `Textarea` multi-line editor with a live line/cursor status. Type to edit; Enter inserts a newline. |
+| [`clear.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/clear.exs) | `mix run examples/widgets/clear.exs` | `Clear` blanks a region before a hand-rolled overlay. Space toggles it to show the background bleeding through. |
 
 ## Layout & styling
 
