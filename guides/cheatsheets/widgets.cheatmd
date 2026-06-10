@@ -9,14 +9,14 @@ Quick lookup for every built-in widget and helper. One example per struct, key f
 
 ```elixir
 %Style{
-  fg: :green,                         # or {r,g,b}, or 0..255 index
+  fg: :green,                         # or {:rgb, r, g, b}, or {:indexed, 0..255}
   bg: :reset,
   underline_color: {:rgb, 255, 0, 0}, # colored underline (kitty/wezterm)
-  modifiers: [:bold, :italic, :underlined, :reversed, :dim]
+  modifiers: [:bold, :italic, :underlined, :reversed, :dim, :crossed_out]
 }
 ```
 
-Colors accept `:reset`, named atoms, `{r, g, b}`, or 0–255. Modifiers are additive.
+Colors accept `:reset`, named atoms, `{:rgb, r, g, b}`, or `{:indexed, n}` (0–255). Modifiers are additive.
 
 ### Rich text spans/lines
 
@@ -49,7 +49,7 @@ case ExRatatui.poll_event(timeout) do
 end
 ```
 
-`Event.Paste` arrives only on the local terminal today (byte-stream transports' VTE parser doesn't decode `CSI 200~/201~` yet). Focus events are **opt-in**: `ExRatatui.run(fun, focus_events: true)`.
+`Event.Paste` arrives only on the local terminal today — see [Paste and clipboard](../paste_and_clipboard.md). Focus events are **opt-in**: `ExRatatui.run(fun, focus_events: true)`.
 
 ### Consuming Paste in widgets
 
@@ -203,7 +203,7 @@ Eleven semantic slots: `:primary`, `:accent`, `:border`, `:border_focused`, `:su
 }
 ```
 
-Supports headings, bold/italic, inline code, lists.
+Supports headings, bold/italic, inline code, fenced code blocks with syntax highlighting, lists, links, and horizontal rules.
 
 ### BigText
 
@@ -286,7 +286,7 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
 }
 ```
 
-Without `:selected_column` set, `:column_highlight_style` and `:cell_highlight_style` are no-ops (the activation gate is ratatui's `TableState::select_column/1`).
+Without `:selected_column` set, `:column_highlight_style` and `:cell_highlight_style` are no-ops.
 
 ### WidgetList
 
@@ -298,7 +298,7 @@ Without `:selected_column` set, `:column_highlight_style` and `:cell_highlight_s
   ],
   selected: 0,
   scroll_offset: 0,
-  highlight_style: %Style{bg: {50, 50, 50}}
+  highlight_style: %Style{bg: {:rgb, 50, 50, 50}}
 }
 ```
 
@@ -360,7 +360,8 @@ Single-cell-tall bar — great for compact status rows.
 ```elixir
 %Throbber{
   label: "Loading",
-  throbber_set: :braille,              # :braille | :dots | :line | :ascii
+  throbber_set: :braille,              # :braille | :dots | :ascii | :clock
+                                       # + 8 more, see module docs
   step: state.tick,                    # caller increments
   throbber_style: %Style{fg: :cyan}
 }
@@ -398,6 +399,7 @@ state = ExRatatui.text_input_new()     # mount once, keep in app state
 %TextInput{
   state: state,
   placeholder: "Type here...",
+  placeholder_style: %Style{fg: :dark_gray},
   style: %Style{fg: :white},
   cursor_style: %Style{bg: :white, fg: :black},
   block: %Block{borders: [:all]}
@@ -415,7 +417,7 @@ state = ExRatatui.textarea_new()
 %Textarea{
   state: state,
   placeholder: "Enter message...",
-  cursor_line_style: %Style{bg: {40, 40, 40}},
+  cursor_line_style: %Style{bg: {:rgb, 40, 40, 40}},
   line_number_style: %Style{fg: :dark_gray},  # nil hides line numbers
   block: %Block{borders: [:all]}
 }
@@ -424,7 +426,7 @@ ExRatatui.textarea_handle_key(state, key_event)
 value = ExRatatui.textarea_get_value(state)
 ```
 
-Enter = newline, Ctrl+Enter = submit.
+Enter always inserts a newline. For "Enter = submit", intercept the key in `handle_event` before forwarding to the textarea.
 
 ### Checkbox
 
@@ -450,8 +452,8 @@ commands = [
 ]
 
 case SlashCommands.parse(input_text) do
-  {:slash, query} -> SlashCommands.match_commands(commands, query)
-  :no_slash -> []
+  {:command, prefix} -> SlashCommands.match_commands(commands, prefix)
+  :no_command -> []
 end
 ```
 
