@@ -449,7 +449,7 @@ defmodule Todo do
   end
 
   defp handle_list_key(state, %Event.Key{code: "d"}) do
-    items = delete_at(state.items, state.selected)
+    items = List.delete_at(state.items, state.selected)
     %{state | items: items, selected: min(state.selected, max(length(items) - 1, 0))}
   end
 
@@ -509,7 +509,6 @@ defmodule Todo do
       else: %Style{fg: :dark_gray}
   end
 
-  defp delete_at(list, n), do: Enum.take(list, n) ++ Enum.drop(list, n + 1)
 end
 ```
 

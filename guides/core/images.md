@@ -38,25 +38,25 @@ To change options later, build a new handle — the widget struct just wraps the
 
 Each transport stamps its own capability hint. Widget-level `:auto` resolves against it:
 
-| Transport | Capability | `:auto` resolves to | Explicit `:kitty` etc. |
-|---|---|---|---|
-| Local terminal (no probe) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored — emits raw escapes |
-| Local terminal (after probe) | `Local { picker_protocol, font_size }` | The detected protocol | Honored |
-| SSH (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` | `:kitty` | Honored, default `(8, 16)` font size |
-| SSH (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `Local { picker_protocol, font_size }` | `:kitty` | Honored with accurate scaling |
-| SSH (no opts) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
-| Distributed (`image_protocol: :kitty`) | `RawTerminal { hint: :kitty }` on local terminal | `:kitty` | Honored, default `(8, 16)` font size |
-| Distributed (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `Local { picker_protocol, font_size }` on local terminal | `:kitty` | Honored with accurate scaling |
-| Distributed (no opts) | `RawTerminal { hint: nil }` | `:halfblocks` | Honored |
-| `CellSession` (Livebook / Kino) | `CellOnly` | `:halfblocks` | **Forced to `:halfblocks`** (escape sequences can't survive cell diffing) |
+| Transport | `:auto` resolves to | Explicit `:kitty` etc. |
+|---|---|---|
+| Local terminal (no probe) | `:halfblocks` | Honored — emits raw escapes |
+| Local terminal (after probe) | The detected protocol | Honored |
+| SSH (`image_protocol: :kitty`) | `:kitty` | Honored, default `(8, 16)` font size |
+| SSH (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `:kitty` | Honored with accurate scaling |
+| SSH (no opts) | `:halfblocks` | Honored |
+| Distributed (`image_protocol: :kitty`) | `:kitty` | Honored, default `(8, 16)` font size |
+| Distributed (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `:kitty` | Honored with accurate scaling |
+| Distributed (no opts) | `:halfblocks` | Honored |
+| `CellSession` (Livebook / Kino) | `:halfblocks` | **Forced to `:halfblocks`** (escape sequences can't survive cell diffing) |
 
 This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in your local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching.
 
-Image widgets work over **every** transport, including `ExRatatui.Distributed`. The server-side runtime snapshots each `%ExRatatui.Widgets.Image{}` (decoded bytes + opts) before sending the render tree over the wire; the client node re-decodes the bytes into a fresh `ImageResource` per draw. This costs roughly the PNG byte size per frame on the wire — fine for stills, watch the bandwidth if you're animating large images.
+Image widgets work over **every** transport, including `ExRatatui.Distributed` — image bytes are snapshotted into the render tree, costing roughly the source file size per frame on the wire. Fine for stills; watch the bandwidth when animating large images.
 
 ### Probing the local terminal
 
-`ExRatatui.Image.auto_local_protocol/1` writes a query escape sequence and waits for the terminal's reply (this is ratatui-image's `Picker::from_query_stdio`). On success the result is cached on the terminal reference; on no-TTY / no-reply the cache stays empty and `:auto` falls back to halfblocks. Either way it's safe to call from any environment.
+`ExRatatui.Image.auto_local_protocol/1` writes a query escape sequence and waits for the terminal's reply. On success the result is cached on the terminal reference; on no-TTY / no-reply the cache stays empty and `:auto` falls back to halfblocks. Either way it's safe to call from any environment.
 
 There are two ways to wire it in.
 
@@ -110,7 +110,7 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
 
 ## Examples
 
-* [`examples/images/image_demo.exs`](../../examples/images/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
+* [`examples/images/image_demo.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/images/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
 
   ```sh
   mix run examples/images/image_demo.exs                # local terminal
@@ -119,7 +119,7 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
     examples/images/image_demo.exs --distributed
   ```
 
-* [`examples/cell_session/headless_image.exs`](../../examples/cell_session/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
+* [`examples/cell_session/headless_image.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/cell_session/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
 
 Both accept an `IMAGE_PATH` env var, default to fetching from `picsum.photos` once at startup, and fall back to an embedded 1×1 PNG if the network is unreachable. The SSH demo also honors `IMAGE_PROTOCOL` / `IMAGE_FONT_W` / `IMAGE_FONT_H` env vars.
 
@@ -146,7 +146,7 @@ Both `:fit` and `:crop` clamp output to the **source image's natural pixel size*
 
 The difference between `:fit` and `:crop` only manifests when the **source is *larger* than the target** on at least one axis: `:fit` shrinks to fit (whole image visible, letterboxed); `:crop` keeps natural size and shows a window into the source corner.
 
-This is upstream ratatui-image behavior in `Resize::needs_resize_pixels`, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
+This is upstream ratatui-image behavior, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
 
 If you want "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
 

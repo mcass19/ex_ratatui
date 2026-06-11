@@ -105,7 +105,7 @@ Those nested fields still require primitive widgets. The inverse works fine: a c
 
 - **Returning the wrong rect type** — the second element of each tuple must be a `%ExRatatui.Layout.Rect{}`, not a plain tuple or map. Raises `ArgumentError`.
 - **Returning a non-list** — `render/2` must return a list, even for a single child or a no-op (`[]` is valid).
-- **Infinite self-recursion** — if your widget's `render/2` returns itself (directly or via a cycle) you'll hit the depth cap at 32.
+- **Infinite self-recursion** — a widget whose `render/2` returns itself (directly or via a cycle) hits the depth cap above.
 - **Expecting rect clipping validation** — children whose rects extend outside the parent are not rejected; ratatui clips at render time.
 
 ## Testing
@@ -122,4 +122,10 @@ test "renders greeting" do
 end
 ```
 
-No need to exercise the protocol directly — the full expand-then-encode pipeline is what you want to cover.
+No need to exercise the protocol directly — the full expand-then-encode pipeline is what to cover.
+
+## Related
+
+  * [`examples/widgets/custom_widget.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/custom_widget.exs) — a runnable composite-widget demo
+  * [Building UIs](building_uis.md) — the primitives composites are built from
+  * [Testing](../internals/testing.md) — the headless backend used above

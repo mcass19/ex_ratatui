@@ -54,7 +54,7 @@ CellSession.close(session)
 }
 ```
 
-That's the whole API at the snapshot level. See the [`cell_dump.exs`](../../examples/cell_session/cell_dump.exs) example for a tiny end-to-end script that paints a `Paragraph`, walks the snapshot, and prints it.
+That's the whole API at the snapshot level. See the [`cell_dump.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/cell_session/cell_dump.exs) example for a tiny end-to-end script that paints a `Paragraph`, walks the snapshot, and prints it.
 
 ## The cell shape
 
@@ -182,4 +182,4 @@ See [Runtime opts](`m:ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for
 - `ExRatatui.CellSession` — module docs for the wrapper API.
 - `ExRatatui.CellSession.Cell` / `ExRatatui.CellSession.Snapshot` / `ExRatatui.CellSession.Diff` — the structured payload types.
 - `ExRatatui.Session` — the ANSI-bytes sibling for terminal-shaped consumers.
-- [`cell_dump.exs`](../../examples/cell_session/cell_dump.exs) — minimal headless example walking a snapshot.
+- [`cell_dump.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/cell_session/cell_dump.exs) — minimal headless example walking a snapshot.

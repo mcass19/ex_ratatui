@@ -35,6 +35,9 @@ area = %Rect{x: 0, y: 0, width: 80, height: 24}
 | `{:min, n}` | At least `n` rows/columns, expands to fill remaining space |
 | `{:max, n}` | At most `n` rows/columns |
 | `{:ratio, num, den}` | Fraction of available space (e.g., `{:ratio, 1, 3}` for one-third) |
+| `{:fill, weight}` | Proportional share of whatever is left after the other constraints (`{:fill, 1}` + `{:fill, 2}` splits leftover space 1:2) |
+
+`split/4` also takes `:flex` (how excess space is distributed — centered popups, end-aligned status bars) and `:spacing` (gutter cells between segments) — see `ExRatatui.Layout` for the shapes.
 
 ## Styles
 
@@ -133,494 +136,76 @@ The runtime automatically re-renders on resize — you don't need to handle resi
 
 ## Widgets
 
-### Paragraph
+Every widget is a plain struct. The [Widgets Cheatsheet](../cheatsheets/widgets.cheatmd) is the per-widget quick reference — every struct with its key fields and a copyable snippet — and each widget's moduledoc holds the full option and validation detail. One contract applies across the board: malformed fields (wrong types, negative sizes, unknown atoms) raise `ArgumentError` at encode time rather than rendering garbage.
 
-Displays text with support for alignment, wrapping, and scrolling.
+| Purpose | Widgets |
+|---|---|
+| Text and containers | `Paragraph`, `Block` (borders + top/bottom titles), `Clear`, `Markdown`, `CodeBlock`, `BigText` |
+| Lists and tables | `List`, `Table`, `WidgetList` |
+| Progress and activity | `Gauge`, `LineGauge`, `Sparkline`, `Throbber` |
+| Charts and drawing | `BarChart` (`Bar` / `BarGroup`), `Chart` (`Chart.Axis` / `Chart.Dataset`), `Canvas` (`Line` / `Rectangle` / `Circle` / `Points` / `Map` / `Label` shapes) |
+| Navigation and selection | `Tabs`, `Scrollbar`, `Calendar`, `Checkbox`, `Popup`, `SlashCommands` |
+| Input (stateful, NIF-backed) | `TextInput`, `Textarea` |
+| Media | `Image` — covered in the [Images guide](images.md) |
 
-```elixir
-%Paragraph{
-  text: "Hello, world!\nSecond line.",
-  style: %Style{fg: :cyan, modifiers: [:bold]},
-  alignment: :center,
-  wrap: true
-}
-```
+The subsections below cover the patterns that need more than a struct literal. For everything else, lift the snippet from the cheatsheet.
 
-### BigText
+### Composing with Block
 
-Renders oversized 8×8-pixel text for slide titles, splash screens, and banners. Backed by [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text); use `ExRatatui.BigText.new/2` so input is coerced and options validated.
-
-```elixir
-ExRatatui.BigText.new("EX_RATATUI",
-  pixel_size: :quadrant,
-  alignment: :center,
-  style: %Style{fg: :magenta, modifiers: [:bold]},
-  block: %Block{borders: [:all], border_type: :rounded}
-)
-```
-
-`:pixel_size` controls how many character cells a single 8×8 pixel maps to. Smaller variants pack more characters into the same area at the cost of legibility:
-
-| Variant | Cells per pixel | Typical use |
-|---------|-----------------|-------------|
-| `:full` (default) | 1 × 1 | A single word, big impact (8 rows tall) |
-| `:half_height` | 0.5 × 1 | Short title bar (4 rows tall) |
-| `:half_width` | 1 × 0.5 | Tall narrow text |
-| `:quadrant` | 0.5 × 0.5 | Good middle ground for 2–3 word titles |
-| `:third_height` | 0.33 × 1 | |
-| `:sextant` | 0.33 × 0.5 | |
-| `:quarter_height` | 0.25 × 1 | |
-| `:octant` | 0.25 × 0.5 | Densest; closer to "bold caps" |
-
-See `examples/widgets/big_text.exs` to cycle through every variant interactively.
-
-### Block
-
-A container with borders and a title. Any widget can be wrapped inside a Block via its `:block` field.
+Any widget wraps itself in a framed `Block` via its `:block` field — title, borders, and border styling in one struct:
 
 ```elixir
-%Block{
-  title: "My Panel",
-  borders: [:all],
-  border_type: :rounded,
-  border_style: %Style{fg: :blue}
-}
-
-# Compose with other widgets:
 %Paragraph{
   text: "Inside a box",
-  block: %Block{title: "Title", borders: [:all]}
+  block: %Block{title: " Title ", borders: [:all], border_type: :rounded}
 }
 ```
 
 Border types: `:plain`, `:rounded`, `:double`, `:thick`.
 
-### List
+### Stateful widgets: TextInput and Textarea
 
-A selectable list with highlight support for the current item.
-
-```elixir
-%List{
-  items: ["Elixir", "Rust", "Haskell"],
-  highlight_style: %Style{fg: :yellow, modifiers: [:bold]},
-  highlight_symbol: " > ",
-  selected: 0,
-  block: %Block{title: " Languages ", borders: [:all]}
-}
-```
-
-### Table
-
-A table with headers, rows, and column width constraints.
+Most widgets are pure view descriptors rebuilt every frame. `TextInput` (single-line) and `Textarea` (multi-line, with undo/redo and Emacs-style shortcuts) are the exception — their editor state lives in a NIF resource. Create the state once in `mount/1`/`init/1`, keep the reference in app state, and pass it to the widget on every render:
 
 ```elixir
-%Table{
-  rows: [["Alice", "30"], ["Bob", "25"]],
-  header: ["Name", "Age"],
-  widths: [{:length, 15}, {:length, 10}],
-  highlight_style: %Style{fg: :yellow},
-  selected: 0
-}
-```
-
-### Gauge
-
-A progress bar that fills proportionally to a given ratio.
-
-```elixir
-%Gauge{
-  ratio: 0.75,
-  label: "75%",
-  gauge_style: %Style{fg: :green}
-}
-```
-
-### LineGauge
-
-A thin single-line progress bar using line-drawing characters, with separate styles for the filled and unfilled portions.
-
-```elixir
-%LineGauge{
-  ratio: 0.6,
-  label: "60%",
-  filled_style: %Style{fg: :green},
-  unfilled_style: %Style{fg: :dark_gray}
-}
-```
-
-### BarChart
-
-Vertical or horizontal bar chart. `:data` is a list of `%Bar{}` structs, each with a plain-string `:label` and non-negative integer `:value`. Chart-level `:bar_style`, `:value_style`, and `:label_style` apply to every bar; individual bars override color via `:style` and replace the numeric display via `:text_value`. When `:max` is `nil` the chart auto-scales to the largest value.
-
-```elixir
-alias ExRatatui.Widgets.{Bar, BarChart}
-
-%BarChart{
-  data: [
-    %Bar{label: "Elixir", value: 80},
-    %Bar{label: "Rust", value: 95, style: %Style{fg: :red}, text_value: "95!"},
-    %Bar{label: "Go", value: 60}
-  ],
-  bar_width: 6,
-  bar_gap: 2,
-  bar_style: %Style{fg: :cyan},
-  value_style: %Style{fg: :white, modifiers: [:bold]},
-  label_style: %Style{fg: :dark_gray},
-  direction: :vertical,                 # or :horizontal
-  block: %Block{title: " Traffic ", borders: [:all]}
-}
-```
-
-Values must be non-negative integers — floats or negatives raise `ArgumentError` at encode time.
-
-#### Grouped bars
-
-To render side-by-side clusters with shared captions — handy for comparing the same metric across categories (months, regions, products) — pass `%BarGroup{}` entries via `:groups` instead of `:data`. Each group carries its own optional `:label` and a list of `%Bar{}` structs, and `:group_gap` controls the spacing between clusters.
-
-```elixir
-alias ExRatatui.Widgets.{Bar, BarChart, BarGroup}
-
-%BarChart{
-  groups: [
-    %BarGroup{label: "Q1", bars: [%Bar{label: "A", value: 10}, %Bar{label: "B", value: 20}]},
-    %BarGroup{label: "Q2", bars: [%Bar{label: "A", value: 15}, %Bar{label: "B", value: 25}]}
-  ],
-  bar_width: 3,
-  bar_gap: 1,
-  group_gap: 3,
-  max: 30
-}
-```
-
-Set either `:data` or `:groups`, not both. When `:data` is used, the chart renders as a single anonymous group; supplying `:groups` overrides it. `:group_gap` must be a non-negative integer, and each entry in `:groups` must be a `%BarGroup{}` whose `:label` is `nil` or a binary — anything else raises `ArgumentError` at encode time.
-
-### Sparkline
-
-Compact, single-line bar chart for time-series or streaming data. `:data` is a list of non-negative integers with `nil` entries representing missing samples. Pick a preset via `:bar_set` (`:nine_levels` for smooth gradients, `:three_levels` for low-density glyphs) or pass a custom list of strings — the symbols are proportionally mapped across the nine internal density slots so any non-empty list works.
-
-```elixir
-alias ExRatatui.Widgets.Sparkline
-
-%Sparkline{
-  data: [0, 1, 3, 5, 8, 3, 1, nil, 2, 4],
-  max: 8,                                   # auto-scales when nil
-  direction: :left_to_right,                # or :right_to_left
-  bar_set: :nine_levels,                    # or :three_levels, or [" ", "▂", "▅", "█"]
-  style: %Style{fg: :cyan},
-  absent_value_symbol: "·",
-  absent_value_style: %Style{fg: :dark_gray},
-  block: %Block{title: " CPU ", borders: [:all]}
-}
-```
-
-Entries must be non-negative integers or `nil` — floats, negatives, and non-list `:data` raise `ArgumentError` at encode time. Unknown directions, unknown bar-set atoms, empty custom lists, and non-integer `:max` values raise similarly.
-
-### Calendar
-
-A monthly calendar grid that highlights a target date and optional per-day events. `:display_date` drives which month is rendered; events can be passed as a list of `{Date, Style}` tuples or as a `%{Date => Style}` map (map entries with a `nil` value are skipped, making toggling easy).
-
-```elixir
-alias ExRatatui.Widgets.Calendar
-
-%Calendar{
-  display_date: ~D[2026-03-15],
-  events: [
-    {~D[2026-03-10], %Style{fg: :red, modifiers: [:bold]}},
-    {~D[2026-03-20], %Style{fg: :green}}
-  ],
-  default_style: %Style{fg: :white},
-  show_month_header: true,
-  header_style: %Style{fg: :yellow, modifiers: [:bold]},
-  show_weekdays_header: true,
-  weekday_style: %Style{fg: :cyan},
-  show_surrounding: %Style{fg: :dark_gray},
-  block: %Block{title: " March ", borders: [:all]}
-}
-```
-
-`:display_date` must be a `%Date{}`; `:show_month_header` and `:show_weekdays_header` must be booleans; event entries must be `{%Date{}, %Style{}}` tuples. Anything else raises `ArgumentError` at encode time. Set `:show_surrounding` to a `Style` to bleed the previous/next month into empty grid cells (leave it `nil` to hide them). The widget needs roughly 22 columns × 8 rows without a block, or 24 × 10 with one.
-
-### Canvas
-
-A 2D drawing surface for plotting shapes, charts, and custom visualizations. Shapes are drawn onto a virtual coordinate system defined by `:x_bounds` and `:y_bounds` (both `{min, max}` tuples), then sampled onto the terminal cells using the chosen `:marker`.
-
-```elixir
-alias ExRatatui.Widgets.Canvas
-alias ExRatatui.Widgets.Canvas.{Circle, Label, Line, Points, Rectangle}
-alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
-
-%Canvas{
-  x_bounds: {0.0, 100.0},
-  y_bounds: {0.0, 50.0},
-  marker: :braille,                          # or :dot, :block, :bar, :half_block
-  background_color: :black,
-  shapes: [
-    %Line{x1: 0.0, y1: 0.0, x2: 100.0, y2: 50.0, color: :cyan},
-    %Rectangle{x: 10.0, y: 10.0, width: 30.0, height: 20.0, color: :yellow},
-    %Circle{x: 70.0, y: 25.0, radius: 10.0, color: :magenta},
-    %Points{coords: [{20.0, 40.0}, {50.0, 30.0}, {80.0, 10.0}], color: :green},
-    %Label{x: 70.0, y: 25.0, text: "★", color: :white}
-  ],
-  block: %Block{title: " Plot ", borders: [:all]}
-}
-```
-
-Every shape takes a plain `Color.t()` (not a `Style`) — canvases sample individual pixels so text modifiers do not apply. `Rectangle` is drawn as an outline anchored at its bottom-left corner; `Circle` is drawn as an outline centered on `{x, y}`; `Points` accepts a list of `{x, y}` tuples; `Label` writes a styled text annotation at the given canvas-space coordinate (handy for naming peaks, marking origins, or labeling map locations). Bounds must be `{min, max}` tuples with `min <= max`; `width`, `height`, and `radius` must be non-negative; any required field set to `nil` or a mistyped value raises `ArgumentError` at encode time. `:marker` defaults to `:braille`, which gives the finest sub-cell resolution — drop to `:dot` or `:block` for lower-density output or for terminals without Braille fonts.
-
-#### Drawing a world map
-
-`%CanvasMap{}` paints the world's coastlines into the canvas — pair it with the geographic bounds `{-180, 180}` × `{-90, 90}` and the `:dot` or `:braille` marker. `Label` shapes layered on top let you pin city names or other annotations directly in lat/lon space.
-
-```elixir
-%Canvas{
-  x_bounds: {-180.0, 180.0},
-  y_bounds: {-90.0, 90.0},
-  marker: :dot,
-  shapes: [
-    %CanvasMap{resolution: :high, color: :green},  # :low | :high
-    %Label{x: -74.0, y: 40.7, text: "NYC", color: :yellow},
-    %Label{x: 139.7, y: 35.7, text: "Tokyo", color: :yellow}
-  ],
-  block: %Block{title: " World ", borders: [:all]}
-}
-```
-
-`Map.resolution` accepts `:low` (cheap silhouette) or `:high` (richer coastline detail). `Label.text` must be a binary; the color applies as the text foreground. Both shapes raise `ArgumentError` if a required field is missing or mistyped.
-
-### Chart
-
-An x/y line, scatter, or bar chart with axes, labels, legend, and multi-series support. Each `%Dataset{}` carries a list of `{x, y}` tuples (integers or floats) plus its own `:marker`, `:graph_type`, and `:style`. The required `:x_axis` and `:y_axis` configure the visible coordinate range via `{min, max}` `:bounds` and optional tick `:labels`. Pass `nil` as `:legend_position` to hide the legend entirely.
-
-```elixir
-alias ExRatatui.Widgets.Chart
-alias ExRatatui.Widgets.Chart.{Axis, Dataset}
-
-%Chart{
-  datasets: [
-    %Dataset{
-      name: "CPU",
-      data: [{0.0, 12.0}, {1.0, 25.0}, {2.0, 48.0}, {3.0, 31.0}, {4.0, 19.0}],
-      marker: :braille,                        # or :dot, :block, :bar, :half_block
-      graph_type: :line,                       # or :scatter, :bar
-      style: %Style{fg: :cyan}
-    },
-    %Dataset{
-      name: "Memory",
-      data: [{0.0, 40.0}, {1.0, 42.0}, {2.0, 55.0}, {3.0, 60.0}, {4.0, 58.0}],
-      marker: :dot,
-      style: %Style{fg: :magenta}
-    }
-  ],
-  x_axis: %Axis{
-    title: "Time (s)",
-    bounds: {0.0, 4.0},
-    labels: ["0", "2", "4"],
-    style: %Style{fg: :dark_gray}
-  },
-  y_axis: %Axis{
-    title: "Usage %",
-    bounds: {0.0, 100.0},
-    labels: ["0", "50", "100"],
-    style: %Style{fg: :dark_gray}
-  },
-  legend_position: :top_right,                 # or :top, :top_left, :bottom, :bottom_left,
-                                               # :bottom_right, :left, :right, or nil to hide
-  hidden_legend_constraints: {{:ratio, 1, 4}, {:ratio, 1, 4}},
-  block: %Block{title: " Metrics ", borders: [:all]}
-}
-```
-
-`:hidden_legend_constraints` takes a `{width_constraint, height_constraint}` tuple — the same shapes accepted by `ExRatatui.Layout` (`:length`, `:percentage`, `:ratio`, `:min`, `:max`, `:fill`). The legend is hidden whenever its rendered size would exceed those bounds against the chart area, which keeps things readable in cramped layouts. Each dataset's `:graph_type` is independent: combine a `:line` series with a `:scatter` overlay in the same chart for emphasis.
-
-Datasets with non-tuple data points, non-numeric coordinates, unknown markers, unknown `:graph_type`s, unknown `:legend_position`s, missing axes, malformed `:bounds`, malformed `:hidden_legend_constraints`, and unknown `:labels_alignment` values raise `ArgumentError` at the bridge boundary.
-
-### Tabs
-
-A tab bar for switching between views.
-
-```elixir
-%Tabs{
-  titles: ["Home", "Settings", "Help"],
-  selected: 0,
-  highlight_style: %Style{fg: :cyan, modifiers: [:bold]},
-  divider: " | ",
-  block: %Block{borders: [:all]}
-}
-```
-
-### Scrollbar
-
-A scroll position indicator for long content, supporting both vertical and horizontal orientations.
-
-```elixir
-%Scrollbar{
-  content_length: 100,
-  position: 25,
-  viewport_content_length: 10,
-  orientation: :vertical_right,
-  thumb_style: %Style{fg: :cyan}
-}
-```
-
-Orientations: `:vertical_right`, `:vertical_left`, `:horizontal_bottom`, `:horizontal_top`.
-
-### Checkbox
-
-A boolean toggle with customizable checked and unchecked symbols.
-
-```elixir
-%Checkbox{
-  label: "Enable notifications",
-  checked: true,
-  checked_style: %Style{fg: :green},
-  checked_symbol: "✓",
-  unchecked_symbol: "✗"
-}
-```
-
-### TextInput
-
-A single-line text input with cursor navigation and viewport scrolling. This is a **stateful** widget — its state lives in Rust via ResourceArc.
-
-```elixir
-# Create state (once, e.g. in mount/1 or init/1)
+# In mount/1 or init/1 — never in render/2
 state = ExRatatui.text_input_new()
 
-# Forward key events
-ExRatatui.text_input_handle_key(state, "h")
-ExRatatui.text_input_handle_key(state, "i")
+# In the event handler: forward key codes (Textarea also takes modifiers)
+ExRatatui.text_input_handle_key(state, key.code)
+ExRatatui.textarea_handle_key(state, key.code, key.modifiers)
 
-# Read/set value
-ExRatatui.text_input_get_value(state)  #=> "hi"
-ExRatatui.text_input_set_value(state, "hello")
+# Read the value any time
+ExRatatui.text_input_get_value(state)
 
-# Render
+# In render/2
 %TextInput{
   state: state,
-  style: %Style{fg: :white},
-  cursor_style: %Style{fg: :black, bg: :white},
   placeholder: "Type here...",
-  placeholder_style: %Style{fg: :dark_gray},
-  block: %Block{title: "Search", borders: [:all], border_type: :rounded}
+  block: %Block{title: " Search ", borders: [:all]}
 }
 ```
 
-### Clear
+Recreating the state in `render/2` silently drops the cursor position and typed text on every frame — the most common stateful-widget mistake.
 
-Resets all cells in its area to empty space characters. This is useful for clearing a region before rendering an overlay on top of existing content.
+### Overlays: Popup and Clear
 
-```elixir
-%Clear{}
-```
-
-### Markdown
-
-Renders markdown text with syntax-highlighted code blocks, powered by `tui-markdown` (pulldown-cmark + syntect). Supports headings, bold, italic, inline code, fenced code blocks, bullet lists, links, and horizontal rules.
-
-```elixir
-%Markdown{
-  content: "# Hello\n\nSome **bold** text and `inline code`.\n\n```elixir\nIO.puts(\"hi\")\n```",
-  wrap: true,
-  block: %Block{title: "Response", borders: [:all]}
-}
-```
-
-### CodeBlock
-
-Renders syntax-highlighted source code as a display-only widget, powered by [syntect](https://github.com/trishume/syntect)'s bundled `SyntaxSet` and `ThemeSet`. Unlike `Markdown` — which wraps code inside a larger document — `CodeBlock` is the right pick when the whole widget is the snippet: a `:q`-style help popup, a diff viewer, a REPL transcript pane.
-
-```elixir
-%ExRatatui.Widgets.CodeBlock{
-  content: """
-  defmodule Counter do
-    def inc(n), do: n + 1
-  end
-  """,
-  language: "elixir",                          # nil = plain text fallback
-  theme: :base16_ocean_dark,
-  line_numbers: true,
-  starting_line: 1,
-  highlight_lines: [2, 5..7],                  # ints + ranges, normalised
-  block: %Block{title: " counter.ex ", borders: [:all]}
-}
-```
-
-Themes accept seven curated atoms — `:base16_ocean_dark`, `:base16_ocean_light`, `:base16_eighties_dark`, `:base16_mocha_dark`, `:inspired_github`, `:solarized_dark`, `:solarized_light` — or any raw string for custom theme sets loaded into syntect. Languages accept any syntect token name; we ship Elixir as an additional bundled syntax on top of syntect's defaults (Rust, Python, JS, Ruby, Go, Java, JSON, YAML, Erlang, …). `nil` is a plain-text fallback that skips tokenisation.
-
-`:line_numbers` turns on a right-aligned dim gutter with a `│` separator; the gutter width grows with the last visible line. `:highlight_lines` accepts a mixed list of ints and ranges (`[3, 7..9]`); the widget normalises that to a sorted unique line set and renders each emphasised line with a theme-derived background (lightened for dark themes, darkened for light themes).
-
-For composite widgets — a diff viewer that paints `+`/`-` gutters, an inspector that interleaves source and AST — reach for the raw helper instead:
-
-```elixir
-ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
-# => [%ExRatatui.Text.Line{spans: [%Span{}, ...]}, ...]
-```
-
-`highlight/3` returns the same `[%Line{}]` shape the widget uses internally, so you can drop it into a `Paragraph` or compose it with your own gutter / annotations without re-implementing syntect translation. The call is NIF-backed, runs on a `DirtyCpu` scheduler, and emits a `[:ex_ratatui, :code_block, :highlight]` telemetry span — see the [Telemetry guide](../internals/telemetry.md) for the metadata shape.
-
-See `examples/widgets/code_block.exs` to cycle through every theme / language / gutter combination interactively.
-
-### Textarea
-
-A multiline text editor with undo/redo, cursor movement, and Emacs-style shortcuts. This is a **stateful** widget — its state lives in Rust via ResourceArc.
-
-```elixir
-# Create state (once, e.g. in mount/1 or init/1)
-state = ExRatatui.textarea_new()
-
-# Forward key events (with modifier support)
-ExRatatui.textarea_handle_key(state, "h", [])
-ExRatatui.textarea_handle_key(state, "enter", [])
-ExRatatui.textarea_handle_key(state, "w", ["ctrl"])  # delete word backward
-
-# Read value
-ExRatatui.textarea_get_value(state)  #=> "h\n"
-
-# Render
-%Textarea{
-  state: state,
-  placeholder: "Type your message...",
-  placeholder_style: %Style{fg: :dark_gray},
-  block: %Block{title: "Message", borders: [:all], border_type: :rounded}
-}
-```
-
-### Throbber
-
-A loading spinner that animates through symbol sets. The caller controls the animation by incrementing `:step` on each tick.
-
-```elixir
-%Throbber{
-  label: "Loading...",
-  step: state.tick,
-  throbber_set: :braille,
-  throbber_style: %Style{fg: :cyan},
-  block: %Block{title: "Status", borders: [:all]}
-}
-```
-
-Available sets: `:braille`, `:dots`, `:ascii`, `:vertical_block`, `:horizontal_block`, `:arrow`, `:clock`, `:box_drawing`, `:quadrant_block`, `:white_square`, `:white_circle`, `:black_circle`.
-
-### Popup
-
-A centered modal overlay that renders any widget over the parent area, clearing the background underneath. Useful for dialogs, confirmations, and command palettes.
+`Popup` centers any widget over the parent area, clearing the background underneath — dialogs, confirmations, command palettes:
 
 ```elixir
 %Popup{
   content: %Paragraph{text: "Are you sure?"},
-  block: %Block{title: "Confirm", borders: [:all], border_type: :rounded},
+  block: %Block{title: " Confirm ", borders: [:all], border_type: :rounded},
   percent_width: 50,
   percent_height: 30
 }
 ```
 
-### WidgetList
+`Clear` is the lower-level building block: it resets every cell in its rect, for hand-rolled overlays drawn late in the render list.
 
-A vertical list of heterogeneous widgets with optional selection and scrolling. Each item is a `{widget, height}` tuple, making it ideal for chat message histories and similar layouts where items have different heights.
+### Heterogeneous scrolling: WidgetList
 
-`scroll_offset` is a row offset from the top of the content, not an item index. To scroll to a specific item, sum the heights of all preceding items. Items partially above the viewport are clipped row-by-row instead of being dropped entirely.
-
-> **Migrating from v0.6.1 or earlier:** `scroll_offset` used to be an item index. If you were passing `scroll_offset: selected`, convert by summing the heights of all preceding items, e.g. `items |> Enum.take(selected) |> Enum.map(&elem(&1, 1)) |> Enum.sum()`. See the v0.6.2 entry in the [CHANGELOG](https://github.com/mcass19/ex_ratatui/blob/main/CHANGELOG.md) for details.
+`WidgetList` stacks widgets of different heights into a scrollable column — chat histories, log views, mixed-content feeds. Each item is a `{widget, height}` tuple:
 
 ```elixir
 %WidgetList{
@@ -632,29 +217,21 @@ A vertical list of heterogeneous widgets with optional selection and scrolling. 
   selected: 1,
   highlight_style: %Style{fg: :yellow},
   scroll_offset: 0,
-  block: %Block{title: "Chat", borders: [:all]}
+  block: %Block{title: " Chat ", borders: [:all]}
 }
 ```
 
-### SlashCommands
+`scroll_offset` is a row offset from the top of the content, not an item index — to scroll to a specific item, sum the heights of the preceding items. Items partially above the viewport are clipped row-by-row instead of dropped.
 
-`SlashCommands` is a utility module (not a widget struct) that helps you build a command palette on top of `Popup` + `List`. Use `parse/1` to detect a `/prefix`, `match_commands/2` to filter your commands, and `render_autocomplete/2` to build the popup widgets you append to your render list.
+### Command palettes: SlashCommands
+
+`SlashCommands` is a utility module (not a widget struct) for building a `/command` palette on top of `Popup` + `List`: `parse/1` detects a `/prefix` in the input, `match_commands/2` filters the registered commands, and `render_autocomplete/2` builds the popup widgets to append to the render list:
 
 ```elixir
-alias ExRatatui.Widgets.SlashCommands
-alias ExRatatui.Widgets.SlashCommands.Command
-
-commands = [
-  %Command{name: "help", description: "Show help"},
-  %Command{name: "quit", description: "Exit the app"}
-]
-
-# In your render/2:
 case SlashCommands.parse(input_text) do
   {:command, prefix} ->
     matched = SlashCommands.match_commands(commands, prefix)
-    popup_widgets = SlashCommands.render_autocomplete(matched, area: area, selected: 0)
-    base_widgets ++ popup_widgets
+    base_widgets ++ SlashCommands.render_autocomplete(matched, area: area, selected: 0)
 
   :no_command ->
     base_widgets
@@ -810,7 +387,7 @@ Anything more specialised — gradient-style accents, severity-tinted text — d
 }
 ```
 
-`Theme` is intentionally Layer A: pure data with three helpers. A later Layer B may add opt-in auto-injection (Block borders pick up `theme.border` unless overridden, etc.); Layer A stays explicit.
+`Theme` is deliberately just pure data plus three helpers — no opt-in magic, no global configuration, nothing injected behind the scenes.
 
 ## Examples
 
