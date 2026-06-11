@@ -61,7 +61,7 @@ defmodule ExRatatui.Subscription do
   Declares a one-shot self-message subscription.
 
   Like `interval/3`, `id` is used for reconciliation. Once the message fires,
-  the subscription stays inactive until your app returns it again.
+  the subscription stays inactive until the app returns it again.
 
   ## Examples
 

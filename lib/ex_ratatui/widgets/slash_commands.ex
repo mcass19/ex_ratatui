@@ -18,7 +18,7 @@ defmodule ExRatatui.Widgets.SlashCommands do
         {:command, prefix} ->
           matched = SlashCommands.match_commands(commands, prefix)
           popup_widgets = SlashCommands.render_autocomplete(matched, area: area)
-          # Append popup_widgets to your render list
+          # Append popup_widgets to the render list
 
         :no_command ->
           # No slash command detected
@@ -92,7 +92,7 @@ defmodule ExRatatui.Widgets.SlashCommands do
   Builds a popup widget list for autocomplete display.
 
   Returns a list of `{widget, rect}` tuples that can be appended to
-  your render output. Uses `Popup` + `List` widgets.
+  the render output. Uses `Popup` + `List` widgets.
 
   ## Options
 

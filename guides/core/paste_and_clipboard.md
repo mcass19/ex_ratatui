@@ -37,7 +37,7 @@ The local terminal path (`ExRatatui.run/1`, `ExRatatui.poll_event/1`) decodes Pa
 
 ## Clipboard copy via OSC 52
 
-ExRatatui doesn't bundle a clipboard module — the ecosystem has too many opinions about it (system clipboard via `arboard`, OSC 52 escape sequence, route through a Phoenix LiveView intent, …). OSC 52 is the simplest path that works over both local terminals and SSH because the bytes traverse the same channel as the renderer's output. The entire implementation is short enough to drop into any app:
+ExRatatui doesn't bundle a clipboard module, too many opinions and options. OSC 52 is the simplest path that works over both local terminals and SSH because the bytes traverse the same channel as the renderer's output. The entire implementation is short enough to drop into any app:
 
 ```elixir
 defmodule MyApp.Clipboard do

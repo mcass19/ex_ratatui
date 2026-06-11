@@ -33,7 +33,7 @@ defmodule ExRatatui.Widgets.Textarea do
   ## Enter vs Submit
 
   The textarea always inserts newlines on Enter. To implement "Enter = submit,
-  Shift+Enter = newline", intercept Enter in your App's `handle_event` before
+  Shift+Enter = newline", intercept Enter in the App's `handle_event` before
   forwarding to the textarea.
 
   ## Examples

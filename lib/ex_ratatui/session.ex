@@ -5,7 +5,7 @@ defmodule ExRatatui.Session do
   Where `ExRatatui.run/1` and `ExRatatui.draw/2` are tied to the OS process'
   real tty (raw mode, alternate screen, `SIGWINCH`), a `Session` is a
   self-contained ratatui terminal whose output goes into a buffer and whose
-  input arrives as raw bytes from a transport you control. That makes it
+  input arrives as raw bytes from a caller-controlled transport. That makes it
   the right primitive for serving a TUI over SSH, multiplexing several
   TUIs in one BEAM node, or any context where the "terminal" lives somewhere
   other than the local process.
@@ -42,7 +42,7 @@ defmodule ExRatatui.Session do
 
   See `ExRatatui.SSH` for an OTP `:ssh_server_channel`-based transport.
 
-  If your consumer is **not** a terminal — a Phoenix LiveView painting
+  If the consumer is **not** a terminal — a Phoenix LiveView painting
   `<span>` cells, an embedded framebuffer, a screenshot tool —
   `ExRatatui.CellSession` is the cell-buffer sibling. Same widget tree,
   same input parser, same lifecycle; `take_output/1` is replaced by

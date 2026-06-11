@@ -629,7 +629,7 @@ Needs ~22×8 cells (24×10 with a block). `events` accepts a keyword-like list o
 [{picture, area}]
 ```
 
-Hold the handle in your model (decode is non-trivial — don't rebuild per frame). `:auto` adapts to the transport: Kitty/Ghostty get native graphics, Livebook gets halfblocks. Errors return `{:error, {:decode_failed, msg}}`.
+Hold the handle in the model (decode is non-trivial — don't rebuild per frame). `:auto` adapts to the transport: Kitty/Ghostty get native graphics, Livebook gets halfblocks. Errors return `{:error, {:decode_failed, msg}}`.
 
 Probe the local terminal for best protocol detection:
 

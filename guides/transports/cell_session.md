@@ -1,6 +1,6 @@
 # Rendering to non-terminal surfaces with `CellSession`
 
-`ExRatatui.Session` is the right primitive when whatever consumes your TUI speaks ANSI — a real terminal, an SSH channel, a TCP socket on the other end of a raw-mode client. It encodes the rendered frame as escape sequences and hands them to the transport.
+`ExRatatui.Session` is the right primitive when whatever consumes the TUI speaks ANSI — a real terminal, an SSH channel, a TCP socket on the other end of a raw-mode client. It encodes the rendered frame as escape sequences and hands them to the transport.
 
 `ExRatatui.CellSession` is the right primitive when the consumer is **not** a terminal: a Phoenix LiveView painting `<span>`s into the DOM, an embedded device rasterising glyphs to a 1bpp framebuffer, a screenshot tool dumping a frame to PNG/SVG, any future renderer for displays that don't accept ANSI. These consumers want the **rendered cell buffer** — `(symbol, fg, bg, modifiers, skip)` per cell — not bytes. `CellSession` exposes that buffer directly, skipping the ANSI encode/decode round-trip and the client-side terminal emulator that ANSI implies.
 
@@ -95,7 +95,7 @@ diff = CellSession.take_cells_diff(session)
 diff.ops          #=> []
 ```
 
-The op shape is identical to a snapshot's `Cell`. An op IS a cell at a position telling you "set this position to this content." Clearing a cell is just setting it to a default-styled space.
+The op shape is identical to a snapshot's `Cell`. An op IS a cell at a position saying "set this position to this content." Clearing a cell is just setting it to a default-styled space.
 
 ## Tight rects keep diffs small
 
@@ -119,7 +119,7 @@ length(diff.ops)
 #=> 1  — only the "X" cell
 ```
 
-This is the same behaviour you'd get on an ANSI terminal — ratatui clears each cell in the rect to the paragraph's style. It just shows up directly in the diff payload here.
+This is the same behaviour an ANSI terminal would get — ratatui clears each cell in the rect to the paragraph's style. It just shows up directly in the diff payload here.
 
 ## Driving an `ExRatatui.App` over a CellSession
 
@@ -137,7 +137,7 @@ Both are 1-arity functions:
 
 ```elixir
 cell_writer_fn = fn %CellSession.Diff{} = diff ->
-  # Ship the diff to wherever your renderer lives — a LiveView socket,
+  # Ship the diff to wherever the renderer lives — a LiveView socket,
   # a websocket, an in-process callback, etc.
   send(target_pid, {:render, diff})
   :ok
@@ -145,7 +145,7 @@ end
 
 intent_writer_fn = fn intent ->
   # Map App-emitted intents to consumer-side actions. Vocabulary is
-  # entirely up to you; the runtime forwards verbatim.
+  # entirely up to the consumer; the runtime forwards verbatim.
   send(target_pid, {:intent, intent})
   :ok
 end
@@ -172,11 +172,11 @@ See [Runtime opts](`m:ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for
   - **`take_cells/1` allocates one `%Cell{}` per cell** — ~1920 structs per call for an 80×24 grid. For tight loops, prefer the diff path.
   - **`take_cells_diff/1` clones the current ratatui buffer** to use as next-call baseline; the diff comparison itself is O(width × height) of structural cell equality.
   - **Cell encoding crosses the NIF boundary** as a list of tuples, one per cell. The Elixir wrapper then maps tuples to `%Cell{}` structs. Both are linear in the number of cells emitted, which the diff path keeps small in steady state.
-  - **Always close sessions you don't need** with `close/1` — it deterministically drops the underlying ratatui terminal and the cached diff baseline rather than waiting for BEAM GC.
+  - **Always close unneeded sessions** with `close/1` — it deterministically drops the underlying ratatui terminal and the cached diff baseline rather than waiting for BEAM GC.
 
 ## Related
 
-- [Building UIs](../core/building_uis.md) — the widget tree you pass to `draw/2` is the same one used by every other transport.
+- [Building UIs](../core/building_uis.md) — the widget tree passed to `draw/2` is the same one used by every other transport.
 - [Custom Transports](custom_transports.md) — how to wrap a `CellSession` (or `Session`) in an `ExRatatui.Transport` so an `ExRatatui.App` can run on it.
 - [Performance](../internals/performance.md) — once a frame budget gets tight, this guide covers what to look at.
 - `ExRatatui.CellSession` — module docs for the wrapper API.

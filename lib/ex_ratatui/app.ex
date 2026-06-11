@@ -35,7 +35,7 @@ defmodule ExRatatui.App do
         end
       end
 
-  Then add to your supervision tree:
+  Then add to the supervision tree:
 
       children = [{MyTUI, []}]
       Supervisor.start_link(children, strategy: :one_for_one)
@@ -58,7 +58,7 @@ defmodule ExRatatui.App do
   Every state-transition callback (`mount/1`, `init/1`, `handle_event/2`,
   `handle_info/2`, `update/2`) can return a third element — a keyword
   list of runtime opts that adjust the runtime's behaviour for that
-  transition without polluting your domain state.
+  transition without polluting domain state.
 
       def handle_event(%Event.Key{code: "q"}, state) do
         {:stop, state, intents: [{:redirect, "/login"}]}
@@ -87,7 +87,7 @@ defmodule ExRatatui.App do
 
     * `:transport` - which transport to serve the TUI over. One of:
       * `:local` (default) — drives the OS process' real tty via crossterm.
-        This is the path you want for a desktop TUI launched from a shell.
+        This is the path for a desktop TUI launched from a shell.
       * `:ssh` — starts an SSH daemon that gives every connecting client
         its own isolated session and `user_state`. Requires the `:port`
         option (and usually `:authorized_keys` / `:system_dir`); see

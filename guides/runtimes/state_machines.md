@@ -1,6 +1,6 @@
 # State Machine Patterns
 
-Once a TUI goes past a single screen, state starts to branch. You have a login flow, a main app, a settings panel, maybe a modal dialog on top of any of them. Stuffing that into a flat map and a big `case` in `render/2` works for a while, then stops working.
+Once a TUI goes past a single screen, state starts to branch. There's a login flow, a main app, a settings panel, maybe a modal dialog on top of any of them. Stuffing that into a flat map and a big `case` in `render/2` works for a while, then stops working.
 
 This guide is a pattern catalog. All examples work with either runtime — the structure is the same; only the transition signature differs.
 
@@ -19,7 +19,7 @@ def render(state, frame) do
 end
 ```
 
-This grows fast. Three flags become eight combinations, and you never write tests for all of them. Swap the flags for a single `:screen` atom that *names the state*:
+This grows fast. Three flags become eight combinations, and tests never get written for all of them. Swap the flags for a single `:screen` atom that *names the state*:
 
 ```elixir
 def render(%{screen: :loading} = state, frame), do: loading_view(state, frame)
@@ -50,7 +50,7 @@ defp handle_settings(_, state), do: {:noreply, state}
 
 Each screen owns its own keymap. Adding a new key to settings doesn't risk breaking main. Same pattern in the reducer runtime, just with `update({:event, event}, state)`.
 
-## Screen stack for modals
+## Overlay layer for modals
 
 A modal isn't really a new screen — it's a temporary layer on top of whatever's underneath. Model it as a second field:
 
@@ -131,7 +131,7 @@ def update({:event, %Event.Key{code: "esc"}}, %{screen: :settings, prev_screen: 
 end
 ```
 
-Note `:prev_screen`. When "esc" from settings should return to wherever you came from (main, or a sub-screen), track it in state. Don't hard-code `:main` — that breaks the day you add a second entry point to settings.
+Note `:prev_screen`. When "esc" from settings should return to wherever the user came from (main, or a sub-screen), track it in state. Don't hard-code `:main` — that breaks the day settings gains a second entry point.
 
 ## Conditional UI
 
@@ -148,7 +148,7 @@ defp main_view(state, frame) do
 end
 ```
 
-A handful of these is fine. Once you have five booleans that combine meaningfully, promote to a screen atom or an explicit `:mode` field.
+A handful of these is fine. Once there are five booleans that combine meaningfully, promote to a screen atom or an explicit `:mode` field.
 
 ### Focus-aware rendering
 
@@ -164,7 +164,7 @@ defp panel_border(state, panel_id) do
 end
 ```
 
-For larger apps with a ring of focusable IDs and tab cycling, see `ExRatatui.Focus` — it handles the ring navigation and lets you dispatch events to the currently-focused panel.
+For larger apps with a ring of focusable IDs and tab cycling, see `ExRatatui.Focus` — it handles the ring navigation and dispatching events to the currently-focused panel.
 
 ## Loading / async states
 
@@ -198,7 +198,7 @@ Everything above assumes state fits in one `ExRatatui.App`. That's usually the r
 - **Shared state across multiple TUI sessions.** Over SSH, each client gets its own `Server` — if all clients should see the same data, that data lives in a sibling GenServer, not in app state.
 - **Hardware or external resources.** A serial port, a database connection, a websocket — these want their own lifecycle.
 
-In those cases, spin up a separate `GenServer` (or `Agent`, or `Registry`) as a sibling under the same supervisor. Your `ExRatatui.App` calls into it in `handle_event/2`/`update/2` and subscribes to its updates. The app stays focused on "what the user sees right now"; the sibling handles "what's true about the world."
+In those cases, spin up a separate `GenServer` (or `Agent`, or `Registry`) as a sibling under the same supervisor. The `ExRatatui.App` calls into it in `handle_event/2`/`update/2` and subscribes to its updates. The app stays focused on "what the user sees right now"; the sibling handles "what's true about the world."
 
 ```elixir
 # supervisor
@@ -218,11 +218,11 @@ def handle_info({:data_updated, data}, state) do
 end
 ```
 
-Over SSH or distribution, `MyApp.DataService` is one singleton; the TUI children are per-session. That's exactly what you want — one source of truth, many views.
+Over SSH or distribution, `MyApp.DataService` is one singleton; the TUI children are per-session. That's exactly the shape we want — one source of truth, many views.
 
-## Where to go next
+## Related
 
-- **[Callback Runtime](callback_runtime.md)** — full `handle_event` / `handle_info` API.
-- **[Reducer Runtime](reducer_runtime.md)** — `update/2`, `Command`, `Subscription`.
-- **[Building UIs](../core/building_uis.md)** — `ExRatatui.Focus`, layout, styles.
-- **[Testing](../internals/testing.md)** — asserting state-machine transitions deterministically.
+- [Callback Runtime](callback_runtime.md) — full `handle_event` / `handle_info` API.
+- [Reducer Runtime](reducer_runtime.md) — `update/2`, `Command`, `Subscription`.
+- [Building UIs](../core/building_uis.md) — `ExRatatui.Focus`, layout, styles.
+- [Testing](../internals/testing.md) — asserting state-machine transitions deterministically.

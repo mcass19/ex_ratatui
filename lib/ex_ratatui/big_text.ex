@@ -40,7 +40,7 @@ defmodule ExRatatui.BigText do
   ## Sizing tip
 
   A `:full` glyph is 8×8 character cells. A two-character word at
-  `:full` therefore needs ~16 cells wide and 8 cells tall. If you're
+  `:full` therefore needs ~16 cells wide and 8 cells tall. When
   targeting an 80×24 terminal, `:half_height` (4 rows tall) or
   `:quadrant` (4 rows tall, 4 cols wide) usually fits a 2–3 word title.
   """

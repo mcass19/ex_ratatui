@@ -26,7 +26,7 @@ area = %Rect{x: 0, y: 0, width: 80, height: 24}
 ])
 ```
 
-### Constraint Types
+### Constraint types
 
 | Constraint | Description |
 |------------|-------------|
@@ -63,9 +63,9 @@ Named colors: `:black`, `:red`, `:green`, `:yellow`, `:blue`, `:magenta`, `:cyan
 
 Styles can be applied to most widgets via the `:style` field, and many widgets accept additional style fields for specific parts (e.g., `highlight_style`, `border_style`).
 
-## Rich Text
+## Rich text
 
-Text fields on many widgets accept more than a plain string: you can pass a `%ExRatatui.Text.Span{}`, a `%ExRatatui.Text.Line{}`, a list of spans, or any mix — letting a single string of output carry per-span colors and modifiers.
+Text fields on many widgets accept more than a plain string: pass a `%ExRatatui.Text.Span{}`, a `%ExRatatui.Text.Line{}`, a list of spans, or any mix — letting a single string of output carry per-span colors and modifiers.
 
 ```elixir
 alias ExRatatui.Text.{Line, Span}
@@ -95,13 +95,13 @@ Widgets that accept rich text on their text-bearing fields:
 | `Tabs` | each `:titles` entry |
 | `Block` | `:title` (single-line only) |
 
-Accepted shapes on these fields: `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{}]`. Plain strings continue to work everywhere. Fields that are semantically single-line (table cells, tab titles, block titles) raise if you pass a string with embedded newlines.
+Accepted shapes on these fields: `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{}]`. Plain strings continue to work everywhere. Fields that are semantically single-line (table cells, tab titles, block titles) raise if passed a string with embedded newlines.
 
 ## Events
 
 Terminal events are polled automatically by the runtime. In the [Callback Runtime](../runtimes/callback_runtime.md), they arrive in `handle_event/2`. In the [Reducer Runtime](../runtimes/reducer_runtime.md), they arrive as `{:event, event}` in `update/2`.
 
-### Key Events
+### Key events
 
 ```elixir
 %ExRatatui.Event.Key{
@@ -111,7 +111,7 @@ Terminal events are polled automatically by the runtime. In the [Callback Runtim
 }
 ```
 
-### Mouse Events
+### Mouse events
 
 ```elixir
 %ExRatatui.Event.Mouse{
@@ -123,7 +123,7 @@ Terminal events are polled automatically by the runtime. In the [Callback Runtim
 }
 ```
 
-### Resize Events
+### Resize events
 
 ```elixir
 %ExRatatui.Event.Resize{
@@ -132,7 +132,7 @@ Terminal events are polled automatically by the runtime. In the [Callback Runtim
 }
 ```
 
-The runtime automatically re-renders on resize — you don't need to handle resize events unless your app needs to react to size changes in its state.
+The runtime automatically re-renders on resize — there's no need to handle resize events unless the app needs to react to size changes in its state.
 
 ## Widgets
 

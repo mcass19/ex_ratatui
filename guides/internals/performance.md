@@ -1,12 +1,12 @@
 # Performance
 
-Most ExRatatui apps don't need performance tuning — `render/2` runs fast, the default 16ms poll gives ~60fps, and cell-level diffing keeps network output tight over SSH. But once your app grows a thousand-row list, a tick-driven dashboard, or a dozen widgets recomputed every frame, the tradeoffs matter.
+Most ExRatatui apps don't need performance tuning — `render/2` runs fast, the default 16ms poll gives ~60fps, and cell-level diffing keeps network output tight over SSH. But once an app grows a thousand-row list, a tick-driven dashboard, or a dozen widgets recomputed every frame, the tradeoffs matter.
 
 This guide covers the knobs, in order of impact.
 
 ## The render loop
 
-When you run an `ExRatatui.App`, the server loop looks like this:
+When an `ExRatatui.App` runs, the server loop looks like this:
 
 1. Poll the terminal for an event on the DirtyIo scheduler (non-blocking against other BEAM processes).
 2. Receive an event, `handle_info` message, subscription firing, or async command result.
@@ -14,9 +14,9 @@ When you run an `ExRatatui.App`, the server loop looks like this:
 4. If the transition opted in (default), call `render/2` to build the scene.
 5. Hand the widget list to the Rust side, which diffs against the previous frame and writes only changed cells.
 
-Every transition is a chance to re-render. If `render/2` is cheap and your transitions are sparse, you have headroom for a lot of widgets. If one of those is expensive, everything else pays.
+Every transition is a chance to re-render. If `render/2` is cheap and transitions are sparse, there's headroom for a lot of widgets. If one of those is expensive, everything else pays.
 
-## Skip renders you don't need — `render?: false`
+## Skip unneeded renders — `render?: false`
 
 Not every state change needs a visible update. Telemetry ticks, background cache refills, or bookkeeping transitions should skip the render:
 
@@ -34,7 +34,7 @@ end
 
 `render?: false` keeps the new state but doesn't call `render/2` or push a frame. The next transition that does render will include the metrics update in the same frame.
 
-Rule of thumb: if a state change doesn't change anything the user can see *right now*, skip the render. You can always force one by emitting a tick that *does* render.
+Rule of thumb: if a state change doesn't change anything the user can see *right now*, skip the render. A render can always be forced by emitting a tick that *does* render.
 
 ## Keep `render/2` cheap
 
@@ -63,7 +63,7 @@ end
 
 **No I/O in `render/2`.** File reads, network calls, `Process.get/0`, `:ets.lookup/2` — move them out. Even local ETS adds per-frame overhead at 60fps.
 
-**Avoid allocating large binaries from scratch on every frame.** If you build a huge formatted string that rarely changes, cache it in state too. Garbage collection on the render path is the tax you pay later.
+**Avoid allocating large binaries from scratch on every frame.** When building a huge formatted string that rarely changes, cache it in state too. Garbage collection on the render path is the tax paid later.
 
 **Widget structs are cheap to allocate, expensive to over-nest.** A widget list with thousands of `Span` structs for one line is fine; a `List` with twenty thousand items isn't — use the next section.
 
@@ -81,14 +81,14 @@ Rendering a `%List{items: one_million_rows}` means encoding every row across the
 }
 ```
 
-For long homogeneous lists, slice yourself before passing to `%List{}`:
+For long homogeneous lists, slice before passing to `%List{}`:
 
 ```elixir
 visible = Enum.slice(state.items, state.scroll_offset, 20)
 %List{items: visible, selected: state.selected - state.scroll_offset}
 ```
 
-20 items cross the NIF boundary per frame instead of a million. You manage the viewport in state.
+20 items cross the NIF boundary per frame instead of a million. Manage the viewport in state.
 
 **Avoid re-allocating item lists on every frame.** If `state.items` doesn't change, `render/2` should reuse it verbatim, not `Enum.map` over it to "freshen" the structs.
 
@@ -109,13 +109,13 @@ Remember this is just the *poll*, not the render cap. Rendering happens per-tran
 
 ## Subscriptions (reducer runtime)
 
-`Subscription.interval/3` is efficient — the runtime reconciles subscriptions after each transition, firing only what's due, starting new timers when a subscription appears, and canceling ones that disappear. That's the point: you get declarative timers without manually managing `Process.send_after` state.
+`Subscription.interval/3` is efficient — the runtime reconciles subscriptions after each transition, firing only what's due, starting new timers when a subscription appears, and canceling ones that disappear. That's the point: declarative timers without manually managing `Process.send_after` state.
 
 Performance notes:
 
-- **Short intervals still cost messages.** A 16ms subscription is 60 messages/sec plus 60 renders (unless you pair with `render?: false`). Prefer second-or-longer intervals for dashboards.
+- **Short intervals still cost messages.** A 16ms subscription is 60 messages/sec plus 60 renders (unless paired with `render?: false`). Prefer second-or-longer intervals for dashboards.
 - **Subscriptions are pure by id.** Changing just the `:interval_ms` of an existing subscription id restarts the timer. Changing the id tears the old one down and starts fresh.
-- **Conditional subscriptions.** Return `[]` (or omit from the list) when you don't need a timer — the runtime cancels it. This is the idiomatic way to "pause" a ticker: toggle a flag in state, check it in `subscriptions/1`, return the list conditionally.
+- **Conditional subscriptions.** Return `[]` (or omit from the list) when no timer is needed — the runtime cancels it. This is the idiomatic way to "pause" a ticker: toggle a flag in state, check it in `subscriptions/1`, return the list conditionally.
 
 ```elixir
 def subscriptions(%{paused: true}), do: []
@@ -158,7 +158,7 @@ def handle_info({ref, response}, state) when is_reference(ref) do
 end
 ```
 
-`async_nolink` is important — without it, the task's crash would bring down the TUI. You supervise the Task.Supervisor separately in your app's supervision tree.
+`async_nolink` is important — without it, the task's crash would bring down the TUI. Supervise the Task.Supervisor separately in the app's supervision tree.
 
 **Either way, don't use raw `Task.async/1` or `spawn/1` in production.** They're unsupervised — a crash leaks state or kills the app.
 
@@ -166,7 +166,7 @@ end
 
 Two tools.
 
-**`ExRatatui.Runtime.enable_trace/2`** gives you `:at_ms` timestamps on every message, render, command, and subscription. To time a render:
+**`ExRatatui.Runtime.enable_trace/2`** gives `:at_ms` timestamps on every message, render, command, and subscription. To time a render:
 
 ```elixir
 ExRatatui.Runtime.enable_trace(pid)
@@ -182,7 +182,7 @@ events
 
 Good enough to spot outliers (one render that takes 40ms where the rest take 2ms).
 
-**`:timer.tc/1`** is the standard microbenchmark for a single function. Use it on the scene-building logic you extracted from `render/2`:
+**`:timer.tc/1`** is the standard microbenchmark for a single function. Use it on the scene-building logic extracted from `render/2`:
 
 ```elixir
 {time_us, _} = :timer.tc(fn -> MyApp.TUI.scene(state, frame) end)
@@ -198,11 +198,11 @@ If that's fast and the render is slow, the time's in the NIF — likely a giant 
 - **Distribution transport** — the app node encodes the widget list as BEAM terms and ships them to the client node. Large widget lists cost network bandwidth per frame. Same mitigation: skip renders, keep trees tight.
 - **Cell-based consumers (`CellSession`)** — non-terminal renderers (LiveView, framebuffers) ship cells, not bytes. Use `take_cells_diff/1` instead of `take_cells/1` so steady-state frames carry only changed cells, and keep styled rects tight (a styled `Paragraph` paints its style across the whole rect — every cell counts as changed). See [Rendering to Non-Terminal Surfaces](../transports/cell_session.md).
 
-The same app module runs on all of them without changes; you tune the transport-specific knobs (`poll_interval`, subscription cadence) at `start_link`.
+The same app module runs on all of them without changes; the transport-specific knobs (`poll_interval`, subscription cadence) are tuned at `start_link`.
 
-## Where to go next
+## Related
 
-- **[Debugging](debugging.md)** — `enable_trace/2` for timing, `snapshot/1` for render counts.
-- **[Reducer Runtime](../runtimes/reducer_runtime.md)** — full `Command` and `Subscription` API.
-- **[Testing](testing.md)** — asserting `render_count` stays flat under `render?: false`.
-- **[Rendering to Non-Terminal Surfaces](../transports/cell_session.md)** — diff-based cell shipping for LiveView and framebuffer consumers.
+- [Debugging](debugging.md) — `enable_trace/2` for timing, `snapshot/1` for render counts.
+- [Reducer Runtime](../runtimes/reducer_runtime.md) — full `Command` and `Subscription` API.
+- [Testing](testing.md) — asserting `render_count` stays flat under `render?: false`.
+- [Rendering to Non-Terminal Surfaces](../transports/cell_session.md) — diff-based cell shipping for LiveView and framebuffer consumers.

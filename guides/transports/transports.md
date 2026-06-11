@@ -86,7 +86,7 @@ end
 
 `ExRatatui.Distributed.Listener` takes the same `:app_opts` option.
 
-## Where to go from here
+## Related
 
 - [Local terminal: getting started](../introduction/getting_started.md)
 - [SSH transport](ssh_transport.md)

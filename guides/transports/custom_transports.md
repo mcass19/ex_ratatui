@@ -1,8 +1,8 @@
 # Custom Transports
 
-An ExRatatui "transport" is any module that decides **where the bytes go** for a running `ExRatatui.App`. The library ships several transports out of the box — `:local` for the host tty via `ExRatatui.run/1`, `ExRatatui.SSH.Daemon` + `ExRatatui.SSH` for serving the same App over OTP `:ssh`, `ExRatatui.Distributed.Listener` for serving the App to remote BEAM nodes, and the session-backed shapes that this guide and [Rendering to Non-Terminal Surfaces](cell_session.md) build on (the [Transports](transports.md) guide has the full matrix). If none of those fits — you want to serve an App over a raw TCP socket, a Livebook widget, a WebSocket, whatever — you can plug in your own. This guide walks through the contract and a small TCP example.
+An ExRatatui "transport" is any module that decides **where the bytes go** for a running `ExRatatui.App`. The library ships several transports out of the box — `:local` for the host tty via `ExRatatui.run/1`, `ExRatatui.SSH.Daemon` + `ExRatatui.SSH` for serving the same App over OTP `:ssh`, `ExRatatui.Distributed.Listener` for serving the App to remote BEAM nodes, and the session-backed shapes that this guide and [Rendering to Non-Terminal Surfaces](cell_session.md) build on (the [Transports](transports.md) guide has the full matrix). If none of those fits — serving an App over a raw TCP socket, a Livebook widget, a WebSocket, whatever — plug in a custom one. This guide walks through the contract and a small TCP example.
 
-If your consumer is **not** a terminal — a Phoenix LiveView painting `<span>` cells, a Nerves device rasterising into a framebuffer, a screenshot tool — see [Rendering to Non-Terminal Surfaces](cell_session.md). `ExRatatui.CellSession` is the ANSI-free sibling of `Session`, and the patterns in this guide (acceptor + per-connection worker, runtime-server monitoring, alt-screen lifecycle for byte streams) still apply with a cell buffer in place of the byte writer.
+If the consumer is **not** a terminal — a Phoenix LiveView painting `<span>` cells, a Nerves device rasterising into a framebuffer, a screenshot tool — see [Rendering to Non-Terminal Surfaces](cell_session.md). `ExRatatui.CellSession` is the ANSI-free sibling of `Session`, and the patterns in this guide (acceptor + per-connection worker, runtime-server monitoring, alt-screen lifecycle for byte streams) still apply with a cell buffer in place of the byte writer.
 
 ## The contract
 
@@ -31,7 +31,7 @@ A byte-stream transport (SSH, a TCP bridge, a Kino widget) does three things. It
 
 Two responsibilities, one module: a long-lived **acceptor** that loops on `:gen_tcp.accept` and re-arms after every client, and a short-lived **connection** task per client that owns the `Session`, the runtime server, and the byte pump. Splitting them is what makes the listener survive across disconnects — fold the acceptor and connection into one GenServer and the whole thing dies the moment the first client leaves.
 
-Beyond that, three things to get right: emit the alt-screen enter/leave sequences (the in-memory `Session` deliberately doesn't — it's the transport's job, mirroring `ExRatatui.SSH`), monitor the runtime server so the connection tears down when the app quits, and flush the leave-screen bytes *before* you close the socket so the client's terminal is restored.
+Beyond that, three things to get right: emit the alt-screen enter/leave sequences (the in-memory `Session` deliberately doesn't — it's the transport's job, mirroring `ExRatatui.SSH`), monitor the runtime server so the connection tears down when the app quits, and flush the leave-screen bytes *before* closing the socket so the client's terminal is restored.
 
 ```elixir
 defmodule MyApp.TcpTransport do
@@ -68,7 +68,7 @@ defmodule MyApp.TcpTransport do
   # Accept one connection, hand it off to a per-client task, and
   # immediately re-arm the next accept. Each connection runs in its own
   # *unlinked* Task so a single client crashing or disconnecting can't
-  # take the acceptor with it. For production you'd start each client
+  # take the acceptor with it. For production, start each client
   # under a `DynamicSupervisor` so they're observable; for a minimal
   # example this is enough.
   @impl true
@@ -130,7 +130,7 @@ defmodule MyApp.TcpTransport do
 end
 ```
 
-Drop `{MyApp.TcpTransport, mod: MyApp.Counter, port: 4040}` into your supervision tree and any `ExRatatui.App` module now runs over TCP — concurrent clients welcome, and the listener stays up across disconnects.
+Drop `{MyApp.TcpTransport, mod: MyApp.Counter, port: 4040}` into the supervision tree and any `ExRatatui.App` module now runs over TCP — concurrent clients welcome, and the listener stays up across disconnects.
 
 ### Client requirements
 
@@ -140,7 +140,7 @@ Plain TCP has no equivalent of SSH's PTY negotiation, so the *client* has to put
 socat -,raw,echo=0,escape=0x03 TCP:localhost:4040
 ```
 
-`raw,echo=0` on `-` (stdin) puts your terminal in raw mode without local echo for the duration of the connection and restores it on exit. `escape=0x03` lets you Ctrl-C out if the server hangs.
+`raw,echo=0` on `-` (stdin) puts the local terminal in raw mode without local echo for the duration of the connection and restores it on exit. `escape=0x03` keeps Ctrl-C as a way out if the server hangs.
 
 `nc` works too with an `stty` wrapper, with one caveat:
 
@@ -148,23 +148,23 @@ socat -,raw,echo=0,escape=0x03 TCP:localhost:4040
 stty raw -echo; nc localhost 4040; stty sane
 ```
 
-Without `stty raw -echo`, your local terminal stays in cooked mode: keystrokes are buffered locally until you press Enter, your local terminal echoes characters before they're sent, and the TUI never sees individual key events. The trailing `stty sane` restores your shell once `nc` exits.
+Without `stty raw -echo`, the local terminal stays in cooked mode: keystrokes are buffered locally until Enter is pressed, the local terminal echoes characters before they're sent, and the TUI never sees individual key events. The trailing `stty sane` restores the shell once `nc` exits.
 
-`nc` has a teardown quirk worth knowing about: it doesn't exit purely on remote socket close — it also waits for EOF on its stdin. So when the app quits, the TUI restores correctly but you'll need to press one extra key for `nc` to notice (the keypress fails to write to the dead socket, which is what makes `nc` finally exit) before `stty sane` runs and your shell returns. If that bothers you, use `socat`.
+`nc` has a teardown quirk worth knowing about: it doesn't exit purely on remote socket close — it also waits for EOF on its stdin. So when the app quits, the TUI restores correctly but one extra keypress is needed for `nc` to notice (the keypress fails to write to the dead socket, which is what makes `nc` finally exit) before `stty sane` runs and the shell returns. If that's bothersome, use `socat`.
 
 ### Limitation: no resize support
 
-The TCP example above hardcodes `Session.new(80, 24)` and never updates it. That's not a bug in the example — it's a structural limit of raw TCP. SSH has a dedicated channel for terminal dimensions (`pty_req` at connect for the initial size, `window_change` packets while running for SIGWINCH), and `ExRatatui.SSH` translates both into `{:ex_ratatui_resize, w, h}` messages to the runtime. Raw TCP has no equivalent — every byte on the socket is application data, and dumb clients like `nc` and `socat` ignore SIGWINCH on your local terminal because they have no protocol slot to forward it through.
+The TCP example above hardcodes `Session.new(80, 24)` and never updates it. That's not a bug in the example — it's a structural limit of raw TCP. SSH has a dedicated channel for terminal dimensions (`pty_req` at connect for the initial size, `window_change` packets while running for SIGWINCH), and `ExRatatui.SSH` translates both into `{:ex_ratatui_resize, w, h}` messages to the runtime. Raw TCP has no equivalent — every byte on the socket is application data, and dumb clients like `nc` and `socat` ignore SIGWINCH on the local terminal because they have no protocol slot to forward it through.
 
-If you need *initial* size discovery without changing the client, the SSH transport's CPR trick works over TCP too: send `\e[s\e[9999;9999H\e[6n\e[u` after the alt-screen enter, the client's terminal answers with `\e[<row>;<col>R`, the `Session`'s input parser decodes that into a `%Event.Resize{}`, and `ByteStream.forward_input/3` absorbs it into a runtime resize automatically. `ExRatatui.SSH` uses the same sequence (its `@cpr_size_query` attribute) in subsystem mode.
+For *initial* size discovery without changing the client, the SSH transport's CPR trick works over TCP too: send `\e[s\e[9999;9999H\e[6n\e[u` after the alt-screen enter, the client's terminal answers with `\e[<row>;<col>R`, the `Session`'s input parser decodes that into a `%Event.Resize{}`, and `ByteStream.forward_input/3` absorbs it into a runtime resize automatically. `ExRatatui.SSH` uses the same sequence (its `@cpr_size_query` attribute) in subsystem mode.
 
-For *ongoing* resize you need a smarter client — one that watches SIGWINCH and sends the new dimensions back over the socket as a framed message your transport decodes. That's a real custom-client effort (think `mosh`-style); if you're at that point, SSH is almost always the better answer.
+For *ongoing* resize a smarter client is needed — one that watches SIGWINCH and sends the new dimensions back over the socket as a framed message the transport decodes. That's a real custom-client effort (think `mosh`-style); at that point, SSH is almost always the better answer.
 
 ## Checklist for a new byte-stream transport
 
 A few non-obvious things to get right:
 
-- **Declare `@behaviour ExRatatui.Transport`** on the module that owns the connection (the GenServer, channel handler, whatever the framework gives you).
+- **Declare `@behaviour ExRatatui.Transport`** on the module that owns the connection (the GenServer, channel handler, whatever the framework provides).
 - **Separate the acceptor from the per-connection worker.** A single process doing both serves one client at a time and dies with that client, taking the listener with it.
 - **Size the `Session` to the remote terminal at connect time.** If the size isn't knowable up front, default to 80×24 and send a resize as soon as the real dimensions arrive.
 - **Keep the `writer_fn` fast and non-blocking.** It's called from the server process on every render; a blocking write back-pressures the entire runtime.
@@ -172,9 +172,9 @@ A few non-obvious things to get right:
 - **Route inbound bytes through `ByteStream.forward_input/3`**, not `Session.feed_input/2` directly — going direct skips the Resize-absorption logic. Resize signals go through `ByteStream.forward_resize/4`.
 - **Monitor the runtime server pid (or trap exits).** When the app quits, flush the leave-screen sequence *while the connection is still writable*, then close the socket/channel.
 
-## When NOT to use a byte-stream transport
+## When not to use a byte-stream transport
 
-If your transport doesn't carry raw ANSI — for example, BEAM distribution ships widget trees between nodes as Erlang terms — use the `{:distributed_server, pid, w, h}` variant instead. See `ExRatatui.Distributed.Listener` for the pattern. Byte-stream helpers don't apply there; you still send `{:ex_ratatui_event, _}` and `{:ex_ratatui_resize, _, _}` messages to the Server yourself, but the rendered payload crosses the network as structured widget data, not bytes.
+If the transport doesn't carry raw ANSI — for example, BEAM distribution ships widget trees between nodes as Erlang terms — use the `{:distributed_server, pid, w, h}` variant instead. See `ExRatatui.Distributed.Listener` for the pattern. Byte-stream helpers don't apply there; the transport still sends `{:ex_ratatui_event, _}` and `{:ex_ratatui_resize, _, _}` messages to the Server itself, but the rendered payload crosses the network as structured widget data, not bytes.
 
 ## Telemetry
 

@@ -393,7 +393,7 @@ defmodule ExRatatui.Server do
   # Apps that need to distinguish "am I running over SSH vs local?"
   # still can: the user put `transport: :ssh` in their child spec
   # themselves, so that context is upstream. In mount, the useful
-  # answer is "you're on the session runtime."
+  # answer is "this is the session runtime."
   def augment_session_mount_opts(opts, width, height) do
     opts
     |> Keyword.put(:transport, :session)

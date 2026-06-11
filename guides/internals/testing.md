@@ -1,6 +1,6 @@
 # Testing
 
-ExRatatui ships with a headless test backend so you can test TUIs in CI without a TTY. Tests run `async: true`, start in milliseconds, and assert against either the rendered character buffer or observable state transitions.
+ExRatatui ships with a headless test backend so TUIs can be tested in CI without a TTY. Tests run `async: true`, start in milliseconds, and assert against either the rendered character buffer or observable state transitions.
 
 There are two testing levels:
 
@@ -41,19 +41,19 @@ defmodule MyApp.WidgetTest do
 end
 ```
 
-`get_buffer_content/1` returns the visible characters as a multi-line string, stripped of styling. That's usually what you want for assertions — but if you need exact column placement, the string is newline-delimited at the backend's width, so `String.split(content, "\n") |> Enum.at(row)` gets you one row.
+`get_buffer_content/1` returns the visible characters as a multi-line string, stripped of styling. That's usually the right target for assertions — but if exact column placement is needed, the string is newline-delimited at the backend's width, so `String.split(content, "\n") |> Enum.at(row)` yields one row.
 
 Each test terminal is independent — no global state, nothing to clean up, safe under `async: true`.
 
 ## App-level: supervised apps under `test_mode`
 
-When you start any `ExRatatui.App` with `test_mode: {width, height}`:
+When any `ExRatatui.App` is started with `test_mode: {width, height}`:
 
 - The server boots against the headless backend instead of the real terminal
-- Live terminal input polling is disabled (so ambient TTY events don't leak into your test)
+- Live terminal input polling is disabled (so ambient TTY events don't leak into the test)
 - Everything else — `mount/1`, `render/2`, `handle_event/2`, commands, subscriptions — runs normally
 
-You drive input with `ExRatatui.Runtime.inject_event/2` and assert against either the runtime snapshot or messages your app sends to a passed-in `test_pid`.
+Drive input with `ExRatatui.Runtime.inject_event/2` and assert against either the runtime snapshot or messages the app sends to a passed-in `test_pid`.
 
 ### Pattern 1: assert via runtime snapshot
 
@@ -82,7 +82,7 @@ end
 
 ### Pattern 2: assert via a `test_pid`
 
-For richer assertions, your app can send messages to a pid passed through mount opts:
+For richer assertions, the app can send messages to a pid passed through mount opts:
 
 ```elixir
 defmodule MyApp.Counter do
@@ -121,11 +121,11 @@ test "tracks count over multiple presses" do
 end
 ```
 
-This hook is entirely in your app's code — no framework plumbing. The `test_pid` is just another mount option; production runs don't pass one, so `state.test_pid` is `nil` and the `send` is a no-op.
+This hook is entirely in the app's code — no framework plumbing. The `test_pid` is just another mount option; production runs don't pass one, so `state.test_pid` is `nil` and the `send` is a no-op.
 
 ### Pattern 3: assert via `:sys.get_state`
 
-For quick state inspection in tests, `:sys.get_state/1` works on any GenServer, including the ExRatatui server. The returned struct's `:user_state` field holds your app's state:
+For quick state inspection in tests, `:sys.get_state/1` works on any GenServer, including the ExRatatui server. The returned struct's `:user_state` field holds the app's state:
 
 ```elixir
 server_state = :sys.get_state(pid)
@@ -154,7 +154,7 @@ Any of these can be passed to `inject_event/2`. A resize event triggers a fresh 
 
 ## Testing `handle_info` and subscriptions
 
-Callback-runtime `handle_info/2` callbacks receive regular messages — just `send(pid, message)` in your test. Tracing with `enable_trace` (see [Debugging](debugging.md)) captures `:info` sources if you need to see them.
+Callback-runtime `handle_info/2` callbacks receive regular messages — just `send(pid, message)` in the test. Tracing with `enable_trace` (see [Debugging](debugging.md)) captures `:info` sources if needed.
 
 For reducer-runtime subscriptions:
 
@@ -166,7 +166,7 @@ assert length(snapshot.subscriptions) == 1
 assert [%{id: :tick, kind: :interval, interval_ms: 1_000}] = snapshot.subscriptions
 ```
 
-You can let a real interval fire (fine for short intervals in fast tests), or prefer driving the transition manually via `inject_event/2` and asserting the effect — tests are more deterministic without timing dependencies.
+A real interval can be left to fire (fine for short intervals in fast tests), but prefer driving the transition manually via `inject_event/2` and asserting the effect — tests are more deterministic without timing dependencies.
 
 ## Patterns
 
@@ -188,7 +188,7 @@ test "renders count with positive styling" do
 end
 ```
 
-Pulling `scene/2` out of `render/2` is a light refactor that pays for itself the first time you want a visual assertion.
+Pulling `scene/2` out of `render/2` is a light refactor that pays for itself the first time a visual assertion is needed.
 
 ### Asserting text in a specific region
 
@@ -202,7 +202,7 @@ For column ranges use `binary_part/3` or `String.slice/2` on the row. Absence is
 
 ### Asserting focus moved
 
-If your app renders the focused region's border in a distinct color, that'll show up in the buffer. If you track focus explicitly in state, assert against `:sys.get_state(pid).user_state.focus`.
+If the app renders the focused region's border in a distinct color, that'll show up in the buffer. If focus is tracked explicitly in state, assert against `:sys.get_state(pid).user_state.focus`.
 
 ## Property-based invariants
 
@@ -210,23 +210,23 @@ Use `stream_data` to check invariants that should hold for any input — decoder
 
 ## Cross-transport parity
 
-A single app module runs over local, SSH, or distribution transports. To verify a change doesn't regress one of them, the suite runs the same scenario against all three transports using a shared driver module. For your own apps, one focused local-transport test suite is usually enough — only add cross-transport tests when you've seen a transport-specific bug or are shipping a library meant to be transport-agnostic.
+A single app module runs over local, SSH, or distribution transports. To verify a change doesn't regress one of them, the suite runs the same scenario against all three transports using a shared driver module. For downstream apps, one focused local-transport test suite is usually enough — only add cross-transport tests after hitting a transport-specific bug or when shipping a library meant to be transport-agnostic.
 
 ## Gotchas
 
-**Avoid `Process.sleep/1`.** If you're waiting for an event to be processed, use `_ = :sys.get_state(pid)` — by the time that call returns, the server has handled every prior message. If you're waiting for a message, use `assert_receive {msg, ...}, timeout`.
+**Avoid `Process.sleep/1`.** When waiting for an event to be processed, use `_ = :sys.get_state(pid)` — by the time that call returns, the server has handled every prior message. When waiting for a message, use `assert_receive {msg, ...}, timeout`.
 
 **Avoid `Process.alive?/1` for synchronization.** Prefer `Process.monitor/1` + `assert_receive {:DOWN, ^ref, :process, ^pid, _reason}`.
 
-**`async: true` + `test_mode`.** `test_mode` disables terminal polling specifically so async tests don't race ambient TTY events. If you see flaky tests touching real stdin, make sure every `start_link` / `start_supervised!` passes `test_mode: {w, h}`.
+**`async: true` + `test_mode`.** `test_mode` disables terminal polling specifically so async tests don't race ambient TTY events. If flaky tests touch real stdin, make sure every `start_link` / `start_supervised!` passes `test_mode: {w, h}`.
 
-**Don't forget `name: nil`.** Tests that start a named app will collide with any other test running in parallel under the same name. Pass `name: nil` to skip registration — you can still address the server by its pid.
+**Don't forget `name: nil`.** Tests that start a named app will collide with any other test running in parallel under the same name. Pass `name: nil` to skip registration — the server can still be addressed by its pid.
 
-**Rust NIF rebuilds.** If you're editing the Rust side too, prepend `EX_RATATUI_BUILD=1` and clean `_build/` first — stale precompiled binaries mask your changes. See [Debugging](debugging.md#rust-nif-rebuilds).
+**Rust NIF rebuilds.** When editing the Rust side too, prepend `EX_RATATUI_BUILD=1` and clean `_build/` first — stale precompiled binaries mask the changes. See [Debugging](debugging.md#rust-nif-rebuilds).
 
 ## Asserting on structured cells
 
-`get_buffer_content/1` strips styling. When you need to assert on **per-cell colors, modifiers, or exact positions** — visual regression suites, snapshot tests for non-terminal renderers — `ExRatatui.CellSession` exposes the rendered cells as Elixir structs:
+`get_buffer_content/1` strips styling. To assert on **per-cell colors, modifiers, or exact positions** — visual regression suites, snapshot tests for non-terminal renderers — `ExRatatui.CellSession` exposes the rendered cells as Elixir structs:
 
 ```elixir
 session = ExRatatui.CellSession.new(40, 10)
@@ -240,9 +240,9 @@ assert :bold in styled.modifiers
 
 See [Rendering to Non-Terminal Surfaces](../transports/cell_session.md) for the full cell shape and the diff path.
 
-## Where to go next
+## Related
 
-- **[Debugging](debugging.md)** — `Runtime.enable_trace/2`, buffer inspection during development.
-- **[Performance](performance.md)** — how `render?: false` affects render counts in tests.
-- **[Rendering to Non-Terminal Surfaces](../transports/cell_session.md)** — `CellSession` for tests that need structured cells.
+- [Debugging](debugging.md) — `Runtime.enable_trace/2`, buffer inspection during development.
+- [Performance](performance.md) — how `render?: false` affects render counts in tests.
+- [Rendering to Non-Terminal Surfaces](../transports/cell_session.md) — `CellSession` for tests that need structured cells.
 - **`ExRatatui.Runtime`** module docs — full shape of `snapshot/1`, `enable_trace/2`, `inject_event/2`.

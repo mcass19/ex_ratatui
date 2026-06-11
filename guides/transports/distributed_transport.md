@@ -2,13 +2,13 @@
 
 ExRatatui ships with a distribution-attach transport that lets any `ExRatatui.App` module be driven from a remote BEAM node over Erlang distribution. The app node runs all the callbacks (`mount/render/handle_event/handle_info`) and sends widget lists as plain BEAM terms; the attaching node renders them on its own terminal and forwards input events back.
 
-This is the mode you want when:
+Reach for this mode when:
 
-  * You're running on a BEAM node that has no terminal (Nerves, a container, a release running as a daemon) and want to drive a TUI from your local.
-  * You already have Erlang distribution set up (cookies, `epmd`, `--sname`) and don't want to manage SSH keys or ports.
-  * You want zero Rust NIF involvement on the app node — widget structs travel as BEAM terms and the client renders them with its own local NIF.
+  * The app runs on a BEAM node that has no terminal (Nerves, a container, a release running as a daemon) and the TUI is driven from the local machine.
+  * Erlang distribution is already set up (cookies, `epmd`, `--sname`) — no SSH keys or ports to manage.
+  * Zero Rust NIF involvement on the app node is the goal — widget structs travel as BEAM terms and the client renders them with its own local NIF.
 
-## The Big Picture
+## The big picture
 
 ```
        ┌──────────────┐                  ┌────────────────────────────┐
@@ -17,23 +17,23 @@ This is the mode you want when:
        │  Client      │  {:ex_ratatui_   │  Listener                  │
        │  ├─ terminal │   draw, widgets} │   └─ DynamicSupervisor     │
        │  └─ poll     │                  │       └─ Server            │
-       │     events   │ {:ex_ratatui_    │           └─ your App mod  │
+       │     events   │ {:ex_ratatui_    │           └─ the App mod   │
        │              │  event, event}   │                            │
        └──────────────┘                  └────────────────────────────┘
 ```
 
-The app node runs a `Distributed.Listener` supervisor with a `DynamicSupervisor` child. Each call to `attach/2` spawns a `Server` in `:distributed_server` mode under that supervisor — this process runs your app module's callbacks and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
+The app node runs a `Distributed.Listener` supervisor with a `DynamicSupervisor` child. Each call to `attach/2` spawns a `Server` in `:distributed_server` mode under that supervisor — this process runs the app module's callbacks and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
 
 On the attaching node, a `Distributed.Client` process takes over the local terminal, polls input events, and forwards them to the remote server as `{:ex_ratatui_event, event}` or `{:ex_ratatui_resize, w, h}`.
 
 When either side disconnects, process monitors fire, both processes clean up, and the terminal is restored.
 
-## Quick Start
+## Quick start
 
 ### 1. Add the Listener on the app node
 
 ```elixir
-# In your supervision tree
+# In the supervision tree
 children = [
   {MyApp.TUI, transport: :distributed}
 ]
@@ -53,7 +53,7 @@ children = [
 iex --sname app --cookie mycookie -S mix
 ```
 
-### 3. Attach from your local
+### 3. Attach from the local node
 
 ```sh
 iex --sname mynode --cookie mycookie -S mix
@@ -63,9 +63,9 @@ iex --sname mynode --cookie mycookie -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", MyApp.TUI)
 ```
 
-The TUI takes over your terminal. Press the app's quit key (or Ctrl-C twice) to disconnect and restore the terminal.
+The TUI takes over the terminal. Press the app's quit key (or Ctrl-C twice) to disconnect and restore the terminal.
 
-### Try It with the System Monitor Example
+### Try it with the System Monitor example
 
 ```sh
 # Terminal 1 — start the app node
@@ -76,11 +76,11 @@ iex --sname mynode --cookie demo -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
-## How It Works
+## How it works
 
 The attach sequence: `attach/2` connects the nodes, starts the local `Distributed.Client` (which takes over the terminal), then RPCs the app node to spawn a `Server` pointed at the client pid — the same flow [The Big Picture](#the-big-picture) draws.
 
-### Wire Protocol
+### Wire protocol
 
 | Direction | Message | Purpose |
 |-----------|---------|---------|
@@ -90,13 +90,13 @@ The attach sequence: `attach/2` connects the nodes, starts the local `Distribute
 
 All messages are plain BEAM terms sent via `send/2` — no encoding, no NIF, no serialization overhead.
 
-### Stateful Widget Handling
+### Stateful widget handling
 
 Most widgets (Paragraph, Table, List, etc.) are pure Elixir structs that serialize naturally over Erlang distribution. However, **stateful widgets** — `TextInput`, `Textarea`, and `Image` — hold a NIF resource reference, a pointer into Rust memory on the local node. NIF references cannot cross BEAM node boundaries.
 
 The distributed server handles this transparently: before sending a widget list, it snapshots each stateful widget's state into plain data and replaces the reference in the struct. On the client node, the decoder recognizes the snapshot form and reconstructs a temporary resource for rendering. This happens automatically — app code doesn't need to do anything special.
 
-### No NIF on the App Node (for stateless widgets)
+### No NIF on the app node (for stateless widgets)
 
 For apps that only use stateless widgets (Paragraph, Table, List, etc.), the app node never loads the Rust NIF — widget structs are standard Elixir terms that serialize directly. When using stateful widgets (TextInput, Textarea), the app node does load the NIF to manage their mutable state, but the rendering NIF is still only loaded on the client side. This makes the app node lightweight — ideal for constrained environments like Nerves devices.
 
@@ -132,13 +132,13 @@ ExRatatui.Distributed.attach(:"app@host", StatsTui, listener: :stats_dist)
 | `:image_protocol` | `:auto \| :halfblocks \| :kitty \| :sixel \| :iterm2` | `nil` | Image protocol hint for the local terminal — drives how `protocol: :auto` images render (see [Images](../core/images.md)) |
 | `:image_font_size` | `{width_px, height_px}` | `nil` | Local cell pixel size for Kitty / Sixel / iTerm2 image scaling |
 
-## Forwarding `mount/1` Opts
+## Forwarding `mount/1` opts
 
 `:app_opts` on the Listener reaches every attached client's `mount/1`, exactly like the SSH daemon — see [One app, many transports](transports.md#one-app-many-transports). On this transport the `mount/1` opts carry `transport: :distributed` plus `:width` and `:height`.
 
 ## Authentication
 
-Authentication is delegated entirely to the Erlang distribution cookie. If you can `Node.connect/1`, you can attach — the same trust model as `iex --remsh`. For production deployments, secure your cookie and consider TLS distribution:
+Authentication is delegated entirely to the Erlang distribution cookie. Whoever can `Node.connect/1` can attach — the same trust model as `iex --remsh`. For production deployments, secure the cookie and consider TLS distribution:
 
 ```elixir
 # vm.args or rel/env.sh.eex
@@ -150,7 +150,7 @@ See the Erlang [SSL Distribution](https://www.erlang.org/doc/apps/ssl/ssl_distri
 
 ## Testing
 
-### Unit Tests (no distribution required)
+### Unit tests (no distribution required)
 
 The Listener, Client, and Server's distributed mode are all unit-tested without requiring distributed nodes. These tests run with standard `mix test`:
 
@@ -158,7 +158,7 @@ The Listener, Client, and Server's distributed mode are all unit-tested without 
 mix test
 ```
 
-### Integration Tests (requires distribution)
+### Integration tests (requires distribution)
 
 Full cross-node integration tests use OTP's `:peer` module to spawn peer BEAM nodes. These are tagged `:distributed` and excluded from the default test run:
 
@@ -172,11 +172,11 @@ elixir --sname test -S mix test --include distributed
 
 The integration tests exercise the full roundtrip: mount on a peer node, render, draw over distribution, forward events, resize, quit, and cleanup.
 
-## Known Limitations
+## Known limitations
 
   * **No incremental updates.** Every render sends the complete widget list. For complex UIs with many widgets, this is more data than the SSH transport (which sends only changed terminal cells). In practice, BEAM term serialization is fast and this is rarely a bottleneck over a local network.
   * **No reconnect.** If the connection drops, the session is gone. There's no server-side state preservation or reattach (like the SSH transport, this is `tmux`-style, not `screen`-style).
-  * **Cookie-only auth.** There's no per-user authentication layer — anyone who can `Node.connect/1` can attach. If you need user-level access control, use the SSH transport instead.
+  * **Cookie-only auth.** There's no per-user authentication layer — anyone who can `Node.connect/1` can attach. If user-level access control is needed, use the SSH transport instead.
   * **Single-node rendering.** The Client must have the ExRatatui NIF loaded to render widgets. Cross-architecture distribution (e.g. x86 pc attaching to an ARM Nerves device) works because only the client node needs the NIF compiled for its architecture.
 
 ## Troubleshooting
@@ -192,7 +192,7 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
   - No firewall blocks the epmd port (4369) or the distribution port range
 
 **"cannot_attach_to_self"**
-: You called `attach/2` with `Node.self()`. The distribution transport is for remote nodes — for same-node TUIs, start the app directly with `{MyApp.TUI, []}`.
+: `attach/2` was called with `Node.self()`. The distribution transport is for remote nodes — for same-node TUIs, start the app directly with `{MyApp.TUI, []}`.
 
 **"rpc_failed"**
 : The RPC to start a session on the remote node failed. Check that:
@@ -218,4 +218,4 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
   * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions
   * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
   * [Running TUIs over SSH](ssh_transport.md) — alternative remote transport
-  * [Custom Transports](custom_transports.md) — write your own transport on top of `ExRatatui.Transport`
+  * [Custom Transports](custom_transports.md) — write a custom transport on top of `ExRatatui.Transport`

@@ -4,8 +4,8 @@ defmodule ExRatatui.Widgets.Chart.Axis do
 
   `:bounds` is required — it defines the visible coordinate range for
   this axis as `{min, max}`. Tick `:labels` are rendered along the axis
-  in order; for a typical line chart you'd supply three labels (min,
-  mid, max) for each axis.
+  in order; a typical line chart supplies three labels (min, mid,
+  max) for each axis.
 
   Labels accept the same string / `%Span{}` / `%Line{}` types used
   elsewhere in the library.

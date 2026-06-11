@@ -52,7 +52,7 @@ Distributed transport:
 
 All transports provide full session isolation — each connected client gets its own `Server` process with independent state. The [Transports](../transports/transports.md) guide has the cross-transport feature matrix; [Custom Transports](../transports/custom_transports.md) documents the contract for plugging in new ones.
 
-## Where to go next
+## Related
 
 - [Debugging](debugging.md) — `Runtime.snapshot/1`, tracing, and common errors, including NIF rebuilds.
 - [Performance](performance.md) — what the render loop costs and how to tune it.

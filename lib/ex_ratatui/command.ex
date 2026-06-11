@@ -75,14 +75,14 @@ defmodule ExRatatui.Command do
   function raises or exits, the mapper receives `{:error, reason}` where
   `reason` is one of `{:exception, message}`, `{:exit, term}`, or
   `{:throw | :error, term}`. Design the mapper to handle both shapes so a
-  failing task becomes a structured message your `update/2` (or
+  failing task becomes a structured message the app's `update/2` (or
   `handle_info/2`) can branch on.
 
   If the mapper itself raises or exits, the app process receives
   `{:error, {:mapper_exception, message}}`,
   `{:error, {:mapper_exit, reason}}`, or
-  `{:error, {:mapper_catch, {kind, reason}}}` — distinct tags so you can
-  tell a task failure apart from a bug in the mapper.
+  `{:error, {:mapper_catch, {kind, reason}}}` — distinct tags that tell
+  a task failure apart from a bug in the mapper.
 
   ## Examples
 

@@ -2,16 +2,16 @@
 
 The reducer runtime is an alternative way to build supervised TUI applications with `ExRatatui.App`. Inspired by The Elm Architecture, it routes all messages through a single `update/2` function and provides first-class primitives for side effects (`ExRatatui.Command`) and recurring timers (`ExRatatui.Subscription`).
 
-This is the mode you want when:
+Reach for this mode when:
 
-  * Your TUI has async operations (HTTP calls, file I/O) and you want structured side-effect handling.
-  * You need recurring timers that reconcile automatically when state changes.
-  * You prefer a single message path over separate `handle_event` and `handle_info` callbacks.
-  * You want built-in runtime inspection and tracing for debugging.
+  * The TUI has async operations (HTTP calls, file I/O) that call for structured side-effect handling.
+  * Recurring timers that reconcile automatically when state changes are needed.
+  * A single message path is preferable to separate `handle_event` and `handle_info` callbacks.
+  * Built-in runtime inspection and tracing for debugging are wanted.
 
 For simpler apps that don't need commands or subscriptions, see the [Callback Runtime](callback_runtime.md) guide — its [side-by-side comparison table](callback_runtime.md#callback-or-reducer) summarizes the differences.
 
-## Quick Start
+## Quick start
 
 ```elixir
 defmodule MyApp.TUI do
@@ -58,7 +58,7 @@ defmodule MyApp.TUI do
 end
 ```
 
-Add it to your supervision tree or run directly:
+Add it to the supervision tree or run directly:
 
 ```elixir
 children = [{MyApp.TUI, []}]
@@ -75,7 +75,7 @@ Supervisor.start_link(children, strategy: :one_for_one)
 | `subscriptions/1` | No | Called after each state transition. Return a list of `Subscription` structs. Defaults to `[]` |
 | `terminate/2` | No | Called on shutdown. Default is a no-op |
 
-### The Message Path
+### The message path
 
 Unlike the callback runtime which splits terminal events (`handle_event/2`) from mailbox messages (`handle_info/2`), the reducer runtime routes everything through `update/2`:
 
@@ -90,7 +90,7 @@ def update({:info, {:data_loaded, data}}, state), do: {:noreply, %{state | data:
 def update(_msg, state), do: {:noreply, state}
 ```
 
-### Runtime Options
+### Runtime options
 
 Both `init/1` and `update/2` can return runtime options as a third element:
 
@@ -122,7 +122,7 @@ end
 
 ### Intents
 
-An intent is an arbitrary term — ex_ratatui never inspects it. The runtime forwards each intent your callbacks emit to the transport's `intent_writer_fn` in the order they were emitted. The vocabulary is consumer-defined: `phoenix_ex_ratatui` recognises `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}`, and `{:redirect, [external: url]}`, dispatching them to the equivalent `Phoenix.LiveView` action.
+An intent is an arbitrary term — ex_ratatui never inspects it. The runtime forwards each intent the callbacks emit to the transport's `intent_writer_fn` in the order they were emitted. The vocabulary is consumer-defined: `phoenix_ex_ratatui` recognises `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}`, and `{:redirect, [external: url]}`, dispatching them to the equivalent `Phoenix.LiveView` action.
 
 Transports that don't supply an `intent_writer_fn` (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop intents. That's deliberate — the same App can run unchanged over an SSH tty (no consumer to navigate, drop) and a LiveView (consumer dispatches the intent). See [Cell sessions](../transports/cell_session.md) for how a transport author wires the writer up.
 
@@ -195,7 +195,7 @@ commands = if state.auto_refresh, do: [Command.send_after(1_000, :refresh)], els
 
 ## Subscriptions
 
-Subscriptions are recurring or one-shot timers declared in `subscriptions/1`. The runtime reconciles them after each state transition — diffing by stable ID so you don't need to manage timer references manually.
+Subscriptions are recurring or one-shot timers declared in `subscriptions/1`. The runtime reconciles them after each state transition — diffing by stable ID so there's no need to manage timer references manually.
 
 ### `Subscription.interval/3`
 
@@ -233,7 +233,7 @@ Returns an empty list — explicit no-op:
 def subscriptions(_state), do: [Subscription.none()]
 ```
 
-## Error Handling and Supervision
+## Error handling and supervision
 
 ExRatatui apps are supervised GenServers — the [Callback Runtime guide's Error Handling section](callback_runtime.md#error-handling-and-supervision) covers the common behaviour (raises in `render/2` skip the frame, raises in transition callbacks crash and restart the server, terminal restoration, disconnects, `:max_restarts`). With `init/1` for `mount/1` and `update/2` for `handle_event/2`/`handle_info/2`, it applies verbatim here. The reducer runtime adds two specifics:
 
@@ -243,7 +243,7 @@ ExRatatui apps are supervised GenServers — the [Callback Runtime guide's Error
 
 Use `ExRatatui.Runtime.enable_trace/2` to capture state transitions leading up to a crash for post-mortem debugging.
 
-## Runtime Inspection
+## Runtime inspection
 
 `ExRatatui.Runtime` provides runtime introspection that works with both callback and reducer apps:
 
@@ -271,7 +271,7 @@ events = ExRatatui.Runtime.trace_events(pid)
 
 `ExRatatui.Runtime` documents the full snapshot field list.
 
-### Synthetic Event Injection
+### Synthetic event injection
 
 `ExRatatui.Runtime.inject_event/2` delivers a synthetic terminal event through the same runtime transition path as polled input. This is the primary tool for testing supervised apps under `test_mode`:
 
@@ -280,7 +280,7 @@ event = %ExRatatui.Event.Key{code: "up", modifiers: [], kind: "press"}
 :ok = ExRatatui.Runtime.inject_event(pid, event)
 ```
 
-## Running Over Transports
+## Running over transports
 
 Reducer apps work across all transports with zero code changes — exactly like callback apps. See [Running Over Transports](callback_runtime.md#running-over-transports) in the Callback Runtime guide; everything there (including the `:local`-only `mouse_capture` / `focus_events` opts) applies unchanged.
 

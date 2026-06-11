@@ -6,7 +6,7 @@ defmodule ExRatatui.Telemetry do
   metrics, and distributed tracing without forking the runtime. The API
   follows the conventions: every long-running operation is wrapped in a span,
   every one-off operation is a single execute, and every event carries a stable
-  metadata shape you can match on.
+  metadata shape to match on.
 
   ## Events
 
@@ -47,7 +47,7 @@ defmodule ExRatatui.Telemetry do
 
   ## Attaching a default logger
 
-      # in your Application.start/2 or iex
+      # in Application.start/2 or iex
       ExRatatui.Telemetry.attach_default_logger()
 
   That attaches a handler that logs every `:stop` and single event at
@@ -63,7 +63,7 @@ defmodule ExRatatui.Telemetry do
 
   The `fun`'s return value is returned unchanged. The given `meta` is
   forwarded to both the `:start` and `:stop` events (plus the standard
-  `:telemetry_span_context`). If you need extra metadata on `:stop`
+  `:telemetry_span_context`). For extra metadata on `:stop`
   specifically, call `:telemetry.span/3` directly.
   """
   @spec span([atom(), ...], map(), (-> term())) :: term()

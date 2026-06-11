@@ -4,8 +4,8 @@ defmodule ExRatatui.Widgets.Sparkline do
 
   Each entry in `:data` is either a non-negative integer sample or `nil` for
   a missing/absent sample. Absent samples render with the configurable
-  `:absent_value_symbol` (default `" "`) and `:absent_value_style`, which lets
-  you distinguish gaps from zeros.
+  `:absent_value_symbol` (default `" "`) and `:absent_value_style`, which
+  distinguishes gaps from zeros.
 
   ## Fields
 

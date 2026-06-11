@@ -65,7 +65,7 @@ defmodule ExRatatui.SSH do
 
   OpenSSH does **not** allocate a PTY by default for `ssh host -s name`
   — that's designed for protocols like `sftp` that don't need one. For
-  an interactive TUI you MUST force it with `-t`:
+  an interactive TUI the PTY MUST be forced with `-t`:
 
       ssh -t nerves.local -s Elixir.MyApp.TUI   # ✓ works
       ssh nerves.local -s Elixir.MyApp.TUI      # ✗ local tty stays in

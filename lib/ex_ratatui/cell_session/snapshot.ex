@@ -3,9 +3,9 @@ defmodule ExRatatui.CellSession.Snapshot do
   Full-buffer snapshot returned by `ExRatatui.CellSession.take_cells/1`.
 
   Carries the dimensions of the buffer plus every cell, in row-major
-  order — `cells` has length `width * height`. Use this when you need
-  the complete picture: initial paint after a fresh client connects,
-  one-off screenshot, regression test fixture.
+  order — `cells` has length `width * height`. Use this when the
+  complete picture is needed: initial paint after a fresh client
+  connects, one-off screenshot, regression test fixture.
 
   For streaming updates use `ExRatatui.CellSession.take_cells_diff/1`
   instead, which returns the same `Cell` shape inside an

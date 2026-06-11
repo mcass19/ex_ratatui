@@ -11,14 +11,14 @@ defmodule ExRatatui.Distributed.Listener do
 
   ## Usage
 
-  Typically you don't start this directly; `use ExRatatui.App` routes
+  Typically this isn't started directly; `use ExRatatui.App` routes
   `start_link(transport: :distributed, ...)` through here:
 
       children = [
         {MyApp.TUI, transport: :distributed}
       ]
 
-  For full control you can add it to a supervision tree by hand:
+  For full control, add it to a supervision tree by hand:
 
       children = [
         {ExRatatui.Distributed.Listener, mod: MyApp.TUI}

@@ -1,6 +1,6 @@
 # Images
 
-Render real images — PNG, JPEG, GIF, WebP, BMP — inside a TUI. The same model code displays Kitty graphics in a Kitty terminal, halfblocks in Livebook, and adapts gracefully when you don't know what the audience's terminal supports.
+Render real images — PNG, JPEG, GIF, WebP, BMP — inside a TUI. The same model code displays Kitty graphics in a Kitty terminal, halfblocks in Livebook, and adapts gracefully when the audience's terminal support is unknown.
 
 Built on [ratatui-image](https://github.com/ratatui/ratatui-image).
 
@@ -18,9 +18,9 @@ def render(state, frame) do
 end
 ```
 
-`ExRatatui.Image.new/2` decodes once and returns a stateful widget handle. Hold it in your model and reuse it across renders — re-encoding only happens when the protocol changes or the rect resizes. Image format is auto-detected from the bytes; no extension or content-type hint required.
+`ExRatatui.Image.new/2` decodes once and returns a stateful widget handle. Hold it in the model and reuse it across renders — re-encoding only happens when the protocol changes or the rect resizes. Image format is auto-detected from the bytes; no extension or content-type hint required.
 
-Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so you can render a placeholder gracefully.
+Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so a placeholder can be rendered gracefully.
 
 ## Options
 
@@ -50,7 +50,7 @@ Each transport stamps its own capability hint. Widget-level `:auto` resolves aga
 | Distributed (no opts) | `:halfblocks` | Honored |
 | `CellSession` (Livebook / Kino) | `:halfblocks` | **Forced to `:halfblocks`** (escape sequences can't survive cell diffing) |
 
-This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in your local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching.
+This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in a local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching.
 
 Image widgets work over **every** transport, including `ExRatatui.Distributed` — image bytes are snapshotted into the render tree, costing roughly the source file size per frame on the wire. Fine for stills; watch the bandwidth when animating large images.
 
@@ -60,7 +60,7 @@ Image widgets work over **every** transport, including `ExRatatui.Distributed` �
 
 There are two ways to wire it in.
 
-**Inside `ExRatatui.App`:** return `probe_image_protocol: true` from `mount/1`. The runtime calls `auto_local_protocol/1` for you right after mount, on the `:local` transport only (CellSession forces halfblocks; SSH / Distributed use the session-level `:image_protocol` opt instead):
+**Inside `ExRatatui.App`:** return `probe_image_protocol: true` from `mount/1`. The runtime calls `auto_local_protocol/1` right after mount, on the `:local` transport only (CellSession forces halfblocks; SSH / Distributed use the session-level `:image_protocol` opt instead):
 
 ```elixir
 @impl true
@@ -76,15 +76,15 @@ The probe is automatically skipped under `test_mode: {w, h}` so headless tests d
 ```elixir
 ExRatatui.run(fn terminal ->
   ExRatatui.Image.auto_local_protocol(terminal)
-  # ... rest of your app
+  # ... rest of the app
 end)
 ```
 
-If you want to make your own decision based on the probe, `ExRatatui.Image.probe_terminal/0` returns `{:ok, %{protocol: atom, font_size: {w, h}}}` or `{:error, reason}` without touching any cache.
+To make an independent decision based on the probe, `ExRatatui.Image.probe_terminal/0` returns `{:ok, %{protocol: atom, font_size: {w, h}}}` or `{:error, reason}` without touching any cache.
 
 ### Telling SSH / Distributed what protocol the client supports
 
-You can't probe an SSH or Distributed client terminal, so the audience declares it at start time. Pair `:image_protocol` with `:image_font_size` to get accurate Kitty/Sixel/iTerm2 scaling — without the font size, the encoder falls back to `(8, 16)` cell pixels which mis-scales on most modern terminals (Kitty/Ghostty are closer to `(10, 20)`):
+An SSH or Distributed client terminal can't be probed, so the audience declares it at start time. Pair `:image_protocol` with `:image_font_size` to get accurate Kitty/Sixel/iTerm2 scaling — without the font size, the encoder falls back to `(8, 16)` cell pixels which mis-scales on most modern terminals (Kitty/Ghostty are closer to `(10, 20)`):
 
 ```elixir
 # SSH daemon
@@ -106,7 +106,7 @@ Per-image explicit choices (`ExRatatui.Image.new(bytes, protocol: :sixel)`) are 
 
 ## Font-size caveat
 
-Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensions to scale Kitty / Sixel / iTerm2 payloads correctly. The default is `(8, 16)`; `auto_local_protocol/1` replaces it with the real value reported by the terminal. If your Kitty graphics look mis-scaled, run the probe.
+Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensions to scale Kitty / Sixel / iTerm2 payloads correctly. The default is `(8, 16)`; `auto_local_protocol/1` replaces it with the real value reported by the terminal. If Kitty graphics look mis-scaled, run the probe.
 
 ## Examples
 
@@ -136,7 +136,7 @@ Per-render encode timing (Kitty / Sixel / iTerm2 payload generation) is rolled i
 
 This is the single most common point of confusion, so it gets its own section.
 
-Both `:fit` and `:crop` clamp output to the **source image's natural pixel size**. They never upscale. If you give a 400×300 picsum photo to a render area sized 800×500 target pixels:
+Both `:fit` and `:crop` clamp output to the **source image's natural pixel size**. They never upscale. Given a 400×300 picsum photo in a render area sized 800×500 target pixels:
 
 | Mode | Render output | Visible result |
 |---|---|---|
@@ -146,9 +146,9 @@ Both `:fit` and `:crop` clamp output to the **source image's natural pixel size*
 
 The difference between `:fit` and `:crop` only manifests when the **source is *larger* than the target** on at least one axis: `:fit` shrinks to fit (whole image visible, letterboxed); `:crop` keeps natural size and shows a window into the source corner.
 
-This is upstream ratatui-image behavior, not something we layer on. We expose `ExRatatui.Image.render_size/4` so you can predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what you're seeing. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live as you cycle modes.
+This is upstream ratatui-image behavior, not something we layer on. We expose `ExRatatui.Image.render_size/4` to predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what's on screen. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live while cycling modes.
 
-If you want "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
+For "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
 
 ## Known limitations (v1)
 

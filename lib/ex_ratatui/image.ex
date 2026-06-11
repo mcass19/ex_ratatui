@@ -257,7 +257,7 @@ defmodule ExRatatui.Image do
   `{:error, reason}` if the terminal didn't respond, isn't a TTY, or the
   probe timed out.
 
-  Use this when you want to decide your own fallback policy. Most apps
+  Use this to decide a custom fallback policy. Most apps
   should call `auto_local_protocol/1` instead, which caches the result
   on a terminal reference so `protocol: :auto` images render with the
   detected protocol automatically.
@@ -336,8 +336,8 @@ defmodule ExRatatui.Image do
 
   Mirrors ratatui-image's `Resize::needs_resize_pixels` + the
   `fit_area_proportionally` helper byte-for-byte (no drift). Useful for
-  status panels in demos, layout decisions where you want to size sibling
-  widgets relative to where the image will actually render, or
+  status panels in demos, layout decisions that size sibling widgets
+  relative to where the image will actually render, or
   understanding *why* `:fit` and `:crop` produce identical output when the
   source image is smaller than the target area on both axes.
 

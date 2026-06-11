@@ -4,7 +4,7 @@ defmodule ExRatatui.Widgets.TextInput do
 
   TextInput is the first **stateful** widget in ExRatatui — its internal state
   (text value, cursor position, viewport scroll) lives in Rust via ResourceArc.
-  You create a state reference with `ExRatatui.text_input_new/0` and pass it
+  Create a state reference with `ExRatatui.text_input_new/0` and pass it
   as the `:state` field.
 
   ## State Management

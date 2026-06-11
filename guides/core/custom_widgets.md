@@ -1,16 +1,16 @@
 # Custom Widgets
 
-The `ExRatatui.Widget` protocol lets you build composite widgets in pure Elixir without touching Rust. A custom widget is just a struct you own plus a `defimpl` that projects it onto primitive widgets — `%Paragraph{}`, `%Block{}`, `%List{}`, and friends — positioned inside the rect you're given. The Bridge expands your widget into primitives before crossing the NIF boundary, so `ExRatatui.draw/2` accepts primitive and custom widgets interchangeably at the top level of a frame.
+The `ExRatatui.Widget` protocol allows building composite widgets in pure Elixir without touching Rust. A custom widget is just a struct we own plus a `defimpl` that projects it onto primitive widgets — `%Paragraph{}`, `%Block{}`, `%List{}`, and friends — positioned inside the given rect. The Bridge expands the widget into primitives before crossing the NIF boundary, so `ExRatatui.draw/2` accepts primitive and custom widgets interchangeably at the top level of a frame.
 
 ## When to reach for a custom widget
 
-If you find yourself repeating the same Layout.split + a handful of primitives in several screens, that's a custom widget. Typical shapes:
+If the same Layout.split + a handful of primitives keeps repeating in several screens, that's a custom widget. Typical shapes:
 
 - **Composed cards** — a title bar, body, and status line that always render together
 - **Domain-named views** — `MessageCard`, `FileRow`, `LogEntry` — where the struct IS the model the renderer projects from
 - **Simple wrappers** — "a Block with these defaults and a Paragraph inside"
 
-Stay with inline primitives for one-off layouts. Custom widgets cost a module and a protocol impl — worth it when you'll reuse the shape or name is part of readability.
+Stay with inline primitives for one-off layouts. Custom widgets cost a module and a protocol impl — worth it when the shape will be reused or the name is part of readability.
 
 ## The protocol
 
@@ -24,7 +24,7 @@ defprotocol ExRatatui.Widget do
 end
 ```
 
-`render/2` receives your struct and the rect it should occupy, and returns a list of `{widget, rect}` tuples placing each child. Order matters: earlier entries are drawn first, later entries on top (the usual z-order).
+`render/2` receives the struct and the rect it should occupy, and returns a list of `{widget, rect}` tuples placing each child. Order matters: earlier entries are drawn first, later entries on top (the usual z-order).
 
 ## A full example
 
@@ -54,7 +54,7 @@ defmodule MyApp.Widgets.UserCard do
 end
 ```
 
-You draw it the same way as any primitive:
+Draw it the same way as any primitive:
 
 ```elixir
 ExRatatui.draw(terminal, [
@@ -65,7 +65,7 @@ ExRatatui.draw(terminal, [
 
 ## Composition
 
-A custom widget can return *other* custom widgets in its children — the expander keeps walking until every entry is a primitive. This is how you build up: a `Dashboard` that returns two `Panel`s, each of which returns a `TitledBox` containing Paragraph primitives.
+A custom widget can return *other* custom widgets in its children — the expander keeps walking until every entry is a primitive. This is how to build up: a `Dashboard` that returns two `Panel`s, each of which returns a `TitledBox` containing Paragraph primitives.
 
 ```elixir
 defmodule MyApp.Widgets.Dashboard do
@@ -88,9 +88,9 @@ A safety cap of 32 nesting levels protects against infinite recursion; exceeding
 
 ## Stateless by design
 
-The protocol has no `init/1` / `update/2` callbacks. State that evolves over time — keyboard focus, selection, input buffers — lives in your `ExRatatui.App` or `ExRatatui.Session` model and is projected onto a fresh struct each frame. Treat the struct as a pure view descriptor, not a mini-actor.
+The protocol has no `init/1` / `update/2` callbacks. State that evolves over time — keyboard focus, selection, input buffers — lives in the `ExRatatui.App` or `ExRatatui.Session` model and is projected onto a fresh struct each frame. Treat the struct as a pure view descriptor, not a mini-actor.
 
-When you need genuinely stateful rendering (like `TextInput` or `Textarea`, whose Rust side owns a buffer), use one of the built-in stateful widgets — the protocol is for composition, not state management.
+When genuinely stateful rendering is needed (like `TextInput` or `Textarea`, whose Rust side owns a buffer), use one of the built-in stateful widgets — the protocol is for composition, not state management.
 
 ## Limitations
 

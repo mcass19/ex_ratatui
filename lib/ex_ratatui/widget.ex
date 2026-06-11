@@ -2,7 +2,7 @@ defprotocol ExRatatui.Widget do
   @moduledoc """
   Protocol for user-defined widgets that compose ExRatatui primitives.
 
-  Implement this protocol on your own struct to build custom widgets in
+  Implement this protocol on a plain struct to build custom widgets in
   pure Elixir — no Rust required. `render/2` receives the widget struct
   and the `%ExRatatui.Layout.Rect{}` it should occupy, and returns a
   list of placed children. Children may be primitives
@@ -12,7 +12,7 @@ defprotocol ExRatatui.Widget do
 
   The protocol is intentionally minimal and stateless: the struct
   carries all data the render needs. State that evolves over time
-  (keyboard focus, selection, input buffers) lives in your
+  (keyboard focus, selection, input buffers) lives in the
   `ExRatatui.App` / `ExRatatui.Session` model and is projected onto a
   fresh struct each frame.
 

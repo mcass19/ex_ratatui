@@ -3,14 +3,14 @@ defmodule ExRatatui.Focus do
   Focus management for multi-panel apps.
 
   `Focus` is a tiny state machine over an ordered ring of focusable
-  IDs. You declare the IDs up front, feed every key event through
+  IDs. Declare the IDs up front, feed every key event through
   `handle_key/2`, and pattern-match on `current/1` to decide which
   widget receives the keystroke. `handle_key/2` consumes
-  Tab / Shift+Tab (or your overrides) and passes everything else
+  Tab / Shift+Tab (or custom overrides) and passes everything else
   through unchanged.
 
-  There is no process, no macro, no protocol — just a struct you keep
-  in your reducer state or `ExRatatui.App` model.
+  There is no process, no macro, no protocol — just a struct kept in
+  the reducer state or `ExRatatui.App` model.
 
   ## Caller pattern
 
@@ -35,7 +35,7 @@ defmodule ExRatatui.Focus do
   ## Styling the focused widget
 
   `Focus` never touches widget structs. Use `focused?/2` to decide the
-  style yourself:
+  style:
 
       border_style =
         if Focus.focused?(focus, :search),

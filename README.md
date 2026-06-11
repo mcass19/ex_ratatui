@@ -30,7 +30,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 
 ## Installation
 
-Add `ex_ratatui` to your dependencies in `mix.exs`:
+Add `ex_ratatui` to the dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -46,7 +46,7 @@ Then fetch and compile:
 mix deps.get && mix compile
 ```
 
-A precompiled NIF binary for your platform will be downloaded automatically. The native library itself is loaded lazily on first use, so compiling a project that depends on `ex_ratatui` does not require the NIF to be loaded into the compiler VM.
+A precompiled NIF binary for the host platform is downloaded automatically. The native library itself is loaded lazily on first use, so compiling a project that depends on `ex_ratatui` does not require the NIF to be loaded into the compiler VM.
 
 ### Prerequisites
 

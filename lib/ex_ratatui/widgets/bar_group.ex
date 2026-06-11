@@ -3,7 +3,7 @@ defmodule ExRatatui.Widgets.BarGroup do
   A labelled cluster of `ExRatatui.Widgets.Bar` rendered together inside a
   `ExRatatui.Widgets.BarChart`.
 
-  Use groups when you need to show several related bars side by side
+  Use groups to show several related bars side by side
   with a shared caption — comparing the same metrics across categories,
   for example. Set `BarChart.groups` to `[%BarGroup{}, ...]` instead of
   the flat `:data` list; the chart will draw each group as a cluster

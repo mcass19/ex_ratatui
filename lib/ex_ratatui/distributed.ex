@@ -10,20 +10,20 @@ defmodule ExRatatui.Distributed do
 
   ## Quick start
 
-  On the app node (e.g. a Nerves device), add the Listener to your
+  On the app node (e.g. a Nerves device), add the Listener to the
   supervision tree:
 
       children = [
         {MyApp.TUI, transport: :distributed}
       ]
 
-  On your local, connect and attach:
+  From the local node, connect and attach:
 
       $ iex --sname mynode --cookie mycookie -S mix
 
       ExRatatui.Distributed.attach(:"app@nerves.local", MyApp.TUI)
 
-  The TUI takes over your terminal. Press the app's quit key (or
+  The TUI takes over the local terminal. Press the app's quit key (or
   Ctrl-C twice) to disconnect and restore the terminal.
 
   ## How it works
@@ -42,8 +42,8 @@ defmodule ExRatatui.Distributed do
 
   ## Authentication
 
-  Delegated entirely to the Erlang distribution cookie. If you can
-  `Node.connect/1`, you can attach — same trust model as `iex --remsh`.
+  Delegated entirely to the Erlang distribution cookie. Any node that
+  can `Node.connect/1` can attach — same trust model as `iex --remsh`.
   """
 
   alias ExRatatui.Distributed.Client
@@ -73,7 +73,7 @@ defmodule ExRatatui.Distributed do
       local terminal. When set alongside `:image_protocol`, the render
       path uses the supplied dimensions for Kitty / Sixel / iTerm2
       scaling instead of ratatui-image's `(8, 16)` default. Pass values
-      that match your terminal (typically `(10, 20)` for Kitty/Ghostty).
+      matching the local terminal (typically `(10, 20)` for Kitty/Ghostty).
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """

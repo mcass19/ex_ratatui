@@ -12,9 +12,9 @@ defmodule ExRatatui.SSH.Daemon do
 
   ## Usage
 
-  Typically you don't start this directly; `use ExRatatui.App` routes
+  Typically this isn't started directly; `use ExRatatui.App` routes
   `start_link(transport: :ssh, ...)` through here. But for full control
-  you can add it to a supervision tree by hand:
+  it can be added to a supervision tree by hand:
 
       children = [
         {ExRatatui.SSH.Daemon,

@@ -1,10 +1,10 @@
 # Debugging
 
-Terminal UIs are harder to debug than web apps — no devtools, no browser console, and a single `IO.inspect` in `render/2` will garble the output. This guide covers the tools ExRatatui gives you instead.
+Terminal UIs are harder to debug than web apps — no devtools, no browser console, and a single `IO.inspect` in `render/2` will garble the output. This guide covers the tools ExRatatui provides instead.
 
 Three layers, from least invasive to most:
 
-1. **Runtime snapshot** — one call returns everything the runtime knows about your app.
+1. **Runtime snapshot** — one call returns everything the runtime knows about the app.
 2. **Runtime trace** — opt-in in-memory log of every message, render, command, and subscription event.
 3. **Headless buffer inspection** — render a frame to the test backend and dump the string.
 
@@ -20,11 +20,11 @@ iex> ExRatatui.Runtime.snapshot(pid)
 
 `ExRatatui.Runtime` documents every field. The ones that answer most questions:
 
-- `:render_count` — did render actually run? If this stays flat, your transition returned `render?: false` or your event isn't reaching `handle_event/2`.
+- `:render_count` — did render actually run? If this stays flat, the transition returned `render?: false` or the event isn't reaching `handle_event/2`.
 - `:dimensions` — the size the runtime thinks it has. Off if something grabbed the terminal before mount.
 - `:subscriptions` — reducer-runtime only; shows which timers are active and whether they've fired at least once.
 - `:active_async_commands` — `Command.async/2` calls currently running.
-- `:polling_enabled?` — `false` under `test_mode`, `true` in real terminals. If it's unexpectedly `false`, you probably passed `test_mode` accidentally.
+- `:polling_enabled?` — `false` under `test_mode`, `true` in real terminals. If it's unexpectedly `false`, `test_mode` was probably passed accidentally.
 
 ## Runtime trace
 
@@ -46,7 +46,7 @@ iex> ExRatatui.Runtime.trace_events(pid)
 Each event is a map with `:kind`, `:at_ms` (monotonic ms), and `:details`. Kinds:
 
 - `:message` — a message arrived. `source: :event` for terminal input, `source: :info` for mailbox messages.
-- `:render` — `render/2` ran. Gives you the frame and the widget count it returned.
+- `:render` — `render/2` ran. Gives the frame and the widget count it returned.
 - `:command` — a `Command` was queued. Kind is `:message`, `:after`, or `:async`.
 - `:subscription` — subscription lifecycle (`:start`, `:cancel`, `:fire`).
 
@@ -62,7 +62,7 @@ Turn it off when done — traces cost memory per transition:
 ExRatatui.Runtime.disable_trace(pid)
 ```
 
-**From inside a reducer-runtime `update/2`**, you can flip tracing per-transition via the runtime opts:
+**From inside a reducer-runtime `update/2`**, tracing can be flipped per-transition via the runtime opts:
 
 ```elixir
 def update({:event, %Event.Key{code: "?", modifiers: ["ctrl"]}}, state) do
@@ -78,20 +78,20 @@ A typical "button press → state change → re-render" sequence looks like:
 
 ```
 :message  source: :event    payload: %Event.Key{code: "up"}
-:command  kind: :message    message: :boot            # whatever your update returned
+:command  kind: :message    message: :boot            # whatever the update returned
 :render   widget_count: 4
 ```
 
-If you see `:message` but no `:render`, either:
+If `:message` appears but no `:render`, either:
 
 - The transition returned `render?: false`
 - `render/2` raised (check logs and the server's exit status)
 
-If you see multiple `:render` for one event, something in `handle_info/2` triggered another transition — common with subscriptions firing during the same scheduler slot.
+If multiple `:render` appear for one event, something in `handle_info/2` triggered another transition — common with subscriptions firing during the same scheduler slot.
 
 ## Buffer inspection as a dev tool
 
-When you can't eyeball "is my widget actually there?", render to a headless test terminal and print the buffer:
+When "is my widget actually there?" can't be eyeballed, render to a headless test terminal and print the buffer:
 
 ```elixir
 terminal = ExRatatui.init_test_terminal(80, 24)
@@ -99,7 +99,7 @@ terminal = ExRatatui.init_test_terminal(80, 24)
 IO.puts(ExRatatui.get_buffer_content(terminal))
 ```
 
-This works anywhere — dev console, IEx, inside a test, inside `terminate/2`. It strips styling and gives you the pure character grid. Great for layout bugs where borders don't line up or text gets clipped.
+This works anywhere — dev console, IEx, inside a test, inside `terminate/2`. It strips styling and gives the pure character grid. Great for layout bugs where borders don't line up or text gets clipped.
 
 To capture a supervised app's scene mid-run, factor `render/2` so the scene-building is pure — the same `scene/2` split the [Testing](testing.md) guide recommends. Then from IEx or a test:
 
@@ -113,7 +113,7 @@ terminal = ExRatatui.init_test_terminal(80, 24)
 IO.puts(ExRatatui.get_buffer_content(terminal))
 ```
 
-You get a snapshot of what the user's seeing without touching their terminal.
+The result is a snapshot of what the user's seeing without touching their terminal.
 
 ## `dbg/1` inside callbacks
 
@@ -144,7 +144,7 @@ The server tried to initialize a real terminal but the process has no TTY. Happe
 
 ### Terminal looks garbled, colors wrong
 
-Your terminal emulator isn't reporting 256-color or true-color support. Most modern emulators are fine. Under `tmux` or `screen`, set `TERM=xterm-256color`. Some SSH clients strip the outer `TERM` — if colors are right locally but wrong over SSH, check the remote `echo $TERM`.
+The terminal emulator isn't reporting 256-color or true-color support. Most modern emulators are fine. Under `tmux` or `screen`, set `TERM=xterm-256color`. Some SSH clients strip the outer `TERM` — if colors are right locally but wrong over SSH, check the remote `echo $TERM`.
 
 ### SSH client hangs, shows nothing
 
@@ -172,7 +172,7 @@ Usually a long-running computation inside `render/2`. Terminal events keep queui
 
 Check the logs — an exception in any callback crashes the server. The generated `child_spec` uses `restart: :transient`, so the supervisor restarts the app after an abnormal exit but leaves it down after a clean `{:stop, state}`. In tests, `start_supervised!` propagates the crash into the test.
 
-### I force-killed a TUI and now my shell is broken
+### Force-killed TUI left the shell broken
 
 If a TUI crashes without running `terminate/2` (SIGKILL, a kernel OOM, a disconnected SSH session), the terminal can be left in raw mode — characters don't echo, the cursor vanishes, or output wraps oddly. Restore it from the dazed shell:
 
@@ -185,7 +185,7 @@ Both are safe to type blind. Under supervised runs this is rare because `termina
 
 ## Rust NIF rebuilds
 
-If you're editing the native code under `native/ex_ratatui/`:
+When editing the native code under `native/ex_ratatui/`:
 
 ```sh
 rm -rf _build
@@ -193,7 +193,7 @@ EX_RATATUI_BUILD=1 mix compile
 EX_RATATUI_BUILD=1 mix test
 ```
 
-The `rm -rf _build` is important — stale BEAM artifacts reference the old NIF image and your Rust changes won't take effect. Prepend `EX_RATATUI_BUILD=1` to *every* mix command until you stop editing Rust, otherwise mix falls back to precompiled binaries and silently ignores your edits.
+The `rm -rf _build` is important — stale BEAM artifacts reference the old NIF image and the Rust changes won't take effect. Prepend `EX_RATATUI_BUILD=1` to *every* mix command until the Rust edits are done, otherwise mix falls back to precompiled binaries and silently ignores them.
 
 Symptoms of a stale NIF:
 
@@ -201,8 +201,8 @@ Symptoms of a stale NIF:
 - Changing a Rust signature and seeing the old behavior
 - Compile succeeds but tests use old binary
 
-## Where to go next
+## Related
 
-- **[Testing](testing.md)** — structured assertions with `Runtime.inject_event/2` and the test backend.
-- **[Performance](performance.md)** — `Runtime.enable_trace/2` as a timing tool with `at_ms` timestamps.
+- [Testing](testing.md) — structured assertions with `Runtime.inject_event/2` and the test backend.
+- [Performance](performance.md) — `Runtime.enable_trace/2` as a timing tool with `at_ms` timestamps.
 - **`ExRatatui.Runtime`** module docs — full shape of every snapshot field.

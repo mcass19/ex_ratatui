@@ -2,15 +2,15 @@
 
 The callback runtime is the default way to build supervised TUI applications with `ExRatatui.App`. It follows a LiveView-inspired pattern: mount initial state, render on every state change, and handle events and messages through dedicated callbacks.
 
-This is the mode you want when:
+Reach for this mode when:
 
-  * You're building a straightforward interactive TUI with direct state management.
-  * You want the simplest possible interface — just `mount`, `render`, and `handle_event`.
-  * You don't need first-class command or subscription primitives.
+  * The TUI is a straightforward interactive one with direct state management.
+  * The simplest possible interface is enough — just `mount`, `render`, and `handle_event`.
+  * First-class command or subscription primitives aren't needed.
 
 For apps that benefit from an Elm-style architecture with commands, subscriptions, and a unified message path, see the [Reducer Runtime](reducer_runtime.md) guide.
 
-## Callback or Reducer?
+## Callback or reducer?
 
 Both runtimes are transport-agnostic — the same module works over local terminal, SSH, or Erlang distribution without changes. The differences are in how state and side effects flow:
 
@@ -24,7 +24,7 @@ Both runtimes are transport-agnostic — the same module works over local termin
 | Inspection | `ExRatatui.Runtime` snapshot / trace / inject | Same, plus command and subscription introspection |
 | Best for | Straightforward interactive TUIs | Apps with async I/O, structured effects, or complex state machines |
 
-## Quick Start
+## Quick start
 
 ```elixir
 defmodule MyApp.TUI do
@@ -78,7 +78,7 @@ defmodule MyApp.TUI do
 end
 ```
 
-Add it to your supervision tree:
+Add it to the supervision tree:
 
 ```elixir
 children = [{MyApp.TUI, []}]
@@ -117,7 +117,7 @@ def mount(opts) do
 end
 ```
 
-When running over SSH or Erlang distribution, `mount/1` also receives `:transport`, `:width`, and `:height` — so your app can adapt its initial state per transport without changing any other callback.
+When running over SSH or Erlang distribution, `mount/1` also receives `:transport`, `:width`, and `:height` — so the app can adapt its initial state per transport without changing any other callback.
 
 ### `render/2`
 
@@ -169,7 +169,7 @@ end
 
 ## Runtime opts
 
-Every transition callback (`mount/1`, `handle_event/2`, `handle_info/2`) can return a third element — a keyword list of runtime opts that adjust the runtime's behaviour for that transition without polluting your domain state:
+Every transition callback (`mount/1`, `handle_event/2`, `handle_info/2`) can return a third element — a keyword list of runtime opts that adjust the runtime's behaviour for that transition without polluting the domain state:
 
 ```elixir
 def handle_event(%Event.Key{code: "q"}, state) do
@@ -192,13 +192,13 @@ end
 `ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
 
 
-## Error Handling and Supervision
+## Error handling and supervision
 
 ExRatatui apps are supervised GenServers — standard OTP fault tolerance applies:
 
   * **`mount/1` raises or returns `{:error, reason}`:** The server stops and the supervisor handles the restart according to its strategy (`:one_for_one`, etc.). For SSH and distributed transports, the session is cleaned up and the client sees the connection close.
 
-  * **`render/2` raises:** The error is logged and the frame is skipped — the server continues running with the previous screen content. This prevents a rendering bug from crashing your app.
+  * **`render/2` raises:** The error is logged and the frame is skipped — the server continues running with the previous screen content. This prevents a rendering bug from crashing the app.
 
   * **`handle_event/2` or `handle_info/2` raises:** The server crashes and the supervisor restarts it. Since the GenServer has no way to safely continue with potentially corrupted state, a fresh `mount/1` starts from scratch.
 
@@ -210,9 +210,9 @@ ExRatatui apps are supervised GenServers — standard OTP fault tolerance applie
 
   * **Distributed client disconnect:** The server monitors the client process. When the client's node goes down, the monitor fires and the server shuts down cleanly.
 
-For production deployments, set appropriate `:max_restarts` and `:max_seconds` on your supervisor to prevent restart loops.
+For production deployments, set appropriate `:max_restarts` and `:max_seconds` on the supervisor to prevent restart loops.
 
-## Running Over Transports
+## Running over transports
 
 The same app module works across all three transports with zero code changes:
 
