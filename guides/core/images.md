@@ -7,11 +7,14 @@ Built on [ratatui-image](https://github.com/ratatui/ratatui-image).
 ## Quick start
 
 ```elixir
-{:ok, picture} = ExRatatui.Image.new(File.read!("priv/slides/cover.png"))
+def mount(_opts) do
+  {:ok, picture} = ExRatatui.Image.new(File.read!("priv/slides/cover.png"))
+  {:ok, %{picture: picture}}
+end
 
-def view(_model, frame) do
+def render(state, frame) do
   area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
-  [{picture, area}]
+  [{state.picture, area}]
 end
 ```
 
@@ -27,7 +30,7 @@ Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so y
 |---|---|---|---|
 | `:protocol` | `:auto`, `:halfblocks`, `:kitty`, `:sixel`, `:iterm2` | `:auto` | Which terminal protocol to render with. `:auto` resolves at render time against the transport (see [resolution table](#protocol-resolution)). Explicit protocols are honored except over `CellSession` where `:halfblocks` is forced. |
 | `:resize` | `:fit`, `:crop`, `:scale` | `:fit` | `:fit` preserves aspect inside the rect (anchored top-left if smaller). `:crop` preserves aspect, fills the rect, crops the overflow. `:scale` stretches to fill (no aspect preservation). |
-| `:background` | `nil` or `{r, g, b}` (each `0..255`) | `nil` | Color used to fill transparent pixels / unused area for halfblocks. |
+| `:background` | `nil`, any `t:ExRatatui.Style.color/0`, or raw `{r, g, b}` | `nil` | Color used to fill transparent pixels / unused area for halfblocks. |
 
 To change options later, build a new handle — the widget struct just wraps the resource ref.
 
@@ -107,7 +110,7 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
 
 ## Examples
 
-* [`examples/images/image_demo.exs`](../examples/images/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
+* [`examples/images/image_demo.exs`](../../examples/images/image_demo.exs) — interactive viewer with `p` to cycle protocol, `r` to cycle resize mode, and a live status panel showing the render output dimensions. Runs on every transport via the same script:
 
   ```sh
   mix run examples/images/image_demo.exs                # local terminal
@@ -116,7 +119,7 @@ Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensi
     examples/images/image_demo.exs --distributed
   ```
 
-* [`examples/cell_session/headless_image.exs`](../examples/cell_session/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
+* [`examples/cell_session/headless_image.exs`](../../examples/cell_session/headless_image.exs) — fetch a photo, render through `CellSession`, dump the cell grid to stdout with ANSI fg/bg colors. The Livebook / Kino path; safe to run anywhere (no TTY required).
 
 Both accept an `IMAGE_PATH` env var, default to fetching from `picsum.photos` once at startup, and fall back to an embedded 1×1 PNG if the network is unreachable. The SSH demo also honors `IMAGE_PROTOCOL` / `IMAGE_FONT_W` / `IMAGE_FONT_H` env vars.
 

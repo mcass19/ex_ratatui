@@ -71,7 +71,7 @@ end
 
 Rendering a `%List{items: one_million_rows}` means encoding every row across the NIF boundary on every frame. Don't do that. Options:
 
-**`%WidgetList{}`** — heterogeneous scrollable container with row clipping. You pass `{widget, height}` tuples plus a `scroll_offset`. Only visible rows are encoded in the output:
+**`%WidgetList{}`** — heterogeneous scrollable container with row clipping. Pass `{widget, height}` tuples plus a `scroll_offset`; only visible rows are rendered. Note encoding still walks every item, so for very large collections slice in state first (next option):
 
 ```elixir
 %WidgetList{
@@ -126,11 +126,11 @@ def subscriptions(_state), do: [Subscription.interval(:tick, 1_000, :tick)]
 
 Never block the runtime. A synchronous HTTP call in `handle_event/2` freezes the UI until it returns. Two escape hatches:
 
-**Reducer runtime — `Command.async/1`:**
+**Reducer runtime — `Command.async/2`:**
 
 ```elixir
 def update({:event, %Event.Key{code: "r"}}, state) do
-  command = Command.async(fn -> HTTPoison.get!("https://api.example.com/data") end, :data_loaded)
+  command = Command.async(fn -> HTTPoison.get!("https://api.example.com/data") end, &{:data_loaded, &1})
   {:noreply, state, commands: [command]}
 end
 
@@ -146,14 +146,15 @@ The runtime spawns a supervised task, keeps rendering normally, and delivers the
 ```elixir
 def handle_event(%Event.Key{code: "r"}, state) do
   Task.Supervisor.async_nolink(MyApp.TaskSup, fn ->
-    send(self(), :data_loaded)  # capture self() at the outer scope
+    HTTPoison.get!("https://api.example.com/data")
   end)
   {:noreply, state}
 end
 
-def handle_info({ref, result}, state) when is_reference(ref) do
+# The task's return value arrives as a {ref, result} message
+def handle_info({ref, response}, state) when is_reference(ref) do
   Process.demonitor(ref, [:flush])
-  {:noreply, %{state | data: result}}
+  {:noreply, %{state | data: response.body}}
 end
 ```
 

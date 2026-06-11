@@ -21,7 +21,7 @@ defmodule ExRatatui.Image do
     * `:protocol` - which terminal image protocol to render with. One of
       `:auto` (default), `:halfblocks`, `:kitty`, `:sixel`, `:iterm2`.
       `:auto` resolves at render time using the transport's capabilities
-      (see the [Images guide](images.md) for the resolution table).
+      (see the [Images guide](guides/core/images.md) for the resolution table).
       Explicit protocols are honored except over `CellSession`-style
       transports where `:halfblocks` is forced.
     * `:resize` - resize strategy. `:fit` (default, preserve aspect ratio
@@ -359,7 +359,7 @@ defmodule ExRatatui.Image do
   pixel size — they never upscale. This means a 400×300 source rendered
   into an 800×500 target stays at 400×300 anchored at the corner. Only
   `:scale` upscales aspect-preservingly to fill the area. See the
-  [Images guide](images.md) for the full rationale.
+  [Images guide](guides/core/images.md) for the full rationale.
 
       iex> ExRatatui.Image.render_size({400, 300}, {80, 24}, {10, 20}, :fit)
       {400, 300}

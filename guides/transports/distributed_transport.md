@@ -79,8 +79,8 @@ iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ## How It Works
 
 1. `attach/2` calls `Node.connect/1` to reach the app node (if not already connected).
-2. An RPC call spawns a `Server` in `:distributed_server` mode on the app node. This process runs your app module and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
-3. A local `Distributed.Client` process takes over the node's terminal, polls input events, and forwards them to the remote server.
+2. A local `Distributed.Client` process starts and takes over the node's terminal — it polls input events and will forward them to the remote server.
+3. An RPC call spawns a `Server` in `:distributed_server` mode on the app node, pointed at the client pid. This process runs the app module and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
 4. When either side disconnects, monitors fire, both processes clean up, and the terminal is restored.
 
 ### Wire Protocol
@@ -95,9 +95,9 @@ All messages are plain BEAM terms sent via `send/2` — no encoding, no NIF, no 
 
 ### Stateful Widget Handling
 
-Most widgets (Paragraph, Table, List, etc.) are pure Elixir structs that serialize naturally over Erlang distribution. However, **stateful widgets** — `TextInput` and `Textarea` — store their mutable state (text value, cursor position, viewport offset) in a NIF resource reference, a pointer into Rust memory on the local node. NIF references cannot cross BEAM node boundaries.
+Most widgets (Paragraph, Table, List, etc.) are pure Elixir structs that serialize naturally over Erlang distribution. However, **stateful widgets** — `TextInput`, `Textarea`, and `Image` — hold a NIF resource reference, a pointer into Rust memory on the local node. NIF references cannot cross BEAM node boundaries.
 
-The distributed server handles this transparently: before sending a widget list, it snapshots each stateful widget's NIF state into a plain tuple (`{value, cursor, viewport_offset}` for TextInput, `{value, cursor_row, cursor_col}` for Textarea) and replaces the reference in the struct. On the client node, the Rust decoder recognizes the snapshot form and reconstructs a temporary resource for rendering. This happens automatically — app code doesn't need to do anything special.
+The distributed server handles this transparently: before sending a widget list, it snapshots each stateful widget's state into plain data and replaces the reference in the struct. On the client node, the decoder recognizes the snapshot form and reconstructs a temporary resource for rendering. This happens automatically — app code doesn't need to do anything special.
 
 ### No NIF on the App Node (for stateless widgets)
 
@@ -132,6 +132,8 @@ ExRatatui.Distributed.attach(:"app@host", StatsTui, listener: :stats_dist)
 | `:listener` | `atom()` | `ExRatatui.Distributed.Listener` | Registered name of the Listener on the remote node |
 | `:poll_interval` | `integer()` | `16` | Local event polling interval in ms (~60fps) |
 | `:test_mode` | `{w, h}` | `nil` | Headless test terminal dimensions; disables live local input polling |
+| `:image_protocol` | `:auto \| :halfblocks \| :kitty \| :sixel \| :iterm2` | `nil` | Image protocol hint for the local terminal — drives how `protocol: :auto` images render (see [Images](../core/images.md)) |
+| `:image_font_size` | `{width_px, height_px}` | `nil` | Local cell pixel size for Kitty / Sixel / iTerm2 image scaling |
 
 ## Forwarding `mount/1` Opts
 
@@ -250,7 +252,7 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
 
   * `ExRatatui.Distributed` — main API module with `attach/3`
   * `ExRatatui.Distributed.Listener` — supervisor for per-attach sessions
-  * `Distributed.Client` — local rendering proxy (internal, not public API)
+  * ExRatatui.Distributed.Client — local rendering proxy (internal, not part of the public API)
   * `ExRatatui.App` — transport-aware app behaviour
   * [Callback Runtime](../runtimes/callback_runtime.md) — OTP-style callbacks
   * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions

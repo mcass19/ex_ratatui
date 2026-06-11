@@ -21,7 +21,7 @@ Both runtimes are transport-agnostic — the same module works over local termin
 | Events | `handle_event/2` + `handle_info/2` | Single `update/2` receives `{:event, _}` and `{:info, _}` |
 | Side effects | Direct (send, spawn, etc.) | First-class `Command` primitives (message, send_after, async, batch) |
 | Timers | Manual `Process.send_after/3` | Declarative `Subscription` with auto-reconciliation |
-| Tracing | Not built-in | Built-in via `ExRatatui.Runtime` |
+| Inspection | `ExRatatui.Runtime` snapshot / trace / inject | Same, plus command and subscription introspection |
 | Best for | Straightforward interactive TUIs | Apps with async I/O, structured effects, or complex state machines |
 
 ## Quick Start
@@ -185,9 +185,9 @@ end
 | Key | Default | Description |
 | --- | ------- | ----------- |
 | `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. ex_ratatui defines no vocabulary — consumers do. Transports without an intent writer (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop them, so apps stay portable. See [Cell sessions](../transports/cell_session.md) for how a transport wires the writer up. |
-| `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-traces). |
-| `commands: [...]` | `[]` | Reducer-runtime feature; no-op under the callback runtime. Use `Process.send_after/3` or spawn a `Task` from a callback instead. |
-| `render?: bool` | `true` | Reducer-runtime feature; no-op under the callback runtime. |
+| `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-trace). |
+| `commands: [...]` | `[]` | Queue `ExRatatui.Command` structs; results are delivered to `handle_info/2`. Designed for the reducer runtime but executed under both. |
+| `render?: bool` | `true` | Skip the re-render for this callback return. Works under both runtimes. |
 
 Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so the example above guarantees the redirect reaches the consumer before the linked-server EXIT propagates. Without that ordering the consumer would see the EXIT first and never get the directive.
 
@@ -203,7 +203,7 @@ ExRatatui apps are supervised GenServers — standard OTP fault tolerance applie
 
   * **`terminate/2` raises:** The error is ignored — the process exits regardless. Use this callback for best-effort cleanup (e.g., notifying other processes), not for critical operations.
 
-  * **Terminal restoration:** On a local transport crash, the terminal is automatically restored (raw mode disabled, cursor shown) via the Rust ResourceArc finalizer when the terminal reference is garbage collected. You don't need to handle this manually.
+  * **Terminal restoration:** On a local transport crash, the terminal is automatically restored (raw mode disabled, cursor shown) — no manual handling needed.
 
   * **SSH client disconnect:** The SSH channel detects the TCP close, the server receives a shutdown signal, and `terminate/2` is called normally.
 
@@ -229,7 +229,7 @@ See the [Running TUIs over SSH](../transports/ssh_transport.md) and [Running TUI
 
 The `:local` transport (default when no `:transport` is given) accepts two extra opts on `start_link`:
 
-  * `:mouse_capture` — enable mouse reporting (clicks, scroll, drag, move) as `%Event.Mouse{}` from `poll_event/1`. Off by default because mouse-capture mode disables the terminal's native text-selection while the app is running. Pair with `ExRatatui.Focus.handle_mouse/2` to route clicks.
+  * `:mouse_capture` — enable mouse reporting (clicks, scroll, drag, move) — events arrive in `handle_event/2` as `%Event.Mouse{}`. Off by default because mouse-capture mode disables the terminal's native text-selection while the app is running. Pair with `ExRatatui.Focus.handle_mouse/2` to route clicks.
   * `:focus_events` — enable terminal-window focus reporting (`%Event.FocusGained{}` / `%Event.FocusLost{}`). Off by default because the request leaves `CSI ?1004h` on the user's tty; any window-switch then queues focus bytes that can leak into unrelated stdin consumers (a plain shell or `mix test` started later).
 
 ```elixir

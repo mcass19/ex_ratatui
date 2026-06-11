@@ -122,7 +122,7 @@ def update({:event, %Event.Key{code: "enter"}}, %{screen: :login} = state) do
   end
 end
 
-def update({:event, %Event.Key{code: "s", modifiers: [:ctrl]}}, %{screen: :main} = state) do
+def update({:event, %Event.Key{code: "s", modifiers: ["ctrl"]}}, %{screen: :main} = state) do
   {:noreply, %{state | screen: :settings, prev_screen: :main}}
 end
 
@@ -173,7 +173,7 @@ Async work deserves its own screen atom when it's blocking (nothing else to do u
 ```elixir
 # Blocking: :loading is a screen
 def update({:event, %Event.Key{code: "enter"}}, %{screen: :main} = state) do
-  command = Command.async(fn -> fetch_report() end, :report_loaded)
+  command = Command.async(fn -> fetch_report() end, &{:report_loaded, &1})
   {:noreply, %{state | screen: :loading}, commands: [command]}
 end
 
@@ -183,7 +183,7 @@ end
 
 # Non-blocking: :refreshing? is a flag on :main
 def update({:event, %Event.Key{code: "r"}}, %{screen: :main} = state) do
-  command = Command.async(fn -> refresh() end, :refreshed)
+  command = Command.async(fn -> refresh() end, &{:refreshed, &1})
   {:noreply, %{state | refreshing?: true}, commands: [command]}
 end
 ```

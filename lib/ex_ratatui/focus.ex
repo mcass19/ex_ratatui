@@ -21,13 +21,13 @@ defmodule ExRatatui.Focus do
         case key do
           nil ->
             # consumed by Focus (Tab / Shift+Tab); nothing more to do
-            state
+            {:noreply, state}
 
           key ->
             case Focus.current(focus) do
-              :search  -> update_search(state, key)
-              :results -> update_results(state, key)
-              :details -> update_details(state, key)
+              :search  -> {:noreply, update_search(state, key)}
+              :results -> {:noreply, update_results(state, key)}
+              :details -> {:noreply, update_details(state, key)}
             end
         end
       end

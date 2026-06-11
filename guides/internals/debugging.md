@@ -22,7 +22,7 @@ iex> ExRatatui.Runtime.snapshot(pid)
   polling_enabled?: true,
   dimensions: {120, 40},
   render_count: 17,
-  last_rendered_at: ~U[2026-04-20 12:34:56.789Z],
+  last_rendered_at: 1745152496789,  # System.system_time(:millisecond)
   subscription_count: 1,
   subscriptions: [%{id: :tick, kind: :interval, interval_ms: 1_000, fired?: true, active?: true}],
   active_async_commands: 0,
@@ -37,7 +37,7 @@ Fields you'll use most:
 - `:render_count` — did render actually run? If this stays flat, your transition returned `render?: false` or your event isn't reaching `handle_event/2`.
 - `:dimensions` — the size the runtime thinks it has. Off if something grabbed the terminal before mount.
 - `:subscriptions` — reducer-runtime only; shows which timers are active and whether they've fired at least once.
-- `:active_async_commands` — `Command.async/1` calls currently running.
+- `:active_async_commands` — `Command.async/2` calls currently running.
 - `:polling_enabled?` — `false` under `test_mode`, `true` in real terminals. If it's unexpectedly `false`, you probably passed `test_mode` accidentally.
 
 ## Runtime trace
@@ -79,7 +79,7 @@ ExRatatui.Runtime.disable_trace(pid)
 **From inside a reducer-runtime `update/2`**, you can flip tracing per-transition via the runtime opts:
 
 ```elixir
-def update({:event, %Event.Key{code: "?", modifiers: [:ctrl]}}, state) do
+def update({:event, %Event.Key{code: "?", modifiers: ["ctrl"]}}, state) do
   {:noreply, state, trace?: true}
 end
 ```
@@ -187,11 +187,11 @@ mix run --no-halt examples/apps/system_monitor.exs --ssh
 
 ### Render works once, then freezes
 
-Usually a long-running computation inside `render/2`. Terminal events keep queuing, but the render loop is blocked. Move the heavy work to `handle_event/2` / `update/2` (fine — runs between renders) or an async command (`Command.async/1` in reducer runtime, `Task.Supervisor.async_nolink/2` in callback). See [Performance](performance.md).
+Usually a long-running computation inside `render/2`. Terminal events keep queuing, but the render loop is blocked. Move the heavy work to `handle_event/2` / `update/2` (fine — runs between renders) or an async command (`Command.async/2` in reducer runtime, `Task.Supervisor.async_nolink/2` in callback). See [Performance](performance.md).
 
 ### Runtime stops on its own with `{:stop, reason}`
 
-Check the logs — an exception in any callback crashes the server. Unless you've changed the default, the supervisor doesn't restart transient children that exit abnormally. In tests, `start_supervised!` propagates the crash into the test.
+Check the logs — an exception in any callback crashes the server. The generated `child_spec` uses `restart: :transient`, so the supervisor restarts the app after an abnormal exit but leaves it down after a clean `{:stop, state}`. In tests, `start_supervised!` propagates the crash into the test.
 
 ### I force-killed a TUI and now my shell is broken
 

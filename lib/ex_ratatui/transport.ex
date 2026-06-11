@@ -3,13 +3,16 @@ defmodule ExRatatui.Transport do
   Shared protocol between the internal Server runtime and the modules
   that carry input/output bytes for a running `ExRatatui.App`.
 
-  ex_ratatui ships three transports:
+  ex_ratatui ships these transports out of the box:
 
+    * The built-in `:local` transport — runs against the host tty via
+      `ExRatatui.run/1`.
     * `ExRatatui.SSH` + `ExRatatui.SSH.Daemon` — serve apps over SSH.
     * `ExRatatui.Distributed.Listener` — serve apps to remote BEAM nodes
       using distribution instead of raw bytes.
-    * The built-in `:local` transport — runs against the host tty via
-      `ExRatatui.run/1`.
+    * Two session-backed primitives that custom transports build on:
+      `ExRatatui.Session` (ANSI byte stream) and `ExRatatui.CellSession`
+      (cell buffer for non-terminal surfaces).
 
   Downstream packages (`kino_ex_ratatui`, custom TCP bridges, …) plug in
   by adopting `@behaviour ExRatatui.Transport` and speaking the same
@@ -68,6 +71,13 @@ defmodule ExRatatui.Transport do
   @type cell_writer_fn :: (ExRatatui.CellSession.Diff.t() -> :ok)
 
   @typedoc """
+  Callback invoked once per intent emitted by the app's callbacks, in
+  emission order. Intents are opaque terms — consumers define the
+  vocabulary.
+  """
+  @type intent_writer_fn :: (term() -> :ok)
+
+  @typedoc """
   Variants accepted by the runtime server's `:transport` option at
   init time.
 
@@ -82,6 +92,10 @@ defmodule ExRatatui.Transport do
       `phoenix_ex_ratatui` (browser DOM) and the Nerves
       [name_badge](https://github.com/protolux-electronics/name_badge)
       project (1bpp framebuffer rasteriser).
+    * `{:cell_session, cell_session, cell_writer_fn, intent_writer_fn}` —
+      same, plus an `t:intent_writer_fn/0` invoked once per intent emitted
+      by the app's callbacks (see the Runtime opts section of
+      `ExRatatui.App`).
     * `{:distributed_server, client_pid, width, height}` — the server
       ships widget trees to a remote renderer (see
       `ExRatatui.Distributed.Listener`) that renders them locally.
@@ -90,6 +104,7 @@ defmodule ExRatatui.Transport do
           :local
           | {:session, ExRatatui.Session.t(), writer_fn()}
           | {:cell_session, ExRatatui.CellSession.t(), cell_writer_fn()}
+          | {:cell_session, ExRatatui.CellSession.t(), cell_writer_fn(), intent_writer_fn()}
           | {:distributed_server, pid(), pos_integer(), pos_integer()}
 
   @typedoc """

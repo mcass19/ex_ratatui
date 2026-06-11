@@ -69,9 +69,9 @@ Supervisor.start_link(children, strategy: :one_for_one)
 
 | Callback | Required | Description |
 |----------|----------|-------------|
-| `init/1` | No | Called once on startup. Return `{:ok, state}` or `{:ok, state, opts}`. Defaults to `{:ok, %{}}` |
+| `init/1` | Yes | Called once on startup. Return `{:ok, state}` or `{:ok, state, opts}` |
 | `render/2` | Yes | Called after every state change. Return `[{widget, rect}]` |
-| `update/2` | No | Receives `{:event, event}` or `{:info, message}`. Return `{:noreply, state}`, `{:noreply, state, opts}`, or `{:stop, state}`. Defaults to `{:noreply, state}` |
+| `update/2` | Yes | Receives `{:event, event}` or `{:info, message}`. Return `{:noreply, state}`, `{:noreply, state, opts}`, or `{:stop, state}`. End with a catch-all clause — unmatched messages crash the server |
 | `subscriptions/1` | No | Called after each state transition. Return a list of `Subscription` structs. Defaults to `[]` |
 | `terminate/2` | No | Called on shutdown. Default is a no-op |
 
@@ -241,11 +241,11 @@ ExRatatui apps are supervised GenServers — standard OTP fault tolerance applie
 
   * **`update/2` raises:** The server crashes and the supervisor restarts it. A fresh `init/1` starts from scratch — all subscriptions are re-established.
 
-  * **`Command.async/2` function raises:** The error is caught and the mapper receives `{:error, {:exception, message}}`. If the mapper itself raises, the runtime wraps that into `{:error, {:mapper_exception, message}}`. In both cases, the result is delivered to `update/2` as a normal `{:info, ...}` message — async commands always complete cleanly.
+  * **`Command.async/2` function raises:** The error is caught and the mapper receives an `{:error, reason}` tuple; errors in the mapper itself are wrapped with distinct `:mapper_*` tags. Either way the result is delivered to `update/2` as a normal `{:info, ...}` message — async commands always complete cleanly. `ExRatatui.Command.async/2` documents the full set of error shapes.
 
   * **Subscription timers after crash:** All timer references are lost on crash. After a supervisor restart, `subscriptions/1` re-declares the timers and the runtime re-arms them from scratch.
 
-  * **Terminal restoration:** On local transport, the terminal is automatically restored via the Rust ResourceArc finalizer when the reference is garbage collected.
+  * **Terminal restoration:** On local transport, the terminal is automatically restored — no manual handling needed.
 
   * **SSH/distributed disconnection:** The server detects the disconnect via monitors and shuts down cleanly, calling `terminate/2`.
 
@@ -330,8 +330,11 @@ test "subscription fires tick message" do
   snapshot = ExRatatui.Runtime.snapshot(pid)
   assert snapshot.subscription_count == 1
 
-  # Wait for at least one tick
-  Process.sleep(1_100)
+  # Send the tick message directly instead of sleeping through a real
+  # interval — same update/2 path, no flakiness. :sys.get_state/1 blocks
+  # until the message has been processed.
+  send(pid, :tick)
+  _ = :sys.get_state(pid)
 
   snapshot = ExRatatui.Runtime.snapshot(pid)
   assert snapshot.render_count >= 2

@@ -302,7 +302,7 @@ Without `:selected_column` set, `:column_highlight_style` and `:cell_highlight_s
 }
 ```
 
-Row-clipped scroll. Good for 1k+ items; only visible rows cross the NIF boundary.
+Row-clipped scroll — only visible rows are rendered, but encoding walks all items; slice in state for huge lists.
 
 ### Scrollbar
 
@@ -405,7 +405,7 @@ state = ExRatatui.text_input_new()     # mount once, keep in app state
   block: %Block{borders: [:all]}
 }
 
-ExRatatui.text_input_handle_key(state, key_event)
+ExRatatui.text_input_handle_key(state, key.code)
 value = ExRatatui.text_input_get_value(state)
 ```
 
@@ -422,7 +422,7 @@ state = ExRatatui.textarea_new()
   block: %Block{borders: [:all]}
 }
 
-ExRatatui.textarea_handle_key(state, key_event)
+ExRatatui.textarea_handle_key(state, key.code, key.modifiers)
 value = ExRatatui.textarea_get_value(state)
 ```
 

@@ -1,6 +1,6 @@
 # Custom Transports
 
-An ExRatatui "transport" is any module that decides **where the bytes go** for a running `ExRatatui.App`. The library ships three built-in transports — `:local` for the host tty via `ExRatatui.run/1`, `ExRatatui.SSH.Daemon` + `ExRatatui.SSH` for serving the same App over OTP `:ssh`, and `ExRatatui.Distributed.Listener` for serving the App to remote BEAM nodes. If none of those fits — you want to serve an App over a raw TCP socket, a Livebook widget, a WebSocket, whatever — you can plug in your own. This guide walks through the contract and a small TCP example.
+An ExRatatui "transport" is any module that decides **where the bytes go** for a running `ExRatatui.App`. The library ships several transports out of the box — `:local` for the host tty via `ExRatatui.run/1`, `ExRatatui.SSH.Daemon` + `ExRatatui.SSH` for serving the same App over OTP `:ssh`, `ExRatatui.Distributed.Listener` for serving the App to remote BEAM nodes, and the session-backed shapes that this guide and [Rendering to Non-Terminal Surfaces](cell_session.md) build on (the [Transports](transports.md) guide has the full matrix). If none of those fits — you want to serve an App over a raw TCP socket, a Livebook widget, a WebSocket, whatever — you can plug in your own. This guide walks through the contract and a small TCP example.
 
 If your consumer is **not** a terminal — a Phoenix LiveView painting `<span>` cells, a Nerves device rasterising into a framebuffer, a screenshot tool — see [Rendering to Non-Terminal Surfaces](cell_session.md). `ExRatatui.CellSession` is the ANSI-free sibling of `Session`, and the patterns in this guide (acceptor + per-connection worker, runtime-server monitoring, alt-screen lifecycle for byte streams) still apply with a cell buffer in place of the byte writer.
 
@@ -11,13 +11,17 @@ If your consumer is **not** a terminal — a Phoenix LiveView painting `<span>` 
 ```elixir
 @type server_transport ::
         :local
-        | {:session, ExRatatui.Session.t(), (iodata() -> :ok)}
+        | {:session, ExRatatui.Session.t(), writer_fn()}
+        | {:cell_session, ExRatatui.CellSession.t(), cell_writer_fn()}
+        | {:cell_session, ExRatatui.CellSession.t(), cell_writer_fn(), intent_writer_fn()}
         | {:distributed_server, pid(), pos_integer(), pos_integer()}
 
 @type to_server ::
         {:ex_ratatui_event, ExRatatui.Event.t()}
         | {:ex_ratatui_resize, pos_integer(), pos_integer()}
 ```
+
+(`t:ExRatatui.Transport.server_transport/0` is the source of truth if this snippet ever drifts.)
 
 A byte-stream transport (SSH, a TCP bridge, a Kino widget) does three things. It creates an `ExRatatui.Session` sized to the remote terminal, starts the runtime server via `ExRatatui.Transport.start_server/1` with `transport: {:session, session, writer_fn}` (the server calls `writer_fn` with the rendered ANSI bytes on every frame — job is to ship those bytes to the remote terminal), and when bytes arrive *from* the remote terminal it forwards them to the server using `ExRatatui.Transport.ByteStream.forward_input/3`. When the remote terminal resizes, it uses `forward_resize/4`.
 

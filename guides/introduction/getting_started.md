@@ -138,7 +138,7 @@ ExRatatui.draw(terminal, [{paragraph, %Rect{x: 0, y: 0, width: w, height: h}}])
 ExRatatui.poll_event(5_000)
 ```
 
-Polls for a terminal event (key press, mouse, resize) with a timeout in milliseconds. Returns `nil` on timeout, an `%Event.Key{}` / `%Event.Mouse{}` / `%Event.Resize{}` otherwise. Event polling runs on the BEAM's DirtyIo scheduler so your other processes keep running.
+Polls for a terminal event (key press, mouse, resize) with a timeout in milliseconds. Returns `nil` on timeout, an `%Event.Key{}` / `%Event.Mouse{}` / `%Event.Resize{}` (or paste / focus event) otherwise. Event polling runs on the BEAM's DirtyIo scheduler so your other processes keep running.
 
 That's the whole "bare metal" API: size, build structs, draw, poll. For a supervised long-running app, you want the next layer.
 
@@ -197,8 +197,7 @@ Run it:
 
 ```sh
 iex -S mix
-iex> {:ok, _pid} = Hello.start_link(name: nil)
-iex> Process.monitor(_pid)  # optional — block until the app exits
+iex> {:ok, pid} = Hello.start_link(name: nil)
 ```
 
 Under a supervisor, you'd add it like any other child:
@@ -259,7 +258,7 @@ end
 
 Two things to notice.
 
-**Events come in `handle_event` clauses.** An `%Event.Key{}` carries `:code` (a string like `"up"`, `"a"`, `"enter"`, `"esc"`), `:modifiers` (e.g. `[:ctrl]`), and `:kind` (`"press"` / `"repeat"` / `"release"`). Pattern-match on the shape you care about; fall through to a catch-all `{:noreply, state}` so unhandled events don't crash.
+**Events come in `handle_event` clauses.** An `%Event.Key{}` carries `:code` (a string like `"up"`, `"a"`, `"enter"`, `"esc"`), `:modifiers` (strings too, e.g. `["ctrl"]`), and `:kind` (`"press"` / `"repeat"` / `"release"`). Pattern-match on the shape you care about; fall through to a catch-all `{:noreply, state}` so unhandled events don't crash.
 
 **Return values control the loop:**
 
@@ -356,7 +355,7 @@ body_widget = %Paragraph{
 Time to put it together. This app introduces two things you haven't seen:
 
 1. **A stateful widget** — `TextInput` owns a NIF-side editor state. You create the state once in `mount/1`, keep the reference in your state map, and pass it to the widget on every render.
-2. **Focus management** — two regions (input, list) want different keybindings. We track a `focus: :input | :list` atom and dispatch keys accordingly. For multi-panel apps with more than a couple of regions, `ExRatatui.Focus` gives you a proper focus ring; see [Building UIs](../core/building_uis.md#focus) for that pattern.
+2. **Focus management** — two regions (input, list) want different keybindings. We track a `focus: :input | :list` atom and dispatch keys accordingly. For multi-panel apps with more than a couple of regions, `ExRatatui.Focus` gives you a proper focus ring; see [Building UIs](../core/building_uis.md#focus-management) for that pattern.
 
 Create `lib/todo.ex`:
 
@@ -545,4 +544,4 @@ You now have a working local supervised TUI with input, a list, and focus. From 
 - **[Running TUIs over SSH](../transports/ssh_transport.md)** — serve this exact app to remote clients.
 - **[Running TUIs over Erlang Distribution](../transports/distributed_transport.md)** — drive the TUI from a different BEAM node.
 
-Or browse the [examples/](https://github.com/mcass19/ex_ratatui/tree/main/examples) folder for more patterns — `focus_multi_panel.exs`, `chat_interface.exs`, and `task_manager/` are good next reads.
+Or browse the [examples/](https://github.com/mcass19/ex_ratatui/tree/main/examples) folder for more patterns — `layout/focus.exs`, `apps/chat.exs`, and `apps/task_manager_db/` are good next reads.

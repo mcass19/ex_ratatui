@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`native/ex_ratatui/Cargo.lock` is committed** for reproducible NIF builds from source.
 
+### Fixed
+
+- **Documentation accuracy pass — every code snippet verified against the API.** A five-reviewer audit of all guides, the cheatsheet, and moduledocs surfaced ~25 factual errors, all fixed:
+  - *Snippets that raised or silently never matched on copy-paste*: `%Event.Key{modifiers: [:ctrl]}` → modifiers are strings (`["ctrl"]`); `%Event.Mouse{column:, row:}` → fields are `x`/`y` with string `kind`/`button`; `%Event.Resize{columns:, rows:}` → `width`/`height`; `Command.async(fun, :atom)` → the mapper must be an arity-1 function; a `Task.Supervisor.async_nolink` example that sent its result to the task's own pid; the Images quick start used a nonexistent `view/2` callback; `Focus` caller examples (guide and moduledoc) returned bare `state` instead of `{:noreply, state}`.
+  - *Wrong claims*: the runtime comparison table said tracing is reducer-only (snapshot/trace/inject work under both runtimes); `commands:`/`render?:` were documented as no-ops under the callback runtime but the server executes them for both — docs now describe the actual behaviour; the reducer guide claimed `init/1` and `update/2` have defaults (they're required); the debugging guide inverted `:transient` restart semantics; `poll_event/1`'s doc and `Event.FocusGained` claimed focus reporting is default-on (it's opt-in via `focus_events: true`); the transports matrix wrote `:iterm` for `:iterm2` and atom shorthand for tuple transport shapes; the distributed guide mis-ordered the attach sequence; WidgetList docs claimed only visible rows cross the NIF boundary (encoding walks all items).
+  - *Silent-zero telemetry examples*: three `Telemetry.Metrics` definitions pointed at event/measurement names that never fire; the default-logger doc now notes the image/code_block spans are excluded.
+  - *Stale references*: the SSH and Distributed option tables were missing `image_protocol`/`image_font_size`; the quoted `server_transport` contract in Custom Transports lagged the Server (and `ExRatatui.Transport`'s typespec gained the 4-tuple `:cell_session` intent variant the Server already accepted); phantom file/function names (`continue_init_ssh/3`, `test/property/`, pre-reorg example paths) and three broken anchors/relative links.
+
 ## [0.10.1] - 2026-06-01
 
 ### Added

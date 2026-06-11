@@ -22,7 +22,7 @@ An `ExRatatui.App` can run on either without knowing the difference. Switching t
 
 ```elixir
 alias ExRatatui.CellSession
-alias ExRatatui.CellSession.{Cell, Snapshot}
+alias ExRatatui.CellSession.Snapshot
 alias ExRatatui.Layout.Rect
 alias ExRatatui.Style
 alias ExRatatui.Widgets.{Block, Paragraph}
@@ -54,7 +54,7 @@ CellSession.close(session)
 }
 ```
 
-That's the whole API at the snapshot level. See the [`cell_dump.exs`](../examples/cell_session/cell_dump.exs) example for a tiny end-to-end script that paints a `Paragraph`, walks the snapshot, and prints it.
+That's the whole API at the snapshot level. See the [`cell_dump.exs`](../../examples/cell_session/cell_dump.exs) example for a tiny end-to-end script that paints a `Paragraph`, walks the snapshot, and prints it.
 
 ## The cell shape
 
@@ -175,7 +175,7 @@ On every render the runtime server calls `CellSession.draw/2`, then `CellSession
 
 Apps stay portable across transports: a TUI that emits `{:redirect, path}` from a callback runs unchanged over both a 4-tuple `:cell_session` (intent dispatched) and a `:local` tty (intent silently dropped — there's nothing to navigate).
 
-See [Runtime opts](`ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for the App-side return-shape, and `phoenix_ex_ratatui` for a working consumer that turns intents into `Phoenix.LiveView` actions.
+See [Runtime opts](`m:ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for the App-side return-shape, and `phoenix_ex_ratatui` for a working consumer that turns intents into `Phoenix.LiveView` actions.
 
 ## Performance notes
 
@@ -192,4 +192,4 @@ See [Runtime opts](`ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for t
 - `ExRatatui.CellSession` — module docs for the wrapper API.
 - `ExRatatui.CellSession.Cell` / `ExRatatui.CellSession.Snapshot` / `ExRatatui.CellSession.Diff` — the structured payload types.
 - `ExRatatui.Session` — the ANSI-bytes sibling for terminal-shaped consumers.
-- [`cell_dump.exs`](../examples/cell_session/cell_dump.exs) — minimal headless example walking a snapshot.
+- [`cell_dump.exs`](../../examples/cell_session/cell_dump.exs) — minimal headless example walking a snapshot.

@@ -238,9 +238,10 @@ defmodule ExRatatui do
 
   Returns an `Event.Key`, `Event.Mouse`, `Event.Resize`, `Event.Paste`,
   `Event.FocusGained`, or `Event.FocusLost` struct; `nil` if no event
-  within the timeout; or `{:error, reason}` on failure. Paste and
-  Focus events arrive when the terminal has bracketed paste and focus
-  reporting enabled (both default-on for `ExRatatui.run/1`).
+  within the timeout; or `{:error, reason}` on failure. Paste events
+  arrive when the terminal supports bracketed paste (enabled by
+  `ExRatatui.run/2` automatically); Focus events require opting in via
+  `ExRatatui.run(fun, focus_events: true)`.
   """
   @spec poll_event(non_neg_integer()) ::
           ExRatatui.Event.t() | nil | {:error, term()}

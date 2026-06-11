@@ -26,7 +26,7 @@ The split between `:runtime, :event` and `:runtime, :update` isn't arbitrary. Te
 
 ## Log every event
 
-ExRatatui ships a default logger that attaches one handler for every event:
+ExRatatui ships a default logger that attaches one handler for every runtime, render, transport, and session event (the `:image, :decode` and `:code_block, :highlight` library spans are not included):
 
 ```elixir
 # typically in your Application.start/2 or an iex session
@@ -60,12 +60,15 @@ def metrics do
     ),
 
     # Frame-build cost by scene size — spot "my dashboard grew 3x and now drops frames".
+    # :widget_count lives in metadata, not measurements, so point the metric at it.
     Telemetry.Metrics.distribution("ex_ratatui.render.frame.stop.widget_count",
+      measurement: fn _measurements, metadata -> metadata.widget_count end,
       tags: [:mod]
     ),
 
-    # Dropped frames — should be near zero. Page on it.
-    Telemetry.Metrics.counter("ex_ratatui.render.dropped",
+    # Dropped frames — should be near zero. Page on it. The trailing .count
+    # makes Telemetry.Metrics count occurrences of the 3-segment event.
+    Telemetry.Metrics.counter("ex_ratatui.render.dropped.count",
       tags: [:transport, :reason]
     ),
 
@@ -77,7 +80,7 @@ def metrics do
     ),
 
     # Session churn — SSH clients connecting/disconnecting.
-    Telemetry.Metrics.counter("ex_ratatui.transport.disconnect",
+    Telemetry.Metrics.counter("ex_ratatui.transport.disconnect.count",
       tags: [:transport, :reason]
     )
   ]

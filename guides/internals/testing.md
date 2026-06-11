@@ -43,7 +43,7 @@ end
 
 `get_buffer_content/1` returns the visible characters as a multi-line string, stripped of styling. That's usually what you want for assertions — but if you need exact column placement, the string is newline-delimited at the backend's width, so `String.split(content, "\n") |> Enum.at(row)` gets you one row.
 
-Each test terminal is independent — no global state, nothing to clean up. `async: true` tests sharing a schema are safe.
+Each test terminal is independent — no global state, nothing to clean up, safe under `async: true`.
 
 ## App-level: supervised apps under `test_mode`
 
@@ -141,13 +141,13 @@ Key, mouse, and resize events all work the same way:
 ```elixir
 # Key press
 %ExRatatui.Event.Key{code: "enter", kind: "press"}
-%ExRatatui.Event.Key{code: "c", modifiers: [:ctrl], kind: "press"}
+%ExRatatui.Event.Key{code: "c", modifiers: ["ctrl"], kind: "press"}
 
 # Mouse
-%ExRatatui.Event.Mouse{kind: :down, button: :left, column: 10, row: 5}
+%ExRatatui.Event.Mouse{kind: "down", button: "left", x: 10, y: 5}
 
 # Resize
-%ExRatatui.Event.Resize{columns: 120, rows: 40}
+%ExRatatui.Event.Resize{width: 120, height: 40}
 ```
 
 Any of these can be passed to `inject_event/2`. A resize event triggers a fresh render at the new size — good for asserting responsive layout code.
@@ -212,7 +212,7 @@ If your app renders the focused region's border in a distinct color, that'll sho
 
 ## Property-based invariants
 
-Use `stream_data` to check invariants that should hold for any input — decoder round-trips, layout constraints, style coercion. The ExRatatui test suite uses this approach for event decoding, layout, style, and text coercion. See `test/property/` in the repo for patterns: generators → assertions over `StreamData.check_all/3` blocks → deterministic seeds on failure.
+Use `stream_data` to check invariants that should hold for any input — decoder round-trips, layout constraints, style coercion. The ExRatatui test suite uses this approach for event decoding, layout, style, and text coercion. See `test/ex_ratatui/property/` in the repo for patterns: generators → assertions over `StreamData.check_all/3` blocks → deterministic seeds on failure.
 
 ## Cross-transport parity
 

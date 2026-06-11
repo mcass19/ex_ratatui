@@ -70,11 +70,11 @@ defmodule ExRatatui.App do
 
   | Key | Default | Description |
   | --- | ------- | ----------- |
-  | `commands: [...]` | `[]` | Side effects to execute after the state transition. Reducer-specific — no-op under the callback runtime. See `ExRatatui.Command`. |
+  | `commands: [...]` | `[]` | Side effects to execute after the state transition. Designed for the reducer runtime but executed under both — under the callback runtime, results are delivered to `handle_info/2`. See `ExRatatui.Command`. |
   | `intents: [...]` | `[]` | Opaque directives forwarded verbatim to the transport's `intent_writer_fn` in the order they were emitted. ex_ratatui defines no vocabulary — consumers do. `phoenix_ex_ratatui` consumes `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}` to dispatch LV navigation, for example. Transports that don't supply an intent writer (the existing 3-tuple `:cell_session` shape, plus `:local` / `:session` / `:distributed_server`) silently drop intents — apps stay portable across transports. |
-  | `render?: bool` | `true` | Whether to re-render after this transition. Reducer-specific. |
+  | `render?: bool` | `true` | Whether to re-render after this transition. Works under both runtimes. |
   | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing. |
-  | `probe_image_protocol: bool` | `false` | When `true` on the `:local` transport, the runtime calls `ExRatatui.Image.auto_local_protocol/1` once right after `mount/1` so image widgets with `protocol: :auto` resolve to the detected terminal protocol (Kitty / Sixel / iTerm2 / Halfblocks). Soft-fails silently with no TTY. Skipped under `test_mode: {w, h}`. No effect on other transports — CellSession forces halfblocks, SSH / Distributed use their session-level `:image_protocol` opt. Only meaningful on `mount/1`. See the [Images guide](images.md). |
+  | `probe_image_protocol: bool` | `false` | When `true` on the `:local` transport, the runtime calls `ExRatatui.Image.auto_local_protocol/1` once right after `mount/1` so image widgets with `protocol: :auto` resolve to the detected terminal protocol (Kitty / Sixel / iTerm2 / Halfblocks). Soft-fails silently with no TTY. Skipped under `test_mode: {w, h}`. No effect on other transports — CellSession forces halfblocks, SSH / Distributed use their session-level `:image_protocol` opt. Only meaningful on `mount/1`. See the [Images guide](guides/core/images.md). |
 
   Intents emitted from a `{:stop, state, intents: ...}` transition fire
   **before** the server exits, so a "logout" key returning

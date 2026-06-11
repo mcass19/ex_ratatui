@@ -112,9 +112,10 @@ Terminal events are polled automatically by the runtime. In the [Callback Runtim
 
 ```elixir
 %ExRatatui.Event.Mouse{
-  kind: "down",       # "down", "up", "drag", "moved", "scroll_down", "scroll_up"
-  column: 10,
-  row: 5,
+  kind: "down",       # "down", "up", "drag", "moved", "scroll_up", "scroll_down", "scroll_left", "scroll_right"
+  button: "left",     # "left", "right", "middle" ("" for moves and scrolls)
+  x: 10,
+  y: 5,
   modifiers: []
 }
 ```
@@ -669,7 +670,7 @@ Apps with multiple interactive widgets (e.g., a TextInput + List + details pane)
 ```elixir
 alias ExRatatui.{Event, Focus}
 
-# Declare the focus ring up front, e.g. in mount/2 or init/1.
+# Declare the focus ring up front, e.g. in mount/1 or init/1.
 state = %{
   focus: Focus.new([:search, :results, :details]),
   search: ExRatatui.text_input_new(),
@@ -678,7 +679,7 @@ state = %{
 }
 ```
 
-Route every key event through `Focus.handle_key/2` before dispatching. Tab / Shift+Tab / `back_tab` are consumed (focus moves, you get `nil` back). Everything else passes through unchanged.
+Route every key event through `Focus.handle_key/2` before dispatching. Tab / Shift+Tab / `back_tab` are consumed (focus moves, the key comes back as `nil`). Everything else passes through unchanged.
 
 ```elixir
 def handle_event(%Event.Key{} = key, state) do
@@ -687,13 +688,13 @@ def handle_event(%Event.Key{} = key, state) do
 
   case key do
     nil ->
-      state
+      {:noreply, state}
 
     key ->
       case Focus.current(focus) do
-        :search  -> update_search(state, key)
-        :results -> update_results(state, key)
-        :details -> update_details(state, key)
+        :search  -> {:noreply, update_search(state, key)}
+        :results -> {:noreply, update_results(state, key)}
+        :details -> {:noreply, update_details(state, key)}
       end
   end
 end

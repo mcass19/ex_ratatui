@@ -7,10 +7,10 @@ ExRatatui apps run against one of five transports. The model code (mount, render
 | Transport | Entry point | Where the terminal lives | Where the app callbacks live |
 |---|---|---|---|
 | **Local** | `ExRatatui.run/2` or `ExRatatui.Server.start_link(transport: :local)` | Host tty | Same node, same process |
-| **Byte-stream Session** | `ExRatatui.Server.start_link(transport: :session, ...)` | Caller-owned bytes (any transport speaking ANSI in + bytes out) | Same node |
+| **Byte-stream Session** | `ExRatatui.Server.start_link(transport: {:session, session, writer_fn})` | Caller-owned bytes (any transport speaking ANSI in + bytes out) | Same node |
 | **SSH** | `ExRatatui.SSH.Daemon.start_link/1` | Remote SSH client's tty | App-side; one Server per channel |
 | **Distributed** | `ExRatatui.Distributed.attach/2` on the client; `ExRatatui.Distributed.Listener` on the app node | Local node's tty | Remote node, behind Erlang distribution |
-| **CellSession** | `ExRatatui.Server.start_link(transport: :cell_session, ...)` | None — a `%CellSession{}` exposes the cell buffer instead of bytes (LiveView, headless tests, framebuffers) | Same node |
+| **CellSession** | `ExRatatui.Server.start_link(transport: {:cell_session, cs, writer_fn})` | None — a `%CellSession{}` exposes the cell buffer instead of bytes (LiveView, headless tests, framebuffers) | Same node |
 
 The internal telemetry tags match: `transport: :local`, `:session`, `:distributed_server`, `:cell_session`. SSH wraps `:session`.
 
@@ -27,7 +27,7 @@ The internal telemetry tags match: `transport: :local`, `:session`, `:distribute
 | Bracketed paste (`Event.Paste`) | ✓ | ✗ (VTE parser doesn't decode `CSI 200~/201~` yet) | ✗ (same) | ✗ (same) | — (caller constructs `%Event.Paste{}` directly) |
 | Focus events (`Event.FocusGained` / `FocusLost`) | ✓ opt-in via `run(fn, focus_events: true)` | ✗ | ✗ | ✗ | — |
 | Image rendering: `:halfblocks` | ✓ | ✓ | ✓ | ✓ | ✓ (forced on this transport) |
-| Image rendering: `:kitty` / `:sixel` / `:iterm` | ✓ (auto-probe via `auto_local_protocol/1`) | ✓ (per-image at construction) | ✓ (`image_protocol:` opt on the daemon) | ✓ (`image_protocol:` opt on `attach/2`) | ✗ (escape sequences can't survive cell diffing) |
+| Image rendering: `:kitty` / `:sixel` / `:iterm2` | ✓ (auto-probe via `auto_local_protocol/1`) | ✓ (per-image at construction) | ✓ (`image_protocol:` opt on the daemon) | ✓ (`image_protocol:` opt on `attach/2`) | ✗ (escape sequences can't survive cell diffing) |
 | Image protocol auto-detection | ✓ (`probe_image_protocol: true` on mount) | ✗ (caller decides) | ✗ (caller decides) | ✗ (caller decides) | — |
 | OSC 52 clipboard copy (write to terminal's clipboard via emitted bytes) | ✓ (write to stdout) | ✓ (write to the transport's byte writer) | ✓ (same — bytes cross the SSH channel) | ✓ (same — bytes ride the distribution renderer stream) | ✗ (no byte channel; route as an intent if the consumer can act on it) |
 | Intents (forward opaque terms to the transport) | — | — | — | — | ✓ (`{:cell_session, cs, cell_writer, intent_writer}` 4-tuple) |

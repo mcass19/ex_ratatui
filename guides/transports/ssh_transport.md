@@ -100,7 +100,7 @@ end
 The user then connects with:
 
 ```sh
-ssh nerves.local -s Elixir.MyApp.TUI
+ssh -t nerves.local -s Elixir.MyApp.TUI
 ```
 
 The subsystem name is the full Elixir module name as a charlist (because that's what SSH expects), so two different app modules configured into the same daemon get distinct subsystem names and don't collide.
@@ -146,6 +146,8 @@ See the [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratat
 | `:name` | `atom() \| nil` | `ExRatatui.SSH.Daemon` | Registered name, or `nil` to skip |
 | `:app_opts` | `keyword()` | `[]` | Extra opts merged into every client's `mount/1` call |
 | `:auto_host_key` | `boolean()` | `false` | Auto-generate an RSA host key under `<priv_dir>/ssh/` (see ["Generating Host Keys"](#generating-host-keys)) |
+| `:image_protocol` | `:auto \| :halfblocks \| :kitty \| :sixel \| :iterm2` | `nil` | Image protocol hint for connected clients — drives how `protocol: :auto` images render (see [Images](../core/images.md)) |
+| `:image_font_size` | `{width_px, height_px}` | `nil` | Cell pixel size for Kitty / Sixel / iTerm2 image scaling |
 
 Everything else is forwarded verbatim to `:ssh.daemon/2`, so all of OTP's `:ssh` options work unchanged:
 
@@ -173,7 +175,7 @@ children = [
 ]
 ```
 
-On Nerves, prefer registering multiple TUIs as subsystems on a single `nerves_ssh` daemon instead of running separate daemons — see the ["Integration with `nerves_ssh`"](#integration-with-nerves_ssh) section.
+On Nerves, prefer registering multiple TUIs as subsystems on a single `nerves_ssh` daemon instead of running separate daemons — see the ["Integrating with `nerves_ssh`"](#integrating-with-nerves_ssh) section.
 
 ### Why `charlist()` everywhere?
 
@@ -337,7 +339,7 @@ The integration tests run as part of the default `mix test` — no special flags
 : `nerves_ssh` logs its subsystem errors quietly. Enable verbose SSH logging on the client (`ssh -vv ...`) to see the server's subsystem-failure reason. If you're on `ex_ratatui` `0.6.0` specifically, `ssh host -s Elixir.MyApp.TUI` hangs instead of rendering — upgrade to `0.6.1` or newer; the subsystem handler used to wait for a `{:subsystem, _}` message that OTP consumes before the handler ever sees it.
 
 **Tests time out waiting for an initial render**
-: The SSH channel triggers the initial render synchronously inside the linked Server's `init/1` (via `continue_init_ssh/3`) before any client input can arrive. If your `mount/1` does long I/O (e.g. HTTP, DB), the channel won't see render bytes until that finishes — move expensive work to `handle_info(:refresh, ...)` with a self-scheduled message so the first render doesn't block the handshake.
+: The SSH channel triggers the initial render synchronously inside the linked Server's `init/1` (via the server's session init) before any client input can arrive. If your `mount/1` does long I/O (e.g. HTTP, DB), the channel won't see render bytes until that finishes — move expensive work to `handle_info(:refresh, ...)` with a self-scheduled message so the first render doesn't block the handshake.
 
 ## Related
 
