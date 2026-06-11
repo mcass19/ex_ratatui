@@ -10,6 +10,20 @@ This is the mode you want when:
 
 For apps that benefit from an Elm-style architecture with commands, subscriptions, and a unified message path, see the [Reducer Runtime](reducer_runtime.md) guide.
 
+## Callback or Reducer?
+
+Both runtimes are transport-agnostic — the same module works over local terminal, SSH, or Erlang distribution without changes. The differences are in how state and side effects flow:
+
+| | Callback Runtime | Reducer Runtime |
+|---|---|---|
+| Opt-in | `use ExRatatui.App` (default) | `use ExRatatui.App, runtime: :reducer` |
+| Entry point | `mount/1` | `init/1` |
+| Events | `handle_event/2` + `handle_info/2` | Single `update/2` receives `{:event, _}` and `{:info, _}` |
+| Side effects | Direct (send, spawn, etc.) | First-class `Command` primitives (message, send_after, async, batch) |
+| Timers | Manual `Process.send_after/3` | Declarative `Subscription` with auto-reconciliation |
+| Tracing | Not built-in | Built-in via `ExRatatui.Runtime` |
+| Best for | Straightforward interactive TUIs | Apps with async I/O, structured effects, or complex state machines |
+
 ## Quick Start
 
 ```elixir

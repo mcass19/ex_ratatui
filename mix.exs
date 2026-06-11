@@ -128,6 +128,7 @@ defmodule ExRatatui.MixProject do
         ],
         "guides/transports/custom_transports.md": [title: "Custom Transports"],
         "guides/transports/cell_session.md": [title: "Rendering to Non-Terminal Surfaces"],
+        "guides/internals/architecture.md": [title: "Architecture"],
         "guides/internals/testing.md": [title: "Testing"],
         "guides/internals/debugging.md": [title: "Debugging"],
         "guides/internals/performance.md": [title: "Performance"],

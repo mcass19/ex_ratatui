@@ -9,7 +9,7 @@ This is the mode you want when:
   * You prefer a single message path over separate `handle_event` and `handle_info` callbacks.
   * You want built-in runtime inspection and tracing for debugging.
 
-For simpler apps that don't need commands or subscriptions, see the [Callback Runtime](callback_runtime.md) guide.
+For simpler apps that don't need commands or subscriptions, see the [Callback Runtime](callback_runtime.md) guide — its [side-by-side comparison table](callback_runtime.md#callback-or-reducer) summarizes the differences.
 
 ## Quick Start
 

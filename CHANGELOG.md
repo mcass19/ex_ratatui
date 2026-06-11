@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`usage-rules.md` ships in the Hex package** (and as a docs extra) for downstream AI-agent context.
 
+- **Architecture guide.** New `guides/internals/architecture.md` documents the NIF bridge (encode/decode pipeline, DirtyIo event polling, `ResourceArc` terminal state, layout on the Rust side) and the per-transport process trees — content previously squeezed into the README's "How It Works" section, now a first-class hexdocs page. The [Callback Runtime](guides/runtimes/callback_runtime.md) guide gained a "Callback or Reducer?" comparison table (moved from the README) that the Reducer guide links to.
+
 - **Elixir 1.20 compatibility** — 1.20 compiler warnings are resolved and 1.20 is part of the CI matrix.
 
 ### Changed
