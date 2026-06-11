@@ -118,6 +118,8 @@ end
 | `render?: bool` | `true` | Whether to re-render after this transition |
 | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing |
 
+`ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
+
 ### Intents
 
 An intent is an arbitrary term — ex_ratatui never inspects it. The runtime forwards each intent your callbacks emit to the transport's `intent_writer_fn` in the order they were emitted. The vocabulary is consumer-defined: `phoenix_ex_ratatui` recognises `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}`, and `{:redirect, [external: url]}`, dispatching them to the equivalent `Phoenix.LiveView` action.
@@ -233,23 +235,13 @@ def subscriptions(_state), do: [Subscription.none()]
 
 ## Error Handling and Supervision
 
-ExRatatui apps are supervised GenServers — standard OTP fault tolerance applies. The reducer runtime adds a few specifics:
-
-  * **`init/1` raises or returns `{:error, reason}`:** The server stops and the supervisor handles the restart. For SSH and distributed transports, the session is cleaned up and the client sees the connection close.
-
-  * **`render/2` raises:** The error is logged and the frame is skipped — the server continues running with the previous screen content.
-
-  * **`update/2` raises:** The server crashes and the supervisor restarts it. A fresh `init/1` starts from scratch — all subscriptions are re-established.
+ExRatatui apps are supervised GenServers — the [Callback Runtime guide's Error Handling section](callback_runtime.md#error-handling-and-supervision) covers the common behaviour (raises in `render/2` skip the frame, raises in transition callbacks crash and restart the server, terminal restoration, disconnects, `:max_restarts`). With `init/1` for `mount/1` and `update/2` for `handle_event/2`/`handle_info/2`, it applies verbatim here. The reducer runtime adds two specifics:
 
   * **`Command.async/2` function raises:** The error is caught and the mapper receives an `{:error, reason}` tuple; errors in the mapper itself are wrapped with distinct `:mapper_*` tags. Either way the result is delivered to `update/2` as a normal `{:info, ...}` message — async commands always complete cleanly. `ExRatatui.Command.async/2` documents the full set of error shapes.
 
   * **Subscription timers after crash:** All timer references are lost on crash. After a supervisor restart, `subscriptions/1` re-declares the timers and the runtime re-arms them from scratch.
 
-  * **Terminal restoration:** On local transport, the terminal is automatically restored — no manual handling needed.
-
-  * **SSH/distributed disconnection:** The server detects the disconnect via monitors and shuts down cleanly, calling `terminate/2`.
-
-For production deployments, set appropriate `:max_restarts` and `:max_seconds` on your supervisor to prevent restart loops. Use `ExRatatui.Runtime.enable_trace/2` to capture state transitions leading up to a crash for post-mortem debugging.
+Use `ExRatatui.Runtime.enable_trace/2` to capture state transitions leading up to a crash for post-mortem debugging.
 
 ## Runtime Inspection
 
@@ -277,14 +269,7 @@ events = ExRatatui.Runtime.trace_events(pid)
 :ok = ExRatatui.Runtime.disable_trace(pid)
 ```
 
-The snapshot includes:
-
-  * `mode`, `mod`, and `transport`
-  * `dimensions` and `polling_enabled?` (`false` under `test_mode`)
-  * `render_count` and `last_rendered_at`
-  * `subscription_count` and `subscriptions` (with `id`, `kind`, `fired?`, `active?`)
-  * `active_async_commands`
-  * `trace_enabled?`, `trace_limit`, and `trace_events`
+`ExRatatui.Runtime` documents the full snapshot field list.
 
 ### Synthetic Event Injection
 
@@ -297,33 +282,13 @@ event = %ExRatatui.Event.Key{code: "up", modifiers: [], kind: "press"}
 
 ## Running Over Transports
 
-Reducer apps work across all three transports with zero code changes — exactly like callback apps:
-
-```elixir
-children = [
-  {MyApp.TUI, []},                                    # local TTY
-  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
-  {MyApp.TUI, transport: :distributed}                 # remote over distribution
-]
-```
-
-See the [Running TUIs over SSH](../transports/ssh_transport.md) and [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) guides for transport-specific setup.
+Reducer apps work across all transports with zero code changes — exactly like callback apps. See [Running Over Transports](callback_runtime.md#running-over-transports) in the Callback Runtime guide; everything there (including the `:local`-only `mouse_capture` / `focus_events` opts) applies unchanged.
 
 ## Testing
 
+The basics are the same as for callback apps — `test_mode: {w, h}`, `name: nil`, and `ExRatatui.Runtime.inject_event/2`; see [Testing](callback_runtime.md#testing) in the Callback Runtime guide. The reducer-specific part is asserting on subscriptions:
+
 ```elixir
-test "increments count on up key" do
-  {:ok, pid} = MyApp.TUI.start_link(name: nil, test_mode: {40, 10})
-
-  event = %ExRatatui.Event.Key{code: "up", modifiers: [], kind: "press"}
-  :ok = ExRatatui.Runtime.inject_event(pid, event)
-
-  snapshot = ExRatatui.Runtime.snapshot(pid)
-  assert snapshot.render_count >= 2
-
-  GenServer.stop(pid)
-end
-
 test "subscription fires tick message" do
   {:ok, pid} = MyApp.TUI.start_link(name: nil, test_mode: {40, 10})
 

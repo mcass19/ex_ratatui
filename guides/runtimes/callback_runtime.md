@@ -184,12 +184,13 @@ end
 
 | Key | Default | Description |
 | --- | ------- | ----------- |
-| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. ex_ratatui defines no vocabulary — consumers do. Transports without an intent writer (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop them, so apps stay portable. See [Cell sessions](../transports/cell_session.md) for how a transport wires the writer up. |
+| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn`. See [Intents](reducer_runtime.md#intents) for the contract — it applies identically here. |
 | `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-trace). |
 | `commands: [...]` | `[]` | Queue `ExRatatui.Command` structs; results are delivered to `handle_info/2`. Designed for the reducer runtime but executed under both. |
 | `render?: bool` | `true` | Skip the re-render for this callback return. Works under both runtimes. |
 
-Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so the example above guarantees the redirect reaches the consumer before the linked-server EXIT propagates. Without that ordering the consumer would see the EXIT first and never get the directive.
+`ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
+
 
 ## Error Handling and Supervision
 
