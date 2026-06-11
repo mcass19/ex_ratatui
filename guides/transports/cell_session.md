@@ -58,17 +58,7 @@ That's the whole API at the snapshot level. See the [`cell_dump.exs`](../../exam
 
 ## The cell shape
 
-Each cell carries:
-
-| Field | Type | Notes |
-|---|---|---|
-| `:row` | `non_neg_integer()` | Zero-indexed (y in ratatui terms) |
-| `:col` | `non_neg_integer()` | Zero-indexed (x in ratatui terms) |
-| `:symbol` | `String.t()` | Grapheme cluster — usually one character, may be multi-codepoint (CJK, emoji, combining marks) |
-| `:fg` | `t:ExRatatui.Style.color/0` | `:reset` means "consumer's default" — terminal default, CSS default, "ink" on a 1-bit display |
-| `:bg` | Same | Same conventions |
-| `:modifiers` | `[t:ExRatatui.Style.modifier/0]` | Stable canonical order: `:bold, :dim, :italic, :underlined, :crossed_out, :reversed`. Equality with `==` works without normalising |
-| `:skip` | `boolean()` | ratatui's "do not render this cell" hint, used by widgets that overlay (`Popup`). Renderers should treat `skip: true` as transparent |
+`ExRatatui.CellSession.Cell` documents every field. The conventions that matter when consuming cells: `:reset` colors mean "consumer's default" (terminal default, CSS default, "ink" on a 1-bit display), `:modifiers` come in a stable canonical order so `==` works without normalising, and renderers should treat `skip: true` as transparent (widgets that overlay, like `Popup`, use it).
 
 ### Wide graphemes (CJK, emoji)
 
@@ -179,8 +169,8 @@ See [Runtime opts](`m:ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for
 
 ## Performance notes
 
-  - **`take_cells/1` allocates one `%Cell{}` per cell.** For an 80×24 grid that's ~1920 structs per call. Modern BEAM handles this in a few hundred microseconds. For tight loops, prefer the diff path.
-  - **`take_cells_diff/1` clones the current ratatui buffer** to use as next-call baseline. A buffer of 1920 cells clones in well under a millisecond. The diff comparison itself is O(width × height) of structural cell equality.
+  - **`take_cells/1` allocates one `%Cell{}` per cell** — ~1920 structs per call for an 80×24 grid. For tight loops, prefer the diff path.
+  - **`take_cells_diff/1` clones the current ratatui buffer** to use as next-call baseline; the diff comparison itself is O(width × height) of structural cell equality.
   - **Cell encoding crosses the NIF boundary** as a list of tuples, one per cell. The Elixir wrapper then maps tuples to `%Cell{}` structs. Both are linear in the number of cells emitted, which the diff path keeps small in steady state.
   - **Always close sessions you don't need** with `close/1` — it deterministically drops the underlying ratatui terminal and the cached diff baseline rather than waiting for BEAM GC.
 

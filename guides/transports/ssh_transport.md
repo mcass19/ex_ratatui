@@ -95,7 +95,7 @@ if Application.spec(:nerves_ssh) do
 end
 ```
 
-> **Why `runtime.exs`, not `target.exs`?** On a fresh `MIX_TARGET=rpi4 mix compile`, Mix evaluates `config/target.exs` *before* it compiles deps for the target — so `ExRatatui.SSH` isn't on the code path yet and any function call against it crashes with `module ExRatatui.SSH is not available`. `runtime.exs` is evaluated at device boot instead, after every beam file in the release is loaded but before the OTP application controller starts `:nerves_ssh`, which is exactly the window we need. The `Application.spec(:nerves_ssh)` guard keeps host builds (where `:nerves_ssh` isn't a dep) silent. `authorized_keys` should still live in `target.exs` since it reads the developer's keys from `~/.ssh/` and bakes them into the firmware image.
+> **Why `runtime.exs`, not `target.exs`?** Compile-time configs are evaluated before target deps are compiled, so calling `ExRatatui.SSH.subsystem/1` there crashes with `module ExRatatui.SSH is not available`. `authorized_keys` still belongs in `target.exs` (it bakes the developer's keys into the firmware image). `ExRatatui.SSH.subsystem/1`'s docs have the full write-up.
 
 The user then connects with:
 
@@ -103,22 +103,9 @@ The user then connects with:
 ssh -t nerves.local -s Elixir.MyApp.TUI
 ```
 
-The subsystem name is the full Elixir module name as a charlist (because that's what SSH expects), so two different app modules configured into the same daemon get distinct subsystem names and don't collide.
+The subsystem name is the full Elixir module name as a charlist (that's the shape SSH expects), so two different app modules configured into the same daemon get distinct subsystem names and don't collide.
 
-`subsystem/1` bakes a `subsystem: true` flag into its init args so the channel handler knows it was dispatched via OTP's `:subsystems` path. That matters because OTP `:ssh` consumes the `{:subsystem, ...}` channel request _internally_ when it matches the name — `handle_ssh_msg/2` never sees it. The only lifecycle message the handler receives is `{:ssh_channel_up, ...}`, and it uses that as its cue to synthesize a default 80x24 session and start the TUI server immediately.
-
-Learning the client's real terminal dimensions in subsystem mode is trickier than it looks. The obvious answer — "read the dimensions off `pty_req`" — doesn't work on `nerves_ssh` (or any OTP `:ssh.daemon` that configures a default CLI handler alongside the subsystems list). When the client connects with `ssh -t -s <name>`, OTP fires `pty_req` _before_ the subsystem dispatch matches, and the OTP SSH connection CLI path sees an unbound channel user pid, which means it hands the pty_req to the daemon's default CLI handler (IEx on Nerves, for example). Moments later the `{:subsystem, ...}` request arrives, OTP rebinds the channel's user pid to us, and the original CLI handler is silently orphaned — pty_req is gone and there is no OTP message to recover it from.
-
-To sidestep all of that, the handler emits a **Cursor Position Report roundtrip** immediately after starting the server:
-
-```text
-ESC[s               → save cursor
-ESC[9999;9999H      → move cursor to (9999, 9999) — clamped to terminal size
-ESC[6n              → "report your position"
-ESC[u               → restore cursor
-```
-
-The client clamps the impossible position to its real `(rows, cols)` and answers with `ESC[<row>;<col>R`. That response lands on the next `{:data, ...}` channel message, the session's ANSI input parser (built on `vte`) decodes it into a `%ExRatatui.Event.Resize{}` just like any other resize event, and the SSH data handler intercepts it: resize the session in place, notify the running server via `{:ex_ratatui_resize, w, h}`. From the app's perspective it's identical to a real `window_change`, and subsequent `window_change` events during the session continue to work unchanged. The first frame may still paint briefly at 80x24 before the CPR response comes back, but on any terminal faster than a potato that window is invisible.
+One subsystem-mode quirk worth knowing: OTP consumes the `pty_req` before a subsystem handler exists, so the channel can't learn the client's terminal size the obvious way. It starts at 80x24 and immediately discovers the real dimensions via a Cursor Position Report roundtrip — the first frame may paint briefly at 80x24, and live `window_change` resizes work normally afterwards. The full mechanism (and why `pty_req` is unrecoverable) is documented in `ExRatatui.SSH`'s moduledoc.
 
 ### Always pass `-t` in subsystem mode
 
@@ -221,8 +208,6 @@ There are three reasonable strategies for managing the host key. Pick based on w
 | **`auto_host_key: true`** | Phoenix admin TUIs, internal tools, dev daemons — anywhere you don't want to babysit a directory | Daemon resolves the OTP app for `:mod`, generates a key under `<priv_dir>/ssh/` on first boot, reuses it after |
 | **`nerves_ssh`-managed** | Nerves devices already running an SSH listener for IEx and firmware updates | Don't run your own daemon at all — use `ExRatatui.SSH.subsystem/1` and let `nerves_ssh` reuse its existing host key |
 
-The rest of this section walks through each option in detail.
-
 OTP scans `system_dir` for files named `ssh_host_rsa_key`, `ssh_host_ecdsa_key`, `ssh_host_ed25519_key`, etc. You can generate one with `ssh-keygen`:
 
 ```sh
@@ -234,7 +219,7 @@ Or inside the BEAM at runtime (see `examples/apps/system_monitor.exs` for a read
 
 ### `auto_host_key: true` for the lazy path
 
-For Phoenix admin TUIs, internal tools, and development daemons where you don't want to babysit a `system_dir`, pass `auto_host_key: true` and let the daemon take care of it:
+Pass `auto_host_key: true` and the daemon manages the key itself, exactly as the strategy table says — resolve the OTP app owning `:mod`, generate an RSA key under `<priv_dir>/ssh/` on first boot, reuse it afterwards:
 
 ```elixir
 children = [
@@ -247,58 +232,11 @@ children = [
 ]
 ```
 
-On first boot, the daemon:
+Clients won't see host-key warnings between restarts since the key persists. **Add `priv/ssh/` to `.gitignore`** — the key is private to that machine and should never be committed. Passing both `:auto_host_key` and `:system_dir` is an error; for production deployments, pass `:system_dir` and manage the keys explicitly. See [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example) for an end-to-end demo.
 
-  1. Resolves the OTP application that owns `:mod` (via `Application.get_application/1`).
-  2. Creates `<priv_dir>/ssh/` if it doesn't exist.
-  3. Generates a fresh 2048-bit RSA host key at `<priv_dir>/ssh/ssh_host_rsa_key` with `0600` permissions.
+## Forwarding `mount/1` Opts and Multiple Transports
 
-Subsequent boots reuse the same key, so SSH clients won't see host-key warnings between restarts. **Add `priv/ssh/` to your `.gitignore`** — the key is private to that machine and should never be committed.
-
-Passing both `:auto_host_key` and `:system_dir` is an error. If you need an explicit host-key location (production deployments, multi-machine setups), pass `:system_dir` and manage the keys yourself.
-
-This option exists so you can drop the daemon straight into a Phoenix or library supervision tree and have it _just work_ without hand-rolling a host-key bootstrap. It is **not** a substitute for proper key management in production — see the [`phoenix_ex_ratatui_example`](https://github.com/mcass19/phoenix_ex_ratatui_example) project for an end-to-end demo.
-
-## Forwarding `mount/1` Opts
-
-Anything you pass as `:app_opts` on the Daemon reaches every connected client's `mount/1` callback:
-
-```elixir
-{ExRatatui.SSH.Daemon,
- mod: MyApp.TUI,
- port: 2222,
- system_dir: ~c"/etc/ex_ratatui/host_keys",
- app_opts: [pubsub: MyApp.PubSub, feature_flags: %{beta: true}]}
-```
-
-```elixir
-defmodule MyApp.TUI do
-  use ExRatatui.App
-
-  @impl true
-  def mount(opts) do
-    pubsub = Keyword.fetch!(opts, :pubsub)
-    Phoenix.PubSub.subscribe(pubsub, "alerts")
-    {:ok, %{pubsub: pubsub, flags: opts[:feature_flags]}}
-  end
-end
-```
-
-This is how you share infrastructure (PubSub topics, Ecto repos, feature toggles) across every SSH-attached session without globals.
-
-## Running Multiple Transports
-
-The same app module can be supervised under multiple transports simultaneously:
-
-```elixir
-children = [
-  {MyApp.TUI, []},                                    # local TTY
-  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
-  {MyApp.TUI, transport: :distributed}                 # remote over distribution
-]
-```
-
-Each transport gets its own supervisor/process tree. `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic — the only difference is the `:transport` key in `mount/1` opts (`:local`, `:session` for byte-stream transports like SSH, or `:distributed`).
+`:app_opts` on the daemon reaches every connected client's `mount/1`, and the same module can be supervised under several transports at once — both are covered once in [One app, many transports](transports.md#one-app-many-transports).
 
 ## Testing
 
@@ -336,7 +274,7 @@ The integration tests run as part of the default `mix test` — no special flags
 : Another process holds the port. Use `ss -tlnp | grep 2222` to find it, or pick a different port.
 
 **Silent failure under `nerves_ssh`**
-: `nerves_ssh` logs its subsystem errors quietly. Enable verbose SSH logging on the client (`ssh -vv ...`) to see the server's subsystem-failure reason. If you're on `ex_ratatui` `0.6.0` specifically, `ssh host -s Elixir.MyApp.TUI` hangs instead of rendering — upgrade to `0.6.1` or newer; the subsystem handler used to wait for a `{:subsystem, _}` message that OTP consumes before the handler ever sees it.
+: `nerves_ssh` logs its subsystem errors quietly. Enable verbose SSH logging on the client (`ssh -vv ...`) to see the server's subsystem-failure reason.
 
 **Tests time out waiting for an initial render**
 : The SSH channel triggers the initial render synchronously inside the linked Server's `init/1` (via the server's session init) before any client input can arrive. If your `mount/1` does long I/O (e.g. HTTP, DB), the channel won't see render bytes until that finishes — move expensive work to `handle_info(:refresh, ...)` with a self-scheduled message so the first render doesn't block the handshake.

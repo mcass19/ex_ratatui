@@ -43,6 +43,49 @@ The internal telemetry tags match: `transport: :local`, `:session`, `:distribute
 - **Images over CellSession**: the resolved protocol is always `:halfblocks`. Kitty / Sixel / iTerm2 encoders emit escape sequences, which a cell buffer can't represent. LiveView (and any other CellSession consumer) gets cell-painted halfblock approximations of the source image instead — works in every browser but the resolution is per-character-pair, not per-pixel.
 - **OSC 52 on CellSession**: same root cause as images — no byte channel. The intent mechanism is the escape hatch: emit `{:clipboard_copy, content}` from a handler, register an `intent_writer_fn` on the transport tuple, and have that writer call `navigator.clipboard.writeText` (or equivalent).
 
+## One app, many transports
+
+The same app module can be supervised under multiple transports simultaneously — each gets its own supervisor/process tree:
+
+```elixir
+children = [
+  {MyApp.TUI, []},                                    # local TTY
+  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
+  {MyApp.TUI, transport: :distributed}                 # remote over distribution
+]
+```
+
+`mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic. `mount/1` opts carry the only visible difference: a `:transport` key (`:local`, `:session` for byte-stream transports like SSH, `:distributed`, or `:cell_session`), plus `:width` and `:height` on remote transports.
+
+### Forwarding `mount/1` opts
+
+Anything passed as `:app_opts` on a daemon or listener reaches every connected client's `mount/1` — the way to share infrastructure (PubSub topics, Ecto repos, feature toggles) across sessions without globals:
+
+```elixir
+children = [
+  {ExRatatui.SSH.Daemon,
+   mod: MyApp.TUI,
+   port: 2222,
+   system_dir: ~c"/etc/ex_ratatui/host_keys",
+   app_opts: [pubsub: MyApp.PubSub, feature_flags: %{beta: true}]}
+]
+```
+
+```elixir
+defmodule MyApp.TUI do
+  use ExRatatui.App
+
+  @impl true
+  def mount(opts) do
+    pubsub = Keyword.fetch!(opts, :pubsub)
+    Phoenix.PubSub.subscribe(pubsub, "alerts")
+    {:ok, %{pubsub: pubsub, flags: opts[:feature_flags]}}
+  end
+end
+```
+
+`ExRatatui.Distributed.Listener` takes the same `:app_opts` option.
+
 ## Where to go from here
 
 - [Local terminal: getting started](../introduction/getting_started.md)

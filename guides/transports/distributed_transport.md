@@ -78,10 +78,7 @@ iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 
 ## How It Works
 
-1. `attach/2` calls `Node.connect/1` to reach the app node (if not already connected).
-2. A local `Distributed.Client` process starts and takes over the node's terminal — it polls input events and will forward them to the remote server.
-3. An RPC call spawns a `Server` in `:distributed_server` mode on the app node, pointed at the client pid. This process runs the app module and sends `{:ex_ratatui_draw, widgets}` messages over distribution.
-4. When either side disconnects, monitors fire, both processes clean up, and the terminal is restored.
+The attach sequence: `attach/2` connects the nodes, starts the local `Distributed.Client` (which takes over the terminal), then RPCs the app node to spawn a `Server` pointed at the client pid — the same flow [The Big Picture](#the-big-picture) draws.
 
 ### Wire Protocol
 
@@ -137,30 +134,7 @@ ExRatatui.Distributed.attach(:"app@host", StatsTui, listener: :stats_dist)
 
 ## Forwarding `mount/1` Opts
 
-Anything you pass as `:app_opts` on the Listener reaches every attached client's `mount/1` callback:
-
-```elixir
-children = [
-  {ExRatatui.Distributed.Listener,
-   mod: MyApp.TUI,
-   app_opts: [pubsub: MyApp.PubSub, node_role: :primary]}
-]
-```
-
-```elixir
-defmodule MyApp.TUI do
-  use ExRatatui.App
-
-  @impl true
-  def mount(opts) do
-    pubsub = Keyword.fetch!(opts, :pubsub)
-    Phoenix.PubSub.subscribe(pubsub, "alerts")
-    {:ok, %{pubsub: pubsub, role: opts[:node_role]}}
-  end
-end
-```
-
-The `mount/1` opts also include `:transport` (set to `:distributed`), `:width`, and `:height`. Byte-stream transports like SSH set `:transport` to `:session` instead — your app module stays transport-agnostic either way.
+`:app_opts` on the Listener reaches every attached client's `mount/1`, exactly like the SSH daemon — see [One app, many transports](transports.md#one-app-many-transports). On this transport the `mount/1` opts carry `transport: :distributed` plus `:width` and `:height`.
 
 ## Authentication
 
@@ -173,20 +147,6 @@ Authentication is delegated entirely to the Erlang distribution cookie. If you c
 ```
 
 See the Erlang [SSL Distribution](https://www.erlang.org/doc/apps/ssl/ssl_distribution.html) docs for the full configuration.
-
-## Running Multiple Transports
-
-The same app module can be supervised under multiple transports simultaneously:
-
-```elixir
-children = [
-  {MyApp.TUI, []},                                    # local TTY
-  {MyApp.TUI, transport: :ssh, port: 2222, ...},      # remote over SSH
-  {MyApp.TUI, transport: :distributed}                 # remote over distribution
-]
-```
-
-Each transport gets its own supervisor/process tree. `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2` are transport-agnostic — the only difference is the `:transport` key in `mount/1` opts.
 
 ## Testing
 
