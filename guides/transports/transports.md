@@ -45,10 +45,10 @@ The internal telemetry tags match: `transport: :local`, `:session`, `:distribute
 
 ## Where to go from here
 
-- [Local terminal: getting started](getting_started.md)
+- [Local terminal: getting started](../introduction/getting_started.md)
 - [SSH transport](ssh_transport.md)
 - [Distributed transport](distributed_transport.md)
 - [Cell sessions (LiveView, headless)](cell_session.md)
 - [Custom transports](custom_transports.md) — implement a fifth one
-- [Paste and clipboard](paste_and_clipboard.md) — bracketed paste details + the OSC 52 snippet
-- [Images](images.md) — the protocol matrix in depth
+- [Paste and clipboard](../core/paste_and_clipboard.md) — bracketed paste details + the OSC 52 snippet
+- [Images](../core/images.md) — the protocol matrix in depth

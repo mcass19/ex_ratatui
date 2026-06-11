@@ -122,7 +122,7 @@ end
 
 An intent is an arbitrary term — ex_ratatui never inspects it. The runtime forwards each intent your callbacks emit to the transport's `intent_writer_fn` in the order they were emitted. The vocabulary is consumer-defined: `phoenix_ex_ratatui` recognises `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}`, and `{:redirect, [external: url]}`, dispatching them to the equivalent `Phoenix.LiveView` action.
 
-Transports that don't supply an `intent_writer_fn` (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop intents. That's deliberate — the same App can run unchanged over an SSH tty (no consumer to navigate, drop) and a LiveView (consumer dispatches the intent). See [Cell sessions](cell_session.md) for how a transport author wires the writer up.
+Transports that don't supply an `intent_writer_fn` (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop intents. That's deliberate — the same App can run unchanged over an SSH tty (no consumer to navigate, drop) and a LiveView (consumer dispatches the intent). See [Cell sessions](../transports/cell_session.md) for how a transport author wires the writer up.
 
 Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so the example above guarantees the `:redirect` reaches the consumer before the linked-server EXIT propagates.
 
@@ -307,7 +307,7 @@ children = [
 ]
 ```
 
-See the [Running TUIs over SSH](ssh_transport.md) and [Running TUIs over Erlang Distribution](distributed_transport.md) guides for transport-specific setup.
+See the [Running TUIs over SSH](../transports/ssh_transport.md) and [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) guides for transport-specific setup.
 
 ## Testing
 
@@ -354,6 +354,6 @@ end
   * `ExRatatui.Subscription` — subscription constructors
   * `ExRatatui.Runtime` — runtime inspection API
   * [Callback Runtime](callback_runtime.md) — alternative runtime with separate event/info callbacks
-  * [Building UIs](building_uis.md) — widgets, layout, styles, and events
-  * [Running TUIs over SSH](ssh_transport.md) — SSH transport
-  * [Running TUIs over Erlang Distribution](distributed_transport.md) — distribution transport
+  * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
+  * [Running TUIs over SSH](../transports/ssh_transport.md) — SSH transport
+  * [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) — distribution transport

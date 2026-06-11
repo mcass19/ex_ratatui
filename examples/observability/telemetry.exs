@@ -6,7 +6,7 @@
 # Attaches a :telemetry handler to ExRatatui's runtime/render span :stop
 # events and tallies them into an Agent, then renders the running counts.
 # Every keypress drives a handle_event + render, so the counts climb with each
-# interaction. See guides/telemetry.md for the full event catalog.
+# interaction. See guides/internals/telemetry.md for the full event catalog.
 
 alias ExRatatui.Event
 alias ExRatatui.Layout

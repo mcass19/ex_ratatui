@@ -47,7 +47,7 @@ defmodule ExRatatui.Session do
   `ExRatatui.CellSession` is the cell-buffer sibling. Same widget tree,
   same input parser, same lifecycle; `take_output/1` is replaced by
   `take_cells/1` and `take_cells_diff/1`. See
-  [`guides/cell_session.md`](guides/cell_session.md).
+  [`guides/transports/cell_session.md`](guides/transports/cell_session.md).
   """
 
   alias ExRatatui.Event

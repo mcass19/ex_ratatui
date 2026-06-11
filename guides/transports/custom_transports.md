@@ -166,7 +166,7 @@ If your transport doesn't carry raw ANSI — for example, BEAM distribution ship
 
 ## Telemetry
 
-Every transport automatically participates in the runtime telemetry events — see [Telemetry](telemetry.md). `[:ex_ratatui, :transport, :connect]` and `[:ex_ratatui, :transport, :disconnect]` fire with `%{transport: :session}` for byte-stream transports (or `%{transport: :distributed_server}`), so a single handler can observe every transport uniformly without caring which concrete module is carrying the bytes.
+Every transport automatically participates in the runtime telemetry events — see [Telemetry](../internals/telemetry.md). `[:ex_ratatui, :transport, :connect]` and `[:ex_ratatui, :transport, :disconnect]` fire with `%{transport: :session}` for byte-stream transports (or `%{transport: :distributed_server}`), so a single handler can observe every transport uniformly without caring which concrete module is carrying the bytes.
 
 ## Related
 

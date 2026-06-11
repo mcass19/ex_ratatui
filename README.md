@@ -7,14 +7,14 @@
 
 Elixir bindings for the Rust [ratatui](https://ratatui.rs) terminal UI library, via [Rustler](https://github.com/rustler-beam/rustler) NIFs.
 
-Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, and styling system without blocking the BEAM.
+Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, and styling system together with the BEAM superpowers.
 
 ![ExRatatui Demo](https://raw.githubusercontent.com/mcass19/ex_ratatui/main/assets/demo.gif)
 
 ## Features
 
 - 24 built-in widgets (and counting!): Paragraph, Block, List, Table, Gauge, LineGauge, BarChart, Sparkline, Calendar, Canvas, Chart, Tabs, Scrollbar, Checkbox, TextInput, Clear, Markdown, Textarea, Throbber, Popup, WidgetList, **Image**, **BigText**, **CodeBlock**
-- **Image rendering** via [ratatui-image](https://github.com/ratatui/ratatui-image): PNG / JPEG / GIF / WebP / BMP, with Kitty / Sixel / iTerm2 / halfblocks protocols. Same model code adapts to the terminal at hand — pixel-perfect Kitty graphics locally, halfblocks fallback over SSH or in Livebook. See the [Images guide](guides/images.md).
+- **Image rendering** via [ratatui-image](https://github.com/ratatui/ratatui-image): PNG / JPEG / GIF / WebP / BMP, with Kitty / Sixel / iTerm2 / halfblocks protocols. Same model code adapts to the terminal at hand — pixel-perfect Kitty graphics locally, halfblocks fallback over SSH or in Livebook. See the [Images guide](guides/core/images.md).
 - **Oversized 8×8 pixel text** via [tui-big-text](https://github.com/ratatui/tui-widgets/tree/main/tui-big-text): drop-in `BigText` widget for slide titles, splash screens, and end-of-game banners. Eight `pixel_size` densities from `:full` (one cell per pixel) to `:octant` (1 row × half cols).
 - **Syntax-highlighted code** via [syntect](https://github.com/trishume/syntect): drop-in `CodeBlock` widget with seven curated themes, optional line-number gutter, and highlightable line ranges. `ExRatatui.CodeBlock.highlight/3` exposes the raw `[%Line{}]` data for users composing their own diff viewers / inspectors / pretty-printers.
 - Constraint-based layout engine: percentage, length, min, max, ratio, and `{:fill, weight}` for growable panels; `Layout.split/4` accepts `:flex` (start/center/end/space_between/space_around) and `:spacing` opts for centered popups, end-aligned status bars, and segment gutters
@@ -42,7 +42,7 @@ Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, 
 | `hello_world.exs` | `mix run examples/basics/hello_world.exs` | Minimal paragraph display |
 | `counter_app.exs` | `mix run examples/basics/counter_app.exs` | Counter using `ExRatatui.App` behaviour |
 
-The full catalog (system monitor, chat interface, task manager, Ecto-backed CRUD, and more — plus SSH and Erlang-distribution one-liners) lives in [`examples/README.md`](examples/README.md).
+The full catalog (plus SSH and Erlang-distribution one-liners) lives in [`examples/README.md`](examples/README.md).
 
 ## Ecosystem
 
@@ -52,7 +52,7 @@ The full catalog (system monitor, chat interface, task manager, Ecto-backed CRUD
 ## Built with ExRatatui
 
 - [ash_tui](https://github.com/mcass19/ash_tui) — Interactive terminal explorer for [Ash](https://ash-hq.org) domains, resources, attributes, actions, and more.
-- [bb_tui](https://github.com/mcass19/bb_tui) — **Proposal** terminal-based dashboard for [Beam Bots](https://github.com/beam-bots) robots.
+- [bb_tui](https://github.com/mcass19/bb_tui) — Terminal-based dashboard for [Beam Bots](https://github.com/beam-bots) robots.
 - [switchyard](https://github.com/nshkrdotcom/switchyard) — Full-featured reducer runtime workbench exercising command batching, async effects, subscription reconciliation, runtime snapshots, distributed attach, and row-scrolled WidgetList.
 - [nerves_ex_ratatui_example](https://github.com/mcass19/nerves_ex_ratatui_example) — Example [Nerves](https://nerves-project.org) project with two TUIs (system monitor and LED control) on embedded hardware, reachable over SSH subsystems and Erlang distribution.
 - [phoenix_ex_ratatui_example](https://github.com/mcass19/phoenix_ex_ratatui_example) — Example [Phoenix](https://www.phoenixframework.org/) project with a TUI served over SSH and Erlang distribution alongside a public LiveView chat room, sharing PubSub between the browser and the terminal.
@@ -121,7 +121,7 @@ end)
 
 Try the [examples](examples/README.md) for more, e.g. `mix run examples/basics/hello_world.exs`.
 
-New here? The [Getting Started](guides/getting_started.md) guide builds a supervised todo app from `mix new` to a working TUI.
+New here? The [Getting Started](guides/introduction/getting_started.md) guide builds a supervised todo app from `mix new` to a working TUI.
 
 ## Choosing a Runtime
 
@@ -155,22 +155,22 @@ All transports serve the same `ExRatatui.App` module — switch by changing a si
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](guides/getting_started.md) | Walk-through from `mix new` to a supervised TUI — the place to start if you're new |
-| [Building UIs](guides/building_uis.md) | Widgets, layout, styles, rich text, and events — everything for `render/2` |
-| [Callback Runtime](guides/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
-| [Reducer Runtime](guides/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
-| [Custom Widgets](guides/custom_widgets.md) | Compose primitives into reusable widgets via the `ExRatatui.Widget` protocol |
-| [State Machine Patterns](guides/state_machines.md) | Multi-screen apps, modals, and conditional UI without the tangle |
-| [Testing](guides/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
-| [Debugging](guides/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
-| [Performance](guides/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
-| [Telemetry](guides/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
-| [Transports](guides/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / Distributed / CellSession |
-| [Running TUIs over SSH](guides/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
-| [Running TUIs over Erlang Distribution](guides/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
-| [Custom Transports](guides/custom_transports.md) | Plug in your own transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
-| [Rendering to Non-Terminal Surfaces](guides/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers |
-| [Paste and Clipboard](guides/paste_and_clipboard.md) | Bracketed paste behaviour, `text_input_insert_str`/`textarea_insert_str` helpers, and an OSC 52 copy snippet |
+| [Getting Started](guides/introduction/getting_started.md) | Walk-through from `mix new` to a supervised TUI — the place to start if you're new |
+| [Building UIs](guides/core/building_uis.md) | Widgets, layout, styles, rich text, and events — everything for `render/2` |
+| [Callback Runtime](guides/runtimes/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
+| [Reducer Runtime](guides/runtimes/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
+| [Custom Widgets](guides/core/custom_widgets.md) | Compose primitives into reusable widgets via the `ExRatatui.Widget` protocol |
+| [State Machine Patterns](guides/runtimes/state_machines.md) | Multi-screen apps, modals, and conditional UI without the tangle |
+| [Testing](guides/internals/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
+| [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
+| [Performance](guides/internals/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
+| [Telemetry](guides/internals/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
+| [Transports](guides/transports/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / Distributed / CellSession |
+| [Running TUIs over SSH](guides/transports/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
+| [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
+| [Custom Transports](guides/transports/custom_transports.md) | Plug in your own transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
+| [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers |
+| [Paste and Clipboard](guides/core/paste_and_clipboard.md) | Bracketed paste behaviour, `text_input_insert_str`/`textarea_insert_str` helpers, and an OSC 52 copy snippet |
 | [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |
 
 ## How It Works
@@ -223,7 +223,7 @@ Distributed transport:
 
 All transports provide full session isolation — each connected client gets its own `Server` process with independent state.
 
-For writing tests see the [Testing](guides/testing.md) guide; for runtime introspection and common errors see [Debugging](guides/debugging.md).
+For writing tests see the [Testing](guides/internals/testing.md) guide; for runtime introspection and common errors see [Debugging](guides/internals/debugging.md).
 
 ## Contributing
 

@@ -252,8 +252,8 @@ The integration tests exercise the full roundtrip: mount on a peer node, render,
   * `ExRatatui.Distributed.Listener` — supervisor for per-attach sessions
   * `Distributed.Client` — local rendering proxy (internal, not public API)
   * `ExRatatui.App` — transport-aware app behaviour
-  * [Callback Runtime](callback_runtime.md) — OTP-style callbacks
-  * [Reducer Runtime](reducer_runtime.md) — Elm-style commands and subscriptions
-  * [Building UIs](building_uis.md) — widgets, layout, styles, and events
+  * [Callback Runtime](../runtimes/callback_runtime.md) — OTP-style callbacks
+  * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions
+  * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
   * [Running TUIs over SSH](ssh_transport.md) — alternative remote transport
   * [Custom Transports](custom_transports.md) — write your own transport on top of `ExRatatui.Transport`

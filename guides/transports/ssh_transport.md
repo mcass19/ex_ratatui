@@ -345,8 +345,8 @@ The integration tests run as part of the default `mix test` — no special flags
   * `ExRatatui.SSH.Daemon` — daemon GenServer
   * `ExRatatui.Session` — in-memory per-client terminal
   * `ExRatatui.App` — transport-aware app behaviour
-  * [Callback Runtime](callback_runtime.md) — OTP-style callbacks
-  * [Reducer Runtime](reducer_runtime.md) — Elm-style commands and subscriptions
-  * [Building UIs](building_uis.md) — widgets, layout, styles, and events
+  * [Callback Runtime](../runtimes/callback_runtime.md) — OTP-style callbacks
+  * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions
+  * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
   * [Running TUIs over Erlang Distribution](distributed_transport.md) — alternative remote transport
   * [Custom Transports](custom_transports.md) — write your own transport on top of `ExRatatui.Transport`

@@ -97,7 +97,7 @@ iex> Hello.run()
 
 You should see a rounded box with a green centered message. Press any key to return to IEx.
 
-If instead you get `terminal_init_failed`, you're likely in a non-TTY shell (IDE terminal, background process, piped stdin). Run from a real terminal emulator — see the [Debugging guide](debugging.md) for more.
+If instead you get `terminal_init_failed`, you're likely in a non-TTY shell (IDE terminal, background process, piped stdin). Run from a real terminal emulator — see the [Debugging guide](../internals/debugging.md) for more.
 
 ## Your first render
 
@@ -210,7 +210,7 @@ children = [
 ]
 ```
 
-Same behavior as before, but now you have a proper OTP process you can test, supervise, and serve remotely. The [SSH](ssh_transport.md) and [Distribution](distributed_transport.md) guides serve this exact module over the network with no code changes.
+Same behavior as before, but now you have a proper OTP process you can test, supervise, and serve remotely. The [SSH](../transports/ssh_transport.md) and [Distribution](../transports/distributed_transport.md) guides serve this exact module over the network with no code changes.
 
 ## State and events
 
@@ -264,7 +264,7 @@ Two things to notice.
 **Return values control the loop:**
 
 - `{:noreply, state}` — update state and re-render
-- `{:noreply, state, opts}` — same, with options like `render?: false` to skip the re-render (see the [Performance guide](performance.md))
+- `{:noreply, state, opts}` — same, with options like `render?: false` to skip the re-render (see the [Performance guide](../internals/performance.md))
 - `{:stop, state}` — exit cleanly
 
 Run it, press `↑`/`↓` or `k`/`j`, watch the counter. Press `q` to quit.
@@ -311,7 +311,7 @@ Constraint types you'll use most:
 - `{:percentage, n}` — `n`% of the parent
 - `{:ratio, num, den}` — `num/den` of the parent
 
-`Layout.split/3` returns a list of `%Rect{}` in the same order as your constraints. Chain splits to build grids — split vertically into rows, then split each row horizontally into columns. The [Building UIs guide](building_uis.md) goes deep on constraints.
+`Layout.split/3` returns a list of `%Rect{}` in the same order as your constraints. Chain splits to build grids — split vertically into rows, then split each row horizontally into columns. The [Building UIs guide](../core/building_uis.md) goes deep on constraints.
 
 ## Styling and rich text
 
@@ -356,7 +356,7 @@ body_widget = %Paragraph{
 Time to put it together. This app introduces two things you haven't seen:
 
 1. **A stateful widget** — `TextInput` owns a NIF-side editor state. You create the state once in `mount/1`, keep the reference in your state map, and pass it to the widget on every render.
-2. **Focus management** — two regions (input, list) want different keybindings. We track a `focus: :input | :list` atom and dispatch keys accordingly. For multi-panel apps with more than a couple of regions, `ExRatatui.Focus` gives you a proper focus ring; see [Building UIs](building_uis.md#focus) for that pattern.
+2. **Focus management** — two regions (input, list) want different keybindings. We track a `focus: :input | :list` atom and dispatch keys accordingly. For multi-panel apps with more than a couple of regions, `ExRatatui.Focus` gives you a proper focus ring; see [Building UIs](../core/building_uis.md#focus) for that pattern.
 
 Create `lib/todo.ex`:
 
@@ -534,15 +534,15 @@ Things worth highlighting:
 
 You now have a working local supervised TUI with input, a list, and focus. From here, pick the guide that matches what you want to learn:
 
-- **[Building UIs](building_uis.md)** — full widget reference, layout deep-dive, rich text, events, `ExRatatui.Focus`.
-- **[Callback Runtime](callback_runtime.md)** — all callbacks (`mount`, `render`, `handle_event`, `handle_info`, `terminate`), options, lifecycle details.
-- **[Reducer Runtime](reducer_runtime.md)** — Elm-style alternative with first-class commands, subscriptions, and runtime inspection. Good when you have async work or want structured side effects.
-- **[Custom Widgets](custom_widgets.md)** — compose primitives into reusable widgets via the `ExRatatui.Widget` protocol.
-- **[State Machine Patterns](state_machines.md)** — multi-screen apps, modals, conditional UI.
-- **[Testing](testing.md)** — headless test backend, `inject_event`, `Runtime.snapshot`, property-based tests.
-- **[Debugging](debugging.md)** — `Runtime.snapshot`, tracing, buffer inspection, common errors.
-- **[Performance](performance.md)** — `render?: false`, poll tuning, keeping `render/2` cheap.
-- **[Running TUIs over SSH](ssh_transport.md)** — serve this exact app to remote clients.
-- **[Running TUIs over Erlang Distribution](distributed_transport.md)** — drive the TUI from a different BEAM node.
+- **[Building UIs](../core/building_uis.md)** — full widget reference, layout deep-dive, rich text, events, `ExRatatui.Focus`.
+- **[Callback Runtime](../runtimes/callback_runtime.md)** — all callbacks (`mount`, `render`, `handle_event`, `handle_info`, `terminate`), options, lifecycle details.
+- **[Reducer Runtime](../runtimes/reducer_runtime.md)** — Elm-style alternative with first-class commands, subscriptions, and runtime inspection. Good when you have async work or want structured side effects.
+- **[Custom Widgets](../core/custom_widgets.md)** — compose primitives into reusable widgets via the `ExRatatui.Widget` protocol.
+- **[State Machine Patterns](../runtimes/state_machines.md)** — multi-screen apps, modals, conditional UI.
+- **[Testing](../internals/testing.md)** — headless test backend, `inject_event`, `Runtime.snapshot`, property-based tests.
+- **[Debugging](../internals/debugging.md)** — `Runtime.snapshot`, tracing, buffer inspection, common errors.
+- **[Performance](../internals/performance.md)** — `render?: false`, poll tuning, keeping `render/2` cheap.
+- **[Running TUIs over SSH](../transports/ssh_transport.md)** — serve this exact app to remote clients.
+- **[Running TUIs over Erlang Distribution](../transports/distributed_transport.md)** — drive the TUI from a different BEAM node.
 
 Or browse the [examples/](https://github.com/mcass19/ex_ratatui/tree/main/examples) folder for more patterns — `focus_multi_panel.exs`, `chat_interface.exs`, and `task_manager/` are good next reads.

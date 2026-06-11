@@ -186,9 +186,9 @@ See [Runtime opts](`ExRatatui.App#module-runtime-opts`) on `ExRatatui.App` for t
 
 ## Related
 
-- [Building UIs](building_uis.md) — the widget tree you pass to `draw/2` is the same one used by every other transport.
+- [Building UIs](../core/building_uis.md) — the widget tree you pass to `draw/2` is the same one used by every other transport.
 - [Custom Transports](custom_transports.md) — how to wrap a `CellSession` (or `Session`) in an `ExRatatui.Transport` so an `ExRatatui.App` can run on it.
-- [Performance](performance.md) — once a frame budget gets tight, this guide covers what to look at.
+- [Performance](../internals/performance.md) — once a frame budget gets tight, this guide covers what to look at.
 - `ExRatatui.CellSession` — module docs for the wrapper API.
 - `ExRatatui.CellSession.Cell` / `ExRatatui.CellSession.Snapshot` / `ExRatatui.CellSession.Diff` — the structured payload types.
 - `ExRatatui.Session` — the ANSI-bytes sibling for terminal-shaped consumers.

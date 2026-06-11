@@ -50,7 +50,7 @@ defmodule ExRatatui do
   ## Running over SSH
 
   To serve a TUI to remote clients without a local terminal, see
-  `ExRatatui.SSH.Daemon` and the [SSH transport guide](guides/ssh_transport.md).
+  `ExRatatui.SSH.Daemon` and the [SSH transport guide](guides/transports/ssh_transport.md).
 
   ## Widgets
 
@@ -70,8 +70,8 @@ defmodule ExRatatui do
 
   Use `init_test_terminal/2` and `get_buffer_content/1` for headless
   rendering verification in CI — no TTY required. See the
-  [Testing](guides/testing.md) guide for widget-level and app-level
-  patterns, and [Debugging](guides/debugging.md) for `Runtime.snapshot/1`
+  [Testing](guides/internals/testing.md) guide for widget-level and app-level
+  patterns, and [Debugging](guides/internals/debugging.md) for `Runtime.snapshot/1`
   and tracing.
 
   ## Error handling

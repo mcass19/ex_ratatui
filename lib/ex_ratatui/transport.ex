@@ -14,7 +14,7 @@ defmodule ExRatatui.Transport do
   Downstream packages (`kino_ex_ratatui`, custom TCP bridges, …) plug in
   by adopting `@behaviour ExRatatui.Transport` and speaking the same
   two-way protocol documented below. See
-  [`guides/custom_transports.md`](guides/custom_transports.md) for a
+  [`guides/transports/custom_transports.md`](guides/transports/custom_transports.md) for a
   ~60-line TCP walkthrough.
 
   ## Wire protocol
@@ -146,7 +146,7 @@ defmodule ExRatatui.Transport do
           transport: {:session, session, writer}
         )
 
-  See [`guides/custom_transports.md`](guides/custom_transports.md) for
+  See [`guides/transports/custom_transports.md`](guides/transports/custom_transports.md) for
   the full walkthrough.
   """
   @spec start_server(keyword()) :: GenServer.on_start()

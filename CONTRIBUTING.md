@@ -103,7 +103,7 @@ mix rust.check
 - Every new public module should have a `@moduledoc` describing its purpose.
 - New widgets need three things:
   1. A `@moduledoc` with field descriptions and at least one usage example.
-  2. An entry in the [Building UIs](guides/building_uis.md) guide.
+  2. An entry in the [Building UIs](guides/core/building_uis.md) guide.
   3. An entry in the [widgets cheatsheet](guides/cheatsheets/widgets.cheatmd).
 - Any new feature or changed behaviour should have a CHANGELOG entry under `[Unreleased]`, grouped under `Added` / `Changed` / `Fixed` / `Removed` per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Breaking changes should include a "Migration" note in the CHANGELOG entry that explains what callers need to change.
@@ -112,7 +112,7 @@ mix rust.check
 
 ### Testing Expectations
 
-- **Widgets** — add a widget-level test using the headless backend (`ExRatatui.init_test_terminal/2`). See [Testing](guides/testing.md).
+- **Widgets** — add a widget-level test using the headless backend (`ExRatatui.init_test_terminal/2`). See [Testing](guides/internals/testing.md).
 - **Runtime / app behaviour** — add an app-level test under `test_mode`, driving the runtime with `ExRatatui.Runtime.inject_event/2` and asserting on snapshots or emitted messages.
 - **Transports** — if your change touches SSH or Erlang distribution, extend the tagged suites (`:distributed`, `:slow`).
 - Coverage is enforced at 100% on the Elixir side (NIFs excluded). Run `mix test --cover` before pushing.

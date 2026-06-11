@@ -103,7 +103,7 @@ defmodule ExRatatui.SSH do
   after every beam file is loaded but before the OTP application
   controller starts `:nerves_ssh`, which is exactly the window we need.
   The `Application.spec(:nerves_ssh)` guard keeps host builds (where
-  `:nerves_ssh` isn't a dep) silent. See `guides/ssh_transport.md` for
+  `:nerves_ssh` isn't a dep) silent. See `guides/transports/ssh_transport.md` for
   the full write-up.
 
   ## Dependency injection for tests

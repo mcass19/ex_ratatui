@@ -96,6 +96,6 @@ The payoff is end-to-end traces: an SSH TUI that calls into your Phoenix backend
 
 - **[Debugging](debugging.md)** — `Runtime.enable_trace/2` gives you an in-memory event log scoped to one server; telemetry gives you the system-wide view. Both have their place.
 - **[Performance](performance.md)** — once metrics surface a slow render, this guide covers what to do about it.
-- **[Custom Transports](custom_transports.md)** / **[Rendering to Non-Terminal Surfaces](cell_session.md)** — transports built on top of these primitives are where you'd attach your own per-frame telemetry boundary.
+- **[Custom Transports](../transports/custom_transports.md)** / **[Rendering to Non-Terminal Surfaces](../transports/cell_session.md)** — transports built on top of these primitives are where you'd attach your own per-frame telemetry boundary.
 - **`ExRatatui.Telemetry`** — module docs with the helper API.
 - [`telemetry`](https://hexdocs.pm/telemetry) / [`telemetry_metrics`](https://hexdocs.pm/telemetry_metrics) / [`opentelemetry_telemetry`](https://hexdocs.pm/opentelemetry_telemetry) — upstream docs.

@@ -1,6 +1,6 @@
 # Widgets Cheatsheet
 
-Quick lookup for every built-in widget and helper. One example per struct, key fields inline. For concepts see [Building UIs](../building_uis.md); for full option shapes, the module docs.
+Quick lookup for every built-in widget and helper. One example per struct, key fields inline. For concepts see [Building UIs](../core/building_uis.md); for full option shapes, the module docs.
 
 ## Styles & rich text
 {: .col-2}
@@ -49,7 +49,7 @@ case ExRatatui.poll_event(timeout) do
 end
 ```
 
-`Event.Paste` arrives only on the local terminal today — see [Paste and clipboard](../paste_and_clipboard.md). Focus events are **opt-in**: `ExRatatui.run(fun, focus_events: true)`.
+`Event.Paste` arrives only on the local terminal today — see [Paste and clipboard](../core/paste_and_clipboard.md). Focus events are **opt-in**: `ExRatatui.run(fun, focus_events: true)`.
 
 ### Consuming Paste in widgets
 
@@ -652,4 +652,4 @@ ExRatatui.Distributed.attach(:"app@host", MyApp.TUI,
 )
 ```
 
-See [Images](../images.md) for the full transport / protocol resolution table.
+See [Images](../core/images.md) for the full transport / protocol resolution table.

@@ -1,6 +1,6 @@
 # Building UIs
 
-This guide covers the building blocks for constructing screens in `render/2`: widgets, layout, styles, and events. Everything here works identically in both the [Callback Runtime](callback_runtime.md) and [Reducer Runtime](reducer_runtime.md).
+This guide covers the building blocks for constructing screens in `render/2`: widgets, layout, styles, and events. Everything here works identically in both the [Callback Runtime](../runtimes/callback_runtime.md) and [Reducer Runtime](../runtimes/reducer_runtime.md).
 
 ## Layout
 
@@ -96,7 +96,7 @@ Accepted shapes on these fields: `String.t()`, `%Span{}`, `%Line{}`, or `[%Span{
 
 ## Events
 
-Terminal events are polled automatically by the runtime. In the [Callback Runtime](callback_runtime.md), they arrive in `handle_event/2`. In the [Reducer Runtime](reducer_runtime.md), they arrive as `{:event, event}` in `update/2`.
+Terminal events are polled automatically by the runtime. In the [Callback Runtime](../runtimes/callback_runtime.md), they arrive in `handle_event/2`. In the [Reducer Runtime](../runtimes/reducer_runtime.md), they arrive as `{:event, event}` in `update/2`.
 
 ### Key Events
 
@@ -555,7 +555,7 @@ ExRatatui.CodeBlock.highlight("fn main() {}", "rust", :solarized_dark)
 # => [%ExRatatui.Text.Line{spans: [%Span{}, ...]}, ...]
 ```
 
-`highlight/3` returns the same `[%Line{}]` shape the widget uses internally, so you can drop it into a `Paragraph` or compose it with your own gutter / annotations without re-implementing syntect translation. The call is NIF-backed, runs on a `DirtyCpu` scheduler, and emits a `[:ex_ratatui, :code_block, :highlight]` telemetry span — see the [Telemetry guide](telemetry.md) for the metadata shape.
+`highlight/3` returns the same `[%Line{}]` shape the widget uses internally, so you can drop it into a `Paragraph` or compose it with your own gutter / annotations without re-implementing syntect translation. The call is NIF-backed, runs on a `DirtyCpu` scheduler, and emits a `[:ex_ratatui, :code_block, :highlight]` telemetry span — see the [Telemetry guide](../internals/telemetry.md) for the metadata shape.
 
 See `examples/widgets/code_block.exs` to cycle through every theme / language / gutter combination interactively.
 
@@ -820,7 +820,7 @@ Anything more specialised — gradient-style accents, severity-tinted text — d
 
 ## Related
 
-  * [Callback Runtime](callback_runtime.md) — OTP-style callbacks
-  * [Reducer Runtime](reducer_runtime.md) — Elm-style commands and subscriptions
-  * [Running TUIs over SSH](ssh_transport.md) — SSH transport
-  * [Running TUIs over Erlang Distribution](distributed_transport.md) — distribution transport
+  * [Callback Runtime](../runtimes/callback_runtime.md) — OTP-style callbacks
+  * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions
+  * [Running TUIs over SSH](../transports/ssh_transport.md) — SSH transport
+  * [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) — distribution transport

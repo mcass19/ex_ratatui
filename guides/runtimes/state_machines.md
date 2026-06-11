@@ -224,5 +224,5 @@ Over SSH or distribution, `MyApp.DataService` is one singleton; the TUI children
 
 - **[Callback Runtime](callback_runtime.md)** — full `handle_event` / `handle_info` API.
 - **[Reducer Runtime](reducer_runtime.md)** — `update/2`, `Command`, `Subscription`.
-- **[Building UIs](building_uis.md)** — `ExRatatui.Focus`, layout, styles.
-- **[Testing](testing.md)** — asserting state-machine transitions deterministically.
+- **[Building UIs](../core/building_uis.md)** — `ExRatatui.Focus`, layout, styles.
+- **[Testing](../internals/testing.md)** — asserting state-machine transitions deterministically.

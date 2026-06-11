@@ -6,7 +6,7 @@
 #   settings: Up/Down = move, Space = toggle, Esc = back to main
 #   quit modal: y = quit, n / Esc = cancel
 #
-# Follows guides/state_machines.md: a `:screen` atom names the active state and
+# Follows guides/runtimes/state_machines.md: a `:screen` atom names the active state and
 # `render/2` + `handle_event/2` dispatch on it, while an `:overlay` field models
 # a modal layer that intercepts input before the underlying screen sees it.
 

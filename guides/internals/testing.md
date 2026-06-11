@@ -244,11 +244,11 @@ assert styled.fg == :green
 assert :bold in styled.modifiers
 ```
 
-See [Rendering to Non-Terminal Surfaces](cell_session.md) for the full cell shape and the diff path.
+See [Rendering to Non-Terminal Surfaces](../transports/cell_session.md) for the full cell shape and the diff path.
 
 ## Where to go next
 
 - **[Debugging](debugging.md)** — `Runtime.enable_trace/2`, buffer inspection during development.
 - **[Performance](performance.md)** — how `render?: false` affects render counts in tests.
-- **[Rendering to Non-Terminal Surfaces](cell_session.md)** — `CellSession` for tests that need structured cells.
+- **[Rendering to Non-Terminal Surfaces](../transports/cell_session.md)** — `CellSession` for tests that need structured cells.
 - **`ExRatatui.Runtime`** module docs — full shape of `snapshot/1`, `enable_trace/2`, `inject_event/2`.

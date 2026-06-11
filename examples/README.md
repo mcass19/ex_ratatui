@@ -15,7 +15,7 @@ A four-step on-ramp, simplest first:
 3. [`basics/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/reducer_counter_app.exs) — the same counter on the reducer runtime.
 4. [`apps/chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/apps/chat.exs) — a full flagship app once the basics click.
 
-The [Getting Started](../guides/getting_started.md) guide builds a todo app from scratch using the same patterns.
+The [Getting Started](../guides/introduction/getting_started.md) guide builds a todo app from scratch using the same patterns.
 
 ## Basics
 
@@ -102,8 +102,8 @@ Runnable companions to the Telemetry and State Machine guides.
 
 | Example | Run | What to see |
 |---------|-----|-------------|
-| [`telemetry.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/telemetry.exs) | `mix run examples/observability/telemetry.exs` | A TUI that attaches a `:telemetry` handler to its own runtime/render `:stop` events and renders the live counts. Pairs with [Telemetry](../guides/telemetry.md). |
-| [`state_machine.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/state_machine.exs) | `mix run examples/observability/state_machine.exs` | Screen-as-data dispatch (`:main`/`:settings`) with a modal `:overlay` that intercepts input — a confirm-quit `Popup`. Pairs with [State Machine Patterns](../guides/state_machines.md). |
+| [`telemetry.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/telemetry.exs) | `mix run examples/observability/telemetry.exs` | A TUI that attaches a `:telemetry` handler to its own runtime/render `:stop` events and renders the live counts. Pairs with [Telemetry](../guides/internals/telemetry.md). |
+| [`state_machine.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/state_machine.exs) | `mix run examples/observability/state_machine.exs` | Screen-as-data dispatch (`:main`/`:settings`) with a modal `:overlay` that intercepts input — a confirm-quit `Popup`. Pairs with [State Machine Patterns](../guides/runtimes/state_machines.md). |
 
 ## Try an example over SSH
 
@@ -113,7 +113,7 @@ mix run --no-halt examples/apps/system_monitor.exs --ssh
 ssh demo@localhost -p 2222      # password: demo
 ```
 
-Any `ExRatatui.App` can be served over SSH — the example just wires up `transport: :ssh` with a demo password. See [Running TUIs over SSH](../guides/ssh_transport.md) for the full story.
+Any `ExRatatui.App` can be served over SSH — the example just wires up `transport: :ssh` with a demo password. See [Running TUIs over SSH](../guides/transports/ssh_transport.md) for the full story.
 
 ## Try an example over Erlang Distribution
 
@@ -126,4 +126,4 @@ iex --sname local --cookie demo -S mix
 iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
-The app node runs the BEAM logic; the client node owns the terminal (and the NIF). See [Running TUIs over Erlang Distribution](../guides/distributed_transport.md).
+The app node runs the BEAM logic; the client node owns the terminal (and the NIF). See [Running TUIs over Erlang Distribution](../guides/transports/distributed_transport.md).

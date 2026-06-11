@@ -47,7 +47,7 @@ defmodule ExRatatui.Telemetry do
   That attaches a handler that logs every `:stop` and single event at
   `:debug` level. Pass a custom level with `attach_default_logger(level: :info)`.
 
-  See `guides/telemetry.md` for a full wiring example with Telemetry.Metrics or OpenTelemetry.
+  See `guides/internals/telemetry.md` for a full wiring example with Telemetry.Metrics or OpenTelemetry.
   """
 
   require Logger

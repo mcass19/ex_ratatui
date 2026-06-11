@@ -109,7 +109,7 @@ When running over SSH or Erlang distribution, `mount/1` also receives `:transpor
 
 `render/2` receives the current state and a `%ExRatatui.Frame{}` struct with the terminal's current `width` and `height`. Return a list of `{widget, rect}` tuples — the runtime renders them in order.
 
-See the [Building UIs](building_uis.md) guide for the full widget, layout, and styling reference.
+See the [Building UIs](../core/building_uis.md) guide for the full widget, layout, and styling reference.
 
 ```elixir
 def render(state, frame) do
@@ -127,7 +127,7 @@ end
 
 ### `handle_event/2`
 
-Terminal events arrive as `ExRatatui.Event` structs — see the [Events section](building_uis.md#events) of the Building UIs guide.
+Terminal events arrive as `ExRatatui.Event` structs — see the [Events section](../core/building_uis.md#events) of the Building UIs guide.
 
 ```elixir
 def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
@@ -170,8 +170,8 @@ end
 
 | Key | Default | Description |
 | --- | ------- | ----------- |
-| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. ex_ratatui defines no vocabulary — consumers do. Transports without an intent writer (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop them, so apps stay portable. See [Cell sessions](cell_session.md) for how a transport wires the writer up. |
-| `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](debugging.md#runtime-traces). |
+| `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. ex_ratatui defines no vocabulary — consumers do. Transports without an intent writer (the default `:local` / `:session` / `:distributed_server` / 3-tuple `:cell_session`) silently drop them, so apps stay portable. See [Cell sessions](../transports/cell_session.md) for how a transport wires the writer up. |
+| `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-traces). |
 | `commands: [...]` | `[]` | Reducer-runtime feature; no-op under the callback runtime. Use `Process.send_after/3` or spawn a `Task` from a callback instead. |
 | `render?: bool` | `true` | Reducer-runtime feature; no-op under the callback runtime. |
 
@@ -209,7 +209,7 @@ children = [
 ]
 ```
 
-See the [Running TUIs over SSH](ssh_transport.md) and [Running TUIs over Erlang Distribution](distributed_transport.md) guides for transport-specific setup, options, and authentication.
+See the [Running TUIs over SSH](../transports/ssh_transport.md) and [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) guides for transport-specific setup, options, and authentication.
 
 ### Local terminal opts
 
@@ -258,6 +258,6 @@ end
 
   * `ExRatatui.App` — behaviour module
   * [Reducer Runtime](reducer_runtime.md) — alternative runtime with commands and subscriptions
-  * [Building UIs](building_uis.md) — widgets, layout, styles, and events
-  * [Running TUIs over SSH](ssh_transport.md) — SSH transport
-  * [Running TUIs over Erlang Distribution](distributed_transport.md) — distribution transport
+  * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
+  * [Running TUIs over SSH](../transports/ssh_transport.md) — SSH transport
+  * [Running TUIs over Erlang Distribution](../transports/distributed_transport.md) — distribution transport

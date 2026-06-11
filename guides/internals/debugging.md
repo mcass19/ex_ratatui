@@ -175,7 +175,7 @@ Most SSH clients don't allocate a PTY by default. Connect with `-t`:
 ssh -t demo@localhost -p 2222
 ```
 
-Without it, the TUI has nowhere to render. See the [SSH guide](ssh_transport.md).
+Without it, the TUI has nowhere to render. See the [SSH guide](../transports/ssh_transport.md).
 
 ### `mix run examples/foo.exs` exits immediately
 
