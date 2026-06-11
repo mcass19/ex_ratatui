@@ -19,8 +19,9 @@ defmodule ExRatatui.Distributed do
 
   On your local, connect and attach:
 
-      iex --sname mynode --cookie mycookie -S mix
-      iex> ExRatatui.Distributed.attach(:"app@nerves.local", MyApp.TUI)
+      $ iex --sname mynode --cookie mycookie -S mix
+
+      ExRatatui.Distributed.attach(:"app@nerves.local", MyApp.TUI)
 
   The TUI takes over your terminal. Press the app's quit key (or
   Ctrl-C twice) to disconnect and restore the terminal.

@@ -3,6 +3,8 @@ defmodule ExRatatui.SubscriptionTest do
 
   alias ExRatatui.Subscription
 
+  doctest ExRatatui.Subscription
+
   test "constructors and normalize support every subscription shape" do
     interval = Subscription.interval(:heartbeat, 10, :tick)
     once = Subscription.once(:boot, 5, :fire_once)

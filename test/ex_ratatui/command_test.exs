@@ -3,6 +3,8 @@ defmodule ExRatatui.CommandTest do
 
   alias ExRatatui.Command
 
+  doctest ExRatatui.Command
+
   test "constructors and normalize support every command shape" do
     message = Command.message(:boot)
     delayed = Command.send_after(10, :later)

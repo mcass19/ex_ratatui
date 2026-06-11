@@ -11,6 +11,7 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.LineGauge
   doctest ExRatatui.Widgets.BarChart
   doctest ExRatatui.Widgets.Bar
+  doctest ExRatatui.Widgets.BarGroup
   doctest ExRatatui.Widgets.Sparkline
   doctest ExRatatui.Widgets.Calendar
   doctest ExRatatui.Widgets.Canvas
@@ -21,6 +22,8 @@ defmodule ExRatatuiTest do
   doctest ExRatatui.Widgets.Canvas.Rectangle
   doctest ExRatatui.Widgets.Canvas.Circle
   doctest ExRatatui.Widgets.Canvas.Points
+  doctest ExRatatui.Widgets.Canvas.Map
+  doctest ExRatatui.Widgets.Canvas.Label
   doctest ExRatatui.Widgets.Tabs
   doctest ExRatatui.Widgets.Scrollbar
   doctest ExRatatui.Widgets.Checkbox

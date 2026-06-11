@@ -4,6 +4,8 @@ defmodule ExRatatui.ImageTest do
   alias ExRatatui.Image
   alias ExRatatui.Widgets.Image, as: ImageWidget
 
+  doctest ExRatatui.Image
+
   # Smallest valid PNG: 1x1 white pixel, 67 bytes. Decoded by every
   # ratatui-image-supported backend.
   @valid_png Base.decode64!(
