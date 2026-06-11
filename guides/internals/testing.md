@@ -198,13 +198,7 @@ rows = String.split(content, "\n")
 assert Enum.at(rows, 5) =~ "status: ok"
 ```
 
-For column ranges use `binary_part/3` or `String.slice/2` on the row.
-
-### Asserting absence
-
-```elixir
-refute content =~ "error"
-```
+For column ranges use `binary_part/3` or `String.slice/2` on the row. Absence is the same shape inverted: `refute content =~ "error"`.
 
 ### Asserting focus moved
 

@@ -15,24 +15,10 @@ Three layers, from least invasive to most:
 ```elixir
 iex> {:ok, pid} = MyApp.TUI.start_link(name: nil)
 iex> ExRatatui.Runtime.snapshot(pid)
-%{
-  mode: :callbacks,
-  mod: MyApp.TUI,
-  transport: :local,
-  polling_enabled?: true,
-  dimensions: {120, 40},
-  render_count: 17,
-  last_rendered_at: 1745152496789,  # System.system_time(:millisecond)
-  subscription_count: 1,
-  subscriptions: [%{id: :tick, kind: :interval, interval_ms: 1_000, fired?: true, active?: true}],
-  active_async_commands: 0,
-  trace_enabled?: false,
-  trace_limit: 200,
-  trace_events: []
-}
+%{mode: :callbacks, mod: MyApp.TUI, transport: :local, render_count: 17, ...}
 ```
 
-Fields you'll use most:
+`ExRatatui.Runtime` documents every field. The ones that answer most questions:
 
 - `:render_count` — did render actually run? If this stays flat, your transition returned `render?: false` or your event isn't reaching `handle_event/2`.
 - `:dimensions` — the size the runtime thinks it has. Off if something grabbed the terminal before mount.
@@ -115,14 +101,7 @@ IO.puts(ExRatatui.get_buffer_content(terminal))
 
 This works anywhere — dev console, IEx, inside a test, inside `terminate/2`. It strips styling and gives you the pure character grid. Great for layout bugs where borders don't line up or text gets clipped.
 
-To capture a supervised app's scene mid-run, factor `render/2` so the scene-building is pure:
-
-```elixir
-def render(state, frame), do: scene(state, frame)
-def scene(state, frame), do: [ ... ]
-```
-
-Then from IEx or a test:
+To capture a supervised app's scene mid-run, factor `render/2` so the scene-building is pure — the same `scene/2` split the [Testing](testing.md) guide recommends. Then from IEx or a test:
 
 ```elixir
 state = :sys.get_state(pid).user_state

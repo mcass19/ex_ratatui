@@ -25,6 +25,12 @@ defmodule ExRatatui.Telemetry do
   | `[:ex_ratatui, :runtime, :update]` | Info-message dispatch (subscriptions, async results, user `handle_info/2`). | `:mod`, `:transport`, `:msg` |
   | `[:ex_ratatui, :render, :frame]` | Frame build + draw cycle. | `:mod`, `:transport`, `:widget_count` |
   | `[:ex_ratatui, :transport, :connect]` | Transport wiring for a session (terminal init, SSH session bind, distributed client monitor). | `:mod`, `:transport` |
+  | `[:ex_ratatui, :image, :decode]` | `ExRatatui.Image.new/2` byte decode (PNG / JPEG / GIF / WebP / BMP). | `:format`, `:bytes`; on `:stop` adds `:width` / `:height`, or `:error` on decode failure |
+  | `[:ex_ratatui, :code_block, :highlight]` | `ExRatatui.CodeBlock.highlight/3` syntect tokenisation. | `:language`, `:theme`, `:bytes`; on `:stop` adds `:line_count` |
+
+  The two library-level spans fire from pure functions outside the
+  server, so they carry no `:mod` / `:transport` and are not included
+  in the default logger's event list.
 
   `:start` events carry `%{monotonic_time: integer, system_time: integer}`
   as measurements. `:stop` events add `:duration` (native units). On

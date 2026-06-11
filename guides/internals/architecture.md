@@ -14,7 +14,7 @@ Terminal events -> Rust NIF (DirtyIo) -> encode to tuples -> Elixir Event struct
 - **Rendering:** Elixir widget structs are encoded as string-keyed maps, passed across the NIF boundary, and decoded into ratatui widget types for rendering.
 - **Events:** The `poll_event` NIF runs on BEAM's DirtyIo scheduler, so event polling never blocks normal Elixir processes.
 - **Terminal state:** Each process holds its own terminal reference via Rust `ResourceArc`, supporting two backends — a real crossterm terminal and a headless test backend for CI (see [Testing](testing.md)). The terminal is automatically restored when the reference is garbage collected.
-- **Layout:** Ratatui's constraint-based layout engine is exposed directly, computing split rectangles on the Rust side and returning them as Elixir tuples.
+- **Layout:** Ratatui's constraint-based layout engine is exposed directly, computing split rectangles on the Rust side and returning them as `%Rect{}` structs.
 
 Precompiled binaries are provided via [rustler_precompiled](https://github.com/philss/rustler_precompiled), so depending on `ex_ratatui` does not require the Rust toolchain. The native library is loaded lazily on first use — compiling a project that depends on `ex_ratatui` does not load the NIF into the compiler VM.
 
@@ -36,7 +36,7 @@ SSH transport:
         └── per client:
               SSH channel (:ssh_server_channel)
               ├── owns Session (in-memory terminal)
-              ├── parses ANSI input → events
+              ├── feeds client bytes through Session's ANSI parser
               └── Server (GenServer)
                     └── calls the app's mount/render/handle_event
 
