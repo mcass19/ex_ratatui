@@ -108,6 +108,19 @@ data module under `ExRatatui.*`). Knowing what exists prevents reinventing it.
 - `BigText` — oversized 8x8 pixel text (`ExRatatui.BigText`)
 - `CodeBlock` — syntax-highlighted code (`ExRatatui.CodeBlock`)
 
+**App-level helpers (not widgets)**
+- `ExRatatui.Focus` — focus ring for multi-panel apps. `handle_key/2` consumes
+  Tab/Shift+Tab and returns `{focus, key_or_nil}` (`nil` = consumed); register
+  rects to get click-to-focus via `handle_mouse/2`; style with `focused?/2`.
+  Pure data, no process — do not hand-roll focus tracking.
+- `ExRatatui.Theme` — semantic color palette (eleven slots) with `default/0` /
+  `light/0` constructors and `border_style/2` / `text_style/2` /
+  `selection_style/1` helpers. Pure data threaded through render code — no
+  globals, no automatic widget injection.
+- `ExRatatui.CellSession` — render to a cell buffer instead of ANSI bytes
+  (Phoenix LiveView, framebuffers, screenshots). Reach for it before parsing
+  ANSI out of a `Session`.
+
 Compose custom composite widgets in pure Elixir via the `ExRatatui.Widget`
 protocol — no Rust required. See the Custom Widgets guide.
 
@@ -116,6 +129,14 @@ protocol — no Rust required. See the Custom Widgets guide.
 Highest-value rules. The guides hold the full set; these are the ones agents get
 wrong most.
 
+- **Key event fields are lowercase strings, never atoms — wrong values compile
+  and silently never match.** The shape is
+  `%Event.Key{code: "up", kind: "press", modifiers: ["ctrl"]}`. Character keys
+  are their string value (`"a"`, `"1"`, `" "`); special keys include `"enter"`,
+  `"esc"`, `"tab"`, `"back_tab"`, `"backspace"`, `"up"` / `"down"` / `"left"` /
+  `"right"`, `"page_up"` / `"page_down"`, `"f1"`..`"f12"` — full table in
+  `ExRatatui.Event.Key`. Mouse events use string `kind` / `button` the same way
+  (`%Event.Mouse{kind: "down", button: "left", x: 0, y: 0}`).
 - **Never call `draw/2` with a bare widget — pass `[{widget, %Rect{}}, ...]`.** A
   widget without a rect paints nothing.
 - **Never treat a widget as stateful — rebuild the struct each frame.** Widgets
@@ -136,8 +157,10 @@ wrong most.
   the display. Log to a file via `Logger`, or use `Runtime.snapshot/1`.
 - **Reducer `update/2` receives `{:event, event}` and `{:info, msg}`, never bare
   structs.** All input is routed through one `update/2`.
-- **`commands:` and `render?:` are reducer-only.** Under the callback runtime they
-  are silent no-ops; use `Process.send_after/3` or a supervised Task instead.
+- **`commands:` and `render?:` runtime opts are designed for the reducer
+  runtime.** They execute under the callback runtime too (command results land
+  in `handle_info/2`), but idiomatic callback apps use `Process.send_after/3`
+  or a supervised Task.
 - **Never serve a TUI to remote users over the `:local` transport — use
   `transport: :ssh` or `:distributed`.** `:local` grabs the host tty and fails
   with `terminal_init_failed` where there is no TTY.

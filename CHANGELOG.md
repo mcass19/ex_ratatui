@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`usage-rules.md` covers the silent-failure key vocabulary.** The rules file now leads its gotcha list with the lowercase-string contract for `Event.Key` / `Event.Mouse` fields (`code: "up"`, `modifiers: ["ctrl"]` — wrong values compile and never match), indexes `ExRatatui.Focus`, `ExRatatui.Theme`, and `ExRatatui.CellSession` so agents stop hand-rolling them, and corrects the same `commands:`/`render?:` reducer-only claim fixed across the other docs.
+
 - **Six modules' doc examples now run as doctests.** `ExRatatui.Command`, `ExRatatui.Subscription`, `ExRatatui.Image` (`render_size/4`), `ExRatatui.Widgets.BarGroup`, `ExRatatui.Widgets.Canvas.Map`, and `ExRatatui.Widgets.Canvas.Label` all carried `iex>` examples that were never wired into the suite (Canvas.Line/Rectangle/Circle/Points were — Map and Label were an oversight). `ExRatatui.Distributed`'s quick-start transcript dropped its `iex>` prompt so the side-effecting `attach/2` line can never be picked up as a doctest.
 
 - **Documentation accuracy pass — every code snippet verified against the API.** A five-reviewer audit of all guides, the cheatsheet, and moduledocs surfaced ~25 factual errors, all fixed:
