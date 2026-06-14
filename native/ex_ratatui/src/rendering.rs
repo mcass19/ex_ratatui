@@ -32,6 +32,7 @@ use crate::widgets::sparkline::{self, SparklineBarSet, SparklineData};
 use crate::widgets::table::{self, TableData};
 use crate::widgets::tabs::{self, TabsData};
 use crate::widgets::throbber::{self, ThrobberData};
+use crate::widgets::viewport3d::{self, Viewport3DData};
 use crate::widgets::widget_list::{self, WidgetListData, WidgetListItem};
 
 pub enum WidgetData {
@@ -58,6 +59,7 @@ pub enum WidgetData {
     Popup(PopupData),
     WidgetList(WidgetListData),
     Image(ImageRenderData),
+    Viewport3d(Viewport3DData),
     Clear,
 }
 
@@ -139,6 +141,7 @@ pub fn decode_widget_from_map(widget_map: &TermMap<'_>) -> Result<WidgetData, Er
         "popup" => Ok(WidgetData::Popup(decode_popup(widget_map)?)),
         "widget_list" => Ok(WidgetData::WidgetList(decode_widget_list(widget_map)?)),
         "image" => Ok(WidgetData::Image(decode_image(widget_map)?)),
+        "viewport3d" => Ok(WidgetData::Viewport3d(viewport3d::decode(widget_map)?)),
         "clear" => Ok(WidgetData::Clear),
         other => Err(error_message(format!(
             "widget.type: unsupported widget type '{other}'"
@@ -1514,6 +1517,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, cap
         WidgetData::Popup(data) => popup::render(buf, data, area, caps),
         WidgetData::WidgetList(data) => widget_list::render(buf, data, area, caps),
         WidgetData::Image(data) => image::render(buf, data, area, caps),
+        WidgetData::Viewport3d(data) => viewport3d::render(buf, data, area),
         WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }

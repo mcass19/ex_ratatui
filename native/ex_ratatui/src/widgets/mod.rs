@@ -19,4 +19,5 @@ pub mod sparkline;
 pub mod table;
 pub mod tabs;
 pub mod throbber;
+pub mod viewport3d;
 pub mod widget_list;
