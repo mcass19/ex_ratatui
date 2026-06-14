@@ -20,13 +20,14 @@
 
 ## Features
 
-- **24 built-in widgets** — Paragraph, Block, List, Table, Gauge, BarChart, Chart, Canvas, Calendar, Tabs, TextInput, Textarea, Markdown, Image, BigText, CodeBlock, and more
+- **25 built-in widgets** — Paragraph, Block, List, Table, Gauge, BarChart, Chart, Canvas, Calendar, Tabs, TextInput, Textarea, Markdown, Image, BigText, CodeBlock, Viewport3D, and more
 - **Constraint-based layout** — percentages, lengths, ratios, min/max, and fill constraints, with flex alignment and spacing
 - **Rich styling** — named, RGB, and 256-indexed colors, text modifiers, per-span rich text, and a semantic theme palette
 - **Two runtimes** — LiveView-style callbacks or an Elm-style reducer with commands and subscriptions, both OTP-supervised
 - **Transport-agnostic apps** — the same module serves a local terminal, SSH clients, or remote BEAM nodes over Erlang distribution
 - **Non-terminal rendering** — expose the rendered cell buffer to Phoenix LiveView, embedded framebuffers, and screenshot tools
 - **Images in the terminal** — PNG / JPEG / GIF / WebP rendered via Kitty, Sixel, iTerm2, or halfblocks, adapting to the terminal at hand
+- **3D rendering** — software-rasterized or ray-traced scenes (`Viewport3D`) with meshes, lights, materials, and a movable camera, blitted into true-color cells
 - **Syntax-highlighted code and big text** — `CodeBlock` with curated themes; oversized 8×8 pixel text for titles and banners
 - **Full event handling** — non-blocking keyboard, mouse, resize, focus, and bracketed-paste events
 - **Focus management** — a declarative focus ring with Tab cycling and mouse hit-testing for multi-panel apps
@@ -115,6 +116,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Building UIs](guides/core/building_uis.md) | Widgets, layout, styles, rich text, and events — everything for `render/2` |
 | [Custom Widgets](guides/core/custom_widgets.md) | Compose primitives into reusable widgets via the `ExRatatui.Widget` protocol |
 | [Images](guides/core/images.md) | Image rendering across terminals and transports — protocols, resizing, telemetry |
+| [3D Rendering](guides/core/3d.md) | Lit 3D scenes with `Viewport3D` — meshes, camera, render modes, and pipelines |
 | [Paste and Clipboard](guides/core/paste_and_clipboard.md) | Bracketed paste behaviour, batch-insert helpers, and an OSC 52 copy snippet |
 | [Callback Runtime](guides/runtimes/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
 | [Reducer Runtime](guides/runtimes/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |

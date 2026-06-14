@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Project logo.** New logo assets under `assets/` (`logo` mark and `logo_letters` wordmark, each as SVG/PNG/JPG). The README header is now centered — logotype, then description, then badges — and the logo mark appears next to the project name in the hexdocs sidebar (via the ex_doc `:logo` option, which ships `assets/logo.png` in the Hex package).
 
+- **3D rendering with `ExRatatui.Widgets.Viewport3D`.** A new pure-data widget renders lit 3D scenes — built-in `cube`/`sphere`/`plane` primitives and custom meshes, Phong materials, ambient/directional/point lights, and a perspective camera — using a software rasterizer or CPU ray tracer, blitted into true-color cells via half-block, supersampled-braille, or ASCII modes. Scene types live under `ExRatatui.ThreeD.*` (`Scene`, `Object`, `Mesh`, `Material`, `Light`, `Camera`, `Transform`), with pure `Camera.orbit/3` and `Camera.zoom/2` helpers. Built on the vendored [ratatui-3d](https://github.com/limlabs/ratatui-3d) renderer; the GPU pipeline is intentionally not exposed. Requires a true-color terminal. See the [3D Rendering](guides/core/3d.md) guide and the `examples/widgets/viewport3d_*.exs` examples.
+
 ## [0.10.2] - 2026-06-12
 
 ### Added

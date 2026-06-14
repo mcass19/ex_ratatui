@@ -653,3 +653,46 @@ ExRatatui.Distributed.attach(:"app@host", MyApp.TUI,
 ```
 
 See [Images](../core/images.md) for the full transport / protocol resolution table.
+
+## 3D (Viewport3D)
+{: .col-2}
+
+### Viewport3D
+
+```elixir
+alias ExRatatui.ThreeD.{Camera, Light, Material, Mesh, Object, Scene}
+
+%ExRatatui.Widgets.Viewport3D{
+  scene: %Scene{
+    objects: [
+      %Object{
+        mesh: Mesh.cube(),                 # sphere(16, 24) | plane() | new(verts, idx)
+        material: %Material{color: {100, 150, 255}},
+        transform: %ExRatatui.ThreeD.Transform{
+          rotation: {:euler_xyz, {0.0, 0.7, 0.0}}
+        }
+      }
+    ],
+    lights: [
+      Light.ambient({255, 255, 255}, 0.15),
+      Light.directional({-1.0, -1.0, -1.0}, {255, 255, 255}),
+      Light.point({2.0, 3.0, 2.0}, {255, 220, 180})
+    ],
+    background: {8, 8, 16}
+  },
+  camera: %Camera{position: {3.0, 2.5, 4.0}, target: {0.0, 0.0, 0.0}},
+  render_mode: :braille,   # :half_block | :braille | :ascii
+  pipeline: :rasterize     # :rasterize | :raytrace
+}
+```
+
+Pure data, rendered every frame. Requires a true-color terminal. Colors are `{r, g, b}` (0–255); vectors are `{x, y, z}` floats. Rotation: `{:euler_xyz, vec3}`, `{:axis_angle, vec3, angle}`, or `{:quat, {x, y, z, w}}`.
+
+### Camera controls (pure helpers)
+
+```elixir
+Camera.orbit(camera, yaw, pitch)  # radians; pitch clamped
+Camera.zoom(camera, delta)        # +farther / -closer
+```
+
+Keep the camera in the model; update it from key events. No scene graph — compute each object's world transform in app code. See [3D Rendering](../core/3d.md).

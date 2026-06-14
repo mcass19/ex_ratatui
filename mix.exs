@@ -116,6 +116,7 @@ defmodule ExRatatui.MixProject do
         "guides/introduction/getting_started.md": [title: "Getting Started"],
         "examples/README.md": [title: "Examples", filename: "examples"],
         "guides/core/building_uis.md": [title: "Building UIs"],
+        "guides/core/3d.md": [title: "3D Rendering"],
         "guides/core/custom_widgets.md": [title: "Custom Widgets"],
         "guides/core/images.md": [title: "Images"],
         "guides/core/paste_and_clipboard.md": [title: "Paste and Clipboard"],
@@ -232,6 +233,16 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Widgets.Chart,
           ExRatatui.Widgets.Chart.Axis,
           ExRatatui.Widgets.Chart.Dataset
+        ],
+        "Widgets: 3D": [
+          ExRatatui.Widgets.Viewport3D,
+          ExRatatui.ThreeD.Scene,
+          ExRatatui.ThreeD.Object,
+          ExRatatui.ThreeD.Mesh,
+          ExRatatui.ThreeD.Material,
+          ExRatatui.ThreeD.Light,
+          ExRatatui.ThreeD.Camera,
+          ExRatatui.ThreeD.Transform
         ],
         "Widgets: Slash Commands": [
           ExRatatui.Widgets.SlashCommands,
