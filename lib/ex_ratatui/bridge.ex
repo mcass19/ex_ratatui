@@ -37,9 +37,11 @@ defmodule ExRatatui.Bridge do
     Textarea,
     TextInput,
     Throbber,
+    Viewport3D,
     WidgetList
   }
 
+  alias ExRatatui.ThreeD.{Camera, Light, Material, Mesh, Object, Scene, Transform}
   alias ExRatatui.Widgets.Canvas.{Circle, Label, Line, Points, Rectangle}
   alias ExRatatui.Widgets.Canvas.Map, as: CanvasMap
   alias ExRatatui.Widgets.Chart.{Axis, Dataset}
@@ -500,6 +502,20 @@ defmodule ExRatatui.Bridge do
     }
     |> maybe_put("label", throbber.label)
     |> maybe_put_block(throbber.block, "throbber.block")
+  end
+
+  defp encode_widget(%Viewport3D{} = viewport) do
+    validate_render_mode!(viewport.render_mode)
+    validate_pipeline!(viewport.pipeline)
+
+    %{
+      "type" => "viewport3d",
+      "render_mode" => Atom.to_string(viewport.render_mode),
+      "pipeline" => Atom.to_string(viewport.pipeline),
+      "scene" => encode_scene(viewport.scene),
+      "camera" => encode_camera(viewport.camera)
+    }
+    |> maybe_put_block(viewport.block, "viewport3d.block")
   end
 
   defp encode_widget(widget) do
@@ -1214,6 +1230,291 @@ defmodule ExRatatui.Bridge do
       "height" => rect.height
     }
   end
+
+  # --- Viewport3D encoding -------------------------------------------------
+
+  @render_modes [:half_block, :braille, :ascii]
+  @pipelines [:rasterize, :raytrace]
+
+  defp validate_render_mode!(mode) when mode in @render_modes, do: :ok
+
+  defp validate_render_mode!(other) do
+    raise ArgumentError,
+          "viewport3d.render_mode must be one of #{inspect(@render_modes)}, got: #{inspect(other)}"
+  end
+
+  defp validate_pipeline!(pipeline) when pipeline in @pipelines, do: :ok
+
+  defp validate_pipeline!(other) do
+    raise ArgumentError,
+          "viewport3d.pipeline must be one of #{inspect(@pipelines)}, got: #{inspect(other)}"
+  end
+
+  defp encode_camera(%Camera{} = camera) do
+    %{
+      "position" => encode_vec3(camera.position, "viewport3d.camera.position"),
+      "target" => encode_vec3(camera.target, "viewport3d.camera.target"),
+      "up" => encode_vec3(camera.up, "viewport3d.camera.up"),
+      "fov" => encode_float(camera.fov, "viewport3d.camera.fov"),
+      "near" => encode_float(camera.near, "viewport3d.camera.near"),
+      "far" => encode_float(camera.far, "viewport3d.camera.far")
+    }
+  end
+
+  defp encode_camera(other) do
+    raise ArgumentError,
+          "viewport3d.camera must be a %ExRatatui.ThreeD.Camera{}, got: #{inspect(other)}"
+  end
+
+  defp encode_scene(%Scene{} = scene) do
+    %{
+      "objects" => Enum.map(scene.objects, &encode_object/1),
+      "lights" => Enum.map(scene.lights, &encode_light/1),
+      "background" => encode_rgb(scene.background, "viewport3d.scene.background")
+    }
+    |> maybe_put("sky", encode_sky(scene.sky))
+  end
+
+  defp encode_scene(other) do
+    raise ArgumentError,
+          "viewport3d.scene must be a %ExRatatui.ThreeD.Scene{}, got: #{inspect(other)}"
+  end
+
+  defp encode_sky(nil), do: nil
+
+  defp encode_sky(%{zenith: zenith, horizon: horizon, ground: ground}) do
+    %{
+      "zenith" => encode_rgb(zenith, "viewport3d.scene.sky.zenith"),
+      "horizon" => encode_rgb(horizon, "viewport3d.scene.sky.horizon"),
+      "ground" => encode_rgb(ground, "viewport3d.scene.sky.ground")
+    }
+  end
+
+  defp encode_sky(other) do
+    raise ArgumentError,
+          "viewport3d.scene.sky must be nil or %{zenith: rgb, horizon: rgb, ground: rgb}, got: #{inspect(other)}"
+  end
+
+  defp encode_object(%Object{} = object) do
+    validate_boolean!(object.visible, "viewport3d.scene.objects :visible")
+
+    %{
+      "mesh" => encode_mesh(object.mesh),
+      "material" => encode_material(object.material),
+      "transform" => encode_transform(object.transform),
+      "visible" => object.visible
+    }
+  end
+
+  defp encode_object(other) do
+    raise ArgumentError,
+          "viewport3d scene object must be a %ExRatatui.ThreeD.Object{}, got: #{inspect(other)}"
+  end
+
+  defp encode_mesh(%Mesh{kind: :cube}), do: %{"kind" => "cube"}
+  defp encode_mesh(%Mesh{kind: :plane}), do: %{"kind" => "plane"}
+
+  defp encode_mesh(%Mesh{kind: :sphere, stacks: stacks, slices: slices}) do
+    validate_pos_integer!(stacks, "viewport3d mesh :stacks")
+    validate_pos_integer!(slices, "viewport3d mesh :slices")
+    %{"kind" => "sphere", "stacks" => stacks, "slices" => slices}
+  end
+
+  defp encode_mesh(%Mesh{kind: :custom} = mesh), do: encode_custom_mesh(mesh)
+
+  defp encode_mesh(other) do
+    raise ArgumentError,
+          "viewport3d object mesh must be a %ExRatatui.ThreeD.Mesh{}, got: #{inspect(other)}"
+  end
+
+  defp encode_custom_mesh(%Mesh{vertices: vertices, indices: indices} = mesh) do
+    validate_vertices!(vertices)
+    count = length(vertices)
+    validate_indices!(indices, count)
+
+    %{
+      "kind" => "custom",
+      "vertices" => Enum.map(vertices, &encode_vec3(&1, "viewport3d mesh vertex")),
+      "indices" => indices
+    }
+    |> maybe_put("normals", encode_normals(mesh.normals, count))
+    |> maybe_put("uvs", encode_uvs(mesh.uvs, count))
+  end
+
+  defp validate_vertices!(vertices) when is_list(vertices) and vertices != [], do: :ok
+
+  defp validate_vertices!(other) do
+    raise ArgumentError,
+          "viewport3d custom mesh :vertices must be a non-empty list, got: #{inspect(other)}"
+  end
+
+  defp validate_indices!(indices, count) when is_list(indices) do
+    cond do
+      rem(length(indices), 3) != 0 ->
+        raise ArgumentError, "viewport3d custom mesh :indices length must be a multiple of 3"
+
+      not Enum.all?(indices, &(is_integer(&1) and &1 >= 0 and &1 < count)) ->
+        raise ArgumentError,
+              "viewport3d custom mesh :indices must be integers in 0..#{count - 1}"
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_indices!(other, _count) do
+    raise ArgumentError,
+          "viewport3d custom mesh :indices must be a list, got: #{inspect(other)}"
+  end
+
+  defp encode_normals(nil, _count), do: nil
+
+  defp encode_normals(normals, count) when is_list(normals) and length(normals) == count do
+    Enum.map(normals, &encode_vec3(&1, "viewport3d mesh normal"))
+  end
+
+  defp encode_normals(other, _count) do
+    raise ArgumentError,
+          "viewport3d custom mesh :normals must be a list matching the vertex count, got: #{inspect(other)}"
+  end
+
+  defp encode_uvs(nil, _count), do: nil
+
+  defp encode_uvs(uvs, count) when is_list(uvs) and length(uvs) == count do
+    Enum.map(uvs, &encode_uv/1)
+  end
+
+  defp encode_uvs(other, _count) do
+    raise ArgumentError,
+          "viewport3d custom mesh :uvs must be a list matching the vertex count, got: #{inspect(other)}"
+  end
+
+  defp encode_uv({u, v}) when is_number(u) and is_number(v), do: {to_float(u), to_float(v)}
+
+  defp encode_uv(other) do
+    raise ArgumentError,
+          "viewport3d custom mesh uv must be a {u, v} tuple, got: #{inspect(other)}"
+  end
+
+  defp encode_material(%Material{} = material) do
+    %{
+      "color" => encode_rgb(material.color, "viewport3d material :color"),
+      "ambient" => encode_float(material.ambient, "viewport3d material :ambient"),
+      "diffuse" => encode_float(material.diffuse, "viewport3d material :diffuse"),
+      "specular" => encode_float(material.specular, "viewport3d material :specular"),
+      "shininess" => encode_float(material.shininess, "viewport3d material :shininess")
+    }
+  end
+
+  defp encode_material(other) do
+    raise ArgumentError,
+          "viewport3d object material must be a %ExRatatui.ThreeD.Material{}, got: #{inspect(other)}"
+  end
+
+  defp encode_transform(%Transform{} = transform) do
+    %{
+      "position" => encode_vec3(transform.position, "viewport3d transform :position"),
+      "rotation" => encode_rotation(transform.rotation),
+      "scale" => encode_vec3(transform.scale, "viewport3d transform :scale")
+    }
+  end
+
+  defp encode_transform(other) do
+    raise ArgumentError,
+          "viewport3d object transform must be a %ExRatatui.ThreeD.Transform{}, got: #{inspect(other)}"
+  end
+
+  defp encode_rotation({:euler_xyz, value}) do
+    %{"kind" => "euler_xyz", "value" => encode_vec3(value, "viewport3d rotation :euler_xyz")}
+  end
+
+  defp encode_rotation({:axis_angle, axis, angle}) do
+    %{
+      "kind" => "axis_angle",
+      "axis" => encode_vec3(axis, "viewport3d rotation axis"),
+      "angle" => encode_float(angle, "viewport3d rotation angle")
+    }
+  end
+
+  defp encode_rotation({:quat, {x, y, z, w}})
+       when is_number(x) and is_number(y) and is_number(z) and is_number(w) do
+    %{"kind" => "quat", "value" => {to_float(x), to_float(y), to_float(z), to_float(w)}}
+  end
+
+  defp encode_rotation(other) do
+    raise ArgumentError,
+          "viewport3d transform rotation must be {:euler_xyz, vec3}, {:axis_angle, vec3, angle}, " <>
+            "or {:quat, {x, y, z, w}}, got: #{inspect(other)}"
+  end
+
+  defp encode_light(%Light{type: :ambient} = light) do
+    %{
+      "kind" => "ambient",
+      "color" => encode_rgb(light.color, "viewport3d light :color"),
+      "intensity" => encode_float(light.intensity, "viewport3d light :intensity")
+    }
+  end
+
+  defp encode_light(%Light{type: :directional} = light) do
+    %{
+      "kind" => "directional",
+      "color" => encode_rgb(light.color, "viewport3d light :color"),
+      "intensity" => encode_float(light.intensity, "viewport3d light :intensity"),
+      "direction" => encode_vec3(light.direction, "viewport3d directional light :direction")
+    }
+  end
+
+  defp encode_light(%Light{type: :point} = light) do
+    %{
+      "kind" => "point",
+      "color" => encode_rgb(light.color, "viewport3d light :color"),
+      "intensity" => encode_float(light.intensity, "viewport3d light :intensity"),
+      "position" => encode_vec3(light.position, "viewport3d point light :position")
+    }
+  end
+
+  defp encode_light(%Light{type: type}) do
+    raise ArgumentError,
+          "viewport3d light :type must be :ambient, :directional, or :point, got: #{inspect(type)}"
+  end
+
+  defp encode_light(other) do
+    raise ArgumentError,
+          "viewport3d scene light must be a %ExRatatui.ThreeD.Light{}, got: #{inspect(other)}"
+  end
+
+  defp encode_vec3({x, y, z}, _context) when is_number(x) and is_number(y) and is_number(z) do
+    {to_float(x), to_float(y), to_float(z)}
+  end
+
+  defp encode_vec3(other, context) do
+    raise ArgumentError, "#{context} must be a {x, y, z} tuple of numbers, got: #{inspect(other)}"
+  end
+
+  defp encode_rgb({r, g, b}, _context)
+       when is_integer(r) and r in 0..255 and is_integer(g) and g in 0..255 and is_integer(b) and
+              b in 0..255 do
+    {r, g, b}
+  end
+
+  defp encode_rgb(other, context) do
+    raise ArgumentError,
+          "#{context} must be a {r, g, b} tuple of integers 0-255, got: #{inspect(other)}"
+  end
+
+  defp encode_float(value, _context) when is_number(value), do: to_float(value)
+
+  defp encode_float(other, context) do
+    raise ArgumentError, "#{context} must be a number, got: #{inspect(other)}"
+  end
+
+  defp validate_pos_integer!(value, _context) when is_integer(value) and value > 0, do: value
+
+  defp validate_pos_integer!(other, context) do
+    raise ArgumentError, "#{context} must be a positive integer, got: #{inspect(other)}"
+  end
+
+  defp to_float(value), do: value * 1.0
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

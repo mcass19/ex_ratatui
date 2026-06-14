@@ -64,7 +64,8 @@ defmodule ExRatatui do
   `ExRatatui.Widgets.TextInput`, `ExRatatui.Widgets.Clear`,
   `ExRatatui.Widgets.Markdown`, `ExRatatui.Widgets.Textarea`,
   `ExRatatui.Widgets.Throbber`, `ExRatatui.Widgets.Popup`,
-  `ExRatatui.Widgets.BigText`, and `ExRatatui.Widgets.WidgetList`.
+  `ExRatatui.Widgets.BigText`, `ExRatatui.Widgets.WidgetList`,
+  and `ExRatatui.Widgets.Viewport3D`.
 
   ## Testing
 
@@ -119,6 +120,7 @@ defmodule ExRatatui do
     Textarea,
     TextInput,
     Throbber,
+    Viewport3D,
     WidgetList
   }
 
@@ -151,6 +153,7 @@ defmodule ExRatatui do
           | Textarea.t()
           | TextInput.t()
           | Throbber.t()
+          | Viewport3D.t()
           | WidgetList.t()
 
   @typedoc """
