@@ -58,6 +58,10 @@ Focused, copyable demos — each centered on one widget or text feature.
 | [`list.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/list.exs) | `mix run examples/widgets/list.exs` | `List` with a selection highlight and `highlight_symbol`. Up/Down moves; g/G jumps to top/bottom. |
 | [`textarea.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/textarea.exs) | `mix run examples/widgets/textarea.exs` | `Textarea` multi-line editor with a live line/cursor status. Type to edit; Enter inserts a newline. |
 | [`clear.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/clear.exs) | `mix run examples/widgets/clear.exs` | `Clear` blanks a region before a hand-rolled overlay. Space toggles it to show the background bleeding through. |
+| [`viewport3d_cube.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_cube.exs) | `mix run examples/widgets/viewport3d_cube.exs` | `Viewport3D` rendering a single lit cube spinning in 3D, animated on the **reducer runtime**. Requires a true-color terminal. |
+| [`viewport3d_scene.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_scene.exs) | `mix run examples/widgets/viewport3d_scene.exs` | `Viewport3D` multi-object scene (cube, sphere, plane) lit by all three light types, with the camera slowly orbiting. |
+| [`viewport3d_controls.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_controls.exs) | `mix run examples/widgets/viewport3d_controls.exs` | `Viewport3D` driven live: arrows orbit, `i`/`o` zoom (`Camera.orbit`/`zoom`), `m` cycles render mode, `p` toggles pipeline. |
+| [`viewport3d_custom_mesh.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_custom_mesh.exs) | `mix run examples/widgets/viewport3d_custom_mesh.exs` | `Viewport3D` rendering a custom mesh (a pyramid) built from raw vertices and indices, spinning. |
 
 ## Layout & styling
 
