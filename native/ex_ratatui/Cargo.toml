@@ -21,6 +21,8 @@ ratatui-image = { version = "11.0.2", default-features = false, features = ["cro
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 tui-big-text = "0.8.4"
 syntect = "5"
+render3d = { path = "vendor/render3d", default-features = false }
+ratatui-3d = { path = "vendor/ratatui-3d", default-features = false }
 
 [features]
 default = ["nif_version_2_16"]

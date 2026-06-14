@@ -1,0 +1,25 @@
+# Vendored into ex_ratatui. Differences from upstream:
+#   - render3d is pulled with default-features = false so obj/gltf/gpu stay off.
+#   - default features are empty (model loading and the wgpu pipeline are out of scope).
+#   - upstream [dev-dependencies] and [[example]] targets are dropped (examples are
+#     not vendored). See vendor/README.md for provenance.
+[package]
+name = "ratatui-3d"
+version = "0.1.0"
+edition = "2021"
+description = "3D software renderer for terminal UIs, built on ratatui"
+license = "MIT"
+repository = "https://github.com/limlabs/ratatui-3d"
+homepage = "https://github.com/limlabs/ratatui-3d"
+keywords = ["ratatui", "3d", "renderer", "terminal", "tui"]
+categories = ["command-line-interface", "graphics", "rendering"]
+
+[dependencies]
+render3d = { path = "../render3d", default-features = false }
+ratatui = "0.30"
+
+[features]
+default = []
+obj = ["render3d/obj"]
+gltf = ["render3d/gltf"]
+gpu = ["render3d/gpu"]
