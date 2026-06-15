@@ -206,6 +206,10 @@ fn build_stateful_protocol(
 /// resolved away by the caller). `font_size` is the cell pixel size from the
 /// transport probe. Used by `Viewport3D` pixel rendering, which generates its
 /// image in-process rather than decoding consumer bytes.
+///
+/// Uses `Resize::Scale` so the image fills `area` (preserving aspect), scaling
+/// up when the source is smaller than the render area — `Resize::Fit` would
+/// leave a downsized source anchored in the corner.
 pub fn render_image_protocol(
     buf: &mut Buffer,
     area: Rect,
@@ -221,7 +225,7 @@ pub fn render_image_protocol(
     let mut picker = Picker::from_fontsize(FontSize::from(font_size));
     picker.set_protocol_type(to_protocol_type(protocol));
     let mut stateful = picker.new_resize_protocol(source);
-    stateful.resize_encode_render(&Resize::Fit(None), area, buf);
+    stateful.resize_encode_render(&Resize::Scale(None), area, buf);
 }
 
 #[rustler::nif]

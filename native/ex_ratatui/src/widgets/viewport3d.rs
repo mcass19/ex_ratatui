@@ -99,6 +99,9 @@ fn render_pixel(
         return;
     }
 
+    // The framebuffer is rendered at the inner area's aspect ratio (capped to
+    // MAX_DIM for encode cost), then `render_image_protocol` scales it up to fill
+    // `inner` — a uniform upscale, so it fills the pane without distortion.
     let (px_w, px_h) = pixel_dims(inner, font_size);
     let mut fb = Framebuffer::new(px_w, px_h);
     run_pipeline(&data.scene, &data.camera, data.pipeline, &mut fb);
