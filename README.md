@@ -27,7 +27,7 @@
 - **Transport-agnostic apps** — the same module serves a local terminal, SSH clients, or remote BEAM nodes over Erlang distribution
 - **Non-terminal rendering** — expose the rendered cell buffer to Phoenix LiveView, embedded framebuffers, and screenshot tools
 - **Images in the terminal** — PNG / JPEG / GIF / WebP rendered via Kitty, Sixel, iTerm2, or halfblocks, adapting to the terminal at hand
-- **3D rendering** — software-rasterized or ray-traced scenes (`Viewport3D`) with meshes, lights, materials, and a movable camera, blitted into true-color cells
+- **3D rendering** — software-rasterized or ray-traced scenes (`Viewport3D`) with meshes, lights, materials, a movable camera, and a scene-graph for articulated models, blitted into true-color cells
 - **Syntax-highlighted code and big text** — `CodeBlock` with curated themes; oversized 8×8 pixel text for titles and banners
 - **Full event handling** — non-blocking keyboard, mouse, resize, focus, and bracketed-paste events
 - **Focus management** — a declarative focus ring with Tab cycling and mouse hit-testing for multi-panel apps

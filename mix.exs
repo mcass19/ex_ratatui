@@ -242,7 +242,8 @@ defmodule ExRatatui.MixProject do
           ExRatatui.ThreeD.Material,
           ExRatatui.ThreeD.Light,
           ExRatatui.ThreeD.Camera,
-          ExRatatui.ThreeD.Transform
+          ExRatatui.ThreeD.Transform,
+          ExRatatui.ThreeD.Node
         ],
         "Widgets: Slash Commands": [
           ExRatatui.Widgets.SlashCommands,

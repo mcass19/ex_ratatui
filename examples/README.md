@@ -62,6 +62,7 @@ Focused, copyable demos — each centered on one widget or text feature.
 | [`viewport3d_scene.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_scene.exs) | `mix run examples/widgets/viewport3d_scene.exs` | `Viewport3D` multi-object scene (cube, sphere, plane) lit by all three light types, with the camera slowly orbiting. |
 | [`viewport3d_controls.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_controls.exs) | `mix run examples/widgets/viewport3d_controls.exs` | `Viewport3D` driven live: arrows orbit, `i`/`o` zoom (`Camera.orbit`/`zoom`), `m` cycles render mode, `p` toggles pipeline. |
 | [`viewport3d_custom_mesh.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_custom_mesh.exs) | `mix run examples/widgets/viewport3d_custom_mesh.exs` | `Viewport3D` rendering a custom mesh (a pyramid) built from raw vertices and indices, spinning. |
+| [`viewport3d_articulated.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/widgets/viewport3d_articulated.exs) | `mix run examples/widgets/viewport3d_articulated.exs` | `Viewport3D` rendering an articulated two-segment arm built from an `ExRatatui.ThreeD.Node` scene-graph, base rotating and elbow swinging via forward kinematics. |
 
 ## Layout & styling
 

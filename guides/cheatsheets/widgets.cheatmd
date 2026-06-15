@@ -666,7 +666,7 @@ alias ExRatatui.ThreeD.{Camera, Light, Material, Mesh, Object, Scene}
   scene: %Scene{
     objects: [
       %Object{
-        mesh: Mesh.cube(),                 # sphere(16, 24) | plane() | new(verts, idx)
+        mesh: Mesh.cube(),                 # sphere(16, 24) | plane() | cylinder(24) | new(verts, idx)
         material: %Material{color: {100, 150, 255}},
         transform: %ExRatatui.ThreeD.Transform{
           rotation: {:euler_xyz, {0.0, 0.7, 0.0}}
@@ -695,4 +695,25 @@ Camera.orbit(camera, yaw, pitch)  # radians; pitch clamped
 Camera.zoom(camera, delta)        # +farther / -closer
 ```
 
-Keep the camera in the model; update it from key events. No scene graph — compute each object's world transform in app code. See [3D Rendering](../core/3d.md).
+Keep the camera in the model; update it from key events.
+
+### Scene graph (articulated models)
+
+```elixir
+alias ExRatatui.ThreeD.{Node, Object, Mesh, Transform}
+
+arm = %Node{
+  transform: %Transform{rotation: {:axis_angle, {0.0, 1.0, 0.0}, base}},
+  visual: %Object{mesh: Mesh.cylinder(24), transform: %Transform{scale: {0.5, 0.3, 0.5}}},
+  children: [
+    %Node{
+      transform: %Transform{position: {0.0, 0.3, 0.0}, rotation: {:axis_angle, {0.0, 0.0, 1.0}, elbow}},
+      visual: %Object{mesh: Mesh.cube(), transform: %Transform{position: {0.0, 0.45, 0.0}, scale: {0.18, 0.9, 0.18}}}
+    }
+  ]
+}
+
+scene = Node.to_scene(arm, lights: lights, background: {10, 12, 18})
+```
+
+Tree of local transforms → flat `Scene`. `ExRatatui.ThreeD.Node.flatten/1` / `ExRatatui.ThreeD.Node.to_scene/2`, composed via `Transform.compose/2`. Keep frames rigid; scale only leaf visuals. See [3D Rendering](../core/3d.md).
