@@ -1517,7 +1517,7 @@ pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, cap
         WidgetData::Popup(data) => popup::render(buf, data, area, caps),
         WidgetData::WidgetList(data) => widget_list::render(buf, data, area, caps),
         WidgetData::Image(data) => image::render(buf, data, area, caps),
-        WidgetData::Viewport3d(data) => viewport3d::render(buf, data, area),
+        WidgetData::Viewport3d(data) => viewport3d::render(buf, data, area, caps),
         WidgetData::Clear => crate::widgets::clear::render(buf, area),
     }
 }

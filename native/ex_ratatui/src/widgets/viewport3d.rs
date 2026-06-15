@@ -1,6 +1,7 @@
+use image::DynamicImage;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::StatefulWidget;
+use ratatui::widgets::{StatefulWidget, Widget};
 use rustler::{Error, Term};
 
 use ratatui_3d::render_mode::RenderMode;
@@ -12,7 +13,7 @@ use render3d::material::Material;
 use render3d::math::{Quat, Vec3};
 use render3d::mesh::{compute_normals, Mesh, Vertex};
 use render3d::object::SceneObject;
-use render3d::pipeline::Pipeline;
+use render3d::pipeline::{Framebuffer, Pipeline};
 use render3d::primitives;
 use render3d::scene::{Scene, Sky};
 use render3d::transform::Transform;
@@ -21,22 +22,48 @@ use crate::decode::{
     decode_map, decode_optional, decode_required, invalid_field, missing_field, optional_term,
     TermMap,
 };
+use crate::image::{render_image_protocol, resolve_protocol, ProtocolKind, TransportCaps};
 use crate::widgets::block::{self, BlockData};
+
+/// Longest framebuffer side (pixels) for pixel-protocol rendering. Bounds the
+/// per-frame encode/transmit cost regardless of terminal size.
+const MAX_DIM: u32 = 1280;
+
+/// How a `Viewport3D` is blitted to the terminal: into character cells (the
+/// ratatui-3d render modes) or as pixel graphics via a terminal image protocol.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewportMode {
+    Cell(RenderMode),
+    Pixel(ProtocolKind),
+}
 
 /// Decoded, engine-ready representation of a `viewport3d` widget.
 pub struct Viewport3DData {
     pub scene: Scene,
     pub camera: Camera,
-    pub render_mode: RenderMode,
+    pub mode: ViewportMode,
     pub pipeline: Pipeline,
     pub block: Option<BlockData>,
 }
 
-pub fn render(buf: &mut Buffer, data: &Viewport3DData, area: Rect) {
-    // Drive the stateful viewport with a transient state so the pipeline choice
-    // is honored (Viewport3DStatic hardcodes the default rasterizer). The state
-    // is rebuilt every frame, matching ex_ratatui's pure-data model.
-    let mut state = Viewport3DState::new(data.camera.clone(), data.render_mode);
+pub fn render(buf: &mut Buffer, data: &Viewport3DData, area: Rect, caps: TransportCaps) {
+    match data.mode {
+        ViewportMode::Cell(render_mode) => render_cell(buf, data, area, render_mode),
+        ViewportMode::Pixel(requested) => match resolve_protocol(requested, caps) {
+            // No graphics protocol available (CellSession / unsupported terminal):
+            // fall back to braille, the nicest cell mode for 3D.
+            ProtocolKind::Halfblocks | ProtocolKind::Auto => {
+                render_cell(buf, data, area, RenderMode::Braille)
+            }
+            protocol => render_pixel(buf, data, area, protocol, caps.font_size()),
+        },
+    }
+}
+
+/// Cell rendering via ratatui-3d's stateful viewport. The transient state is
+/// rebuilt every frame, matching ex_ratatui's pure-data model.
+fn render_cell(buf: &mut Buffer, data: &Viewport3DData, area: Rect, render_mode: RenderMode) {
+    let mut state = Viewport3DState::new(data.camera.clone(), render_mode);
     state.pipeline = data.pipeline;
 
     let mut viewport = Viewport3D::new(&data.scene);
@@ -47,13 +74,80 @@ pub fn render(buf: &mut Buffer, data: &Viewport3DData, area: Rect) {
     StatefulWidget::render(viewport, area, buf, &mut state);
 }
 
+/// Pixel rendering: rasterize/raytrace the scene to an RGB framebuffer at the
+/// area's native pixel resolution, then encode it through the terminal image
+/// `protocol`. The block (if any) is drawn into cells and the image fills the
+/// block's inner area.
+fn render_pixel(
+    buf: &mut Buffer,
+    data: &Viewport3DData,
+    area: Rect,
+    protocol: ProtocolKind,
+    font_size: (u16, u16),
+) {
+    let inner = match data.block {
+        Some(ref block_data) => {
+            let block = block_data.to_block();
+            let inner = block.inner(area);
+            block.render(area, buf);
+            inner
+        }
+        None => area,
+    };
+
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    let (px_w, px_h) = pixel_dims(inner, font_size);
+    let mut fb = Framebuffer::new(px_w, px_h);
+    run_pipeline(&data.scene, &data.camera, data.pipeline, &mut fb);
+    render_image_protocol(buf, inner, framebuffer_to_image(&fb), protocol, font_size);
+}
+
+fn run_pipeline(scene: &Scene, camera: &Camera, pipeline: Pipeline, fb: &mut Framebuffer) {
+    match pipeline {
+        Pipeline::Rasterize => render3d::pipeline::render(scene, camera, fb),
+        Pipeline::Raytrace => render3d::pipeline::raytrace::render(scene, camera, fb),
+    }
+}
+
+/// Target framebuffer size: the inner area in cells times the cell pixel size,
+/// with the longest side clamped to `MAX_DIM` (aspect preserved).
+fn pixel_dims(inner: Rect, (fw, fh): (u16, u16)) -> (u32, u32) {
+    let w = (inner.width as u32 * fw as u32).max(1);
+    let h = (inner.height as u32 * fh as u32).max(1);
+    let longest = w.max(h);
+
+    if longest <= MAX_DIM {
+        (w, h)
+    } else {
+        let scale = MAX_DIM as f32 / longest as f32;
+        (
+            ((w as f32 * scale) as u32).max(1),
+            ((h as f32 * scale) as u32).max(1),
+        )
+    }
+}
+
+fn framebuffer_to_image(fb: &Framebuffer) -> DynamicImage {
+    let mut raw = Vec::with_capacity(fb.color.len() * 3);
+    for px in &fb.color {
+        raw.extend_from_slice(&[px.0, px.1, px.2]);
+    }
+
+    let img = image::RgbImage::from_raw(fb.width, fb.height, raw)
+        .expect("framebuffer color length is width * height");
+    DynamicImage::ImageRgb8(img)
+}
+
 pub fn decode(map: &TermMap<'_>) -> Result<Viewport3DData, Error> {
     let scene = decode_scene(map, "viewport3d")?;
     let camera = decode_camera(map, "viewport3d")?;
 
-    let render_mode = parse_render_mode(
+    let mode = parse_render_mode(
         &decode_optional::<String>(map, "render_mode", "viewport3d")?
-            .unwrap_or_else(|| "braille".to_string()),
+            .unwrap_or_else(|| "auto".to_string()),
     )?;
     let pipeline = parse_pipeline(
         &decode_optional::<String>(map, "pipeline", "viewport3d")?
@@ -68,17 +162,21 @@ pub fn decode(map: &TermMap<'_>) -> Result<Viewport3DData, Error> {
     Ok(Viewport3DData {
         scene,
         camera,
-        render_mode,
+        mode,
         pipeline,
         block,
     })
 }
 
-pub fn parse_render_mode(value: &str) -> Result<RenderMode, Error> {
+pub fn parse_render_mode(value: &str) -> Result<ViewportMode, Error> {
     match value {
-        "half_block" => Ok(RenderMode::HalfBlock),
-        "braille" => Ok(RenderMode::Braille),
-        "ascii" => Ok(RenderMode::Ascii),
+        "auto" => Ok(ViewportMode::Pixel(ProtocolKind::Auto)),
+        "kitty" => Ok(ViewportMode::Pixel(ProtocolKind::Kitty)),
+        "sixel" => Ok(ViewportMode::Pixel(ProtocolKind::Sixel)),
+        "iterm2" => Ok(ViewportMode::Pixel(ProtocolKind::Iterm2)),
+        "half_block" => Ok(ViewportMode::Cell(RenderMode::HalfBlock)),
+        "braille" => Ok(ViewportMode::Cell(RenderMode::Braille)),
+        "ascii" => Ok(ViewportMode::Cell(RenderMode::Ascii)),
         other => Err(invalid_field(
             "viewport3d",
             "render_mode",
@@ -488,17 +586,26 @@ mod tests {
         Viewport3DData {
             scene,
             camera: Camera::default(),
-            render_mode,
+            mode: ViewportMode::Cell(render_mode),
             pipeline,
             block: None,
         }
     }
 
     fn render_to_terminal(data: &Viewport3DData, w: u16, h: u16) -> Terminal<TestBackend> {
+        render_with_caps(data, w, h, TransportCaps::CellOnly)
+    }
+
+    fn render_with_caps(
+        data: &Viewport3DData,
+        w: u16,
+        h: u16,
+        caps: TransportCaps,
+    ) -> Terminal<TestBackend> {
         let backend = TestBackend::new(w, h);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal
-            .draw(|frame| render(frame.buffer_mut(), data, Rect::new(0, 0, w, h)))
+            .draw(|frame| render(frame.buffer_mut(), data, Rect::new(0, 0, w, h), caps))
             .unwrap();
         terminal
     }
@@ -639,21 +746,93 @@ mod tests {
     }
 
     #[test]
-    fn parse_render_mode_accepts_known() {
+    fn parse_render_mode_accepts_cell_modes() {
         assert!(matches!(
             parse_render_mode("half_block"),
-            Ok(RenderMode::HalfBlock)
+            Ok(ViewportMode::Cell(RenderMode::HalfBlock))
         ));
         assert!(matches!(
             parse_render_mode("braille"),
-            Ok(RenderMode::Braille)
+            Ok(ViewportMode::Cell(RenderMode::Braille))
         ));
-        assert!(matches!(parse_render_mode("ascii"), Ok(RenderMode::Ascii)));
+        assert!(matches!(
+            parse_render_mode("ascii"),
+            Ok(ViewportMode::Cell(RenderMode::Ascii))
+        ));
+    }
+
+    #[test]
+    fn parse_render_mode_accepts_pixel_modes() {
+        assert!(matches!(
+            parse_render_mode("auto"),
+            Ok(ViewportMode::Pixel(ProtocolKind::Auto))
+        ));
+        assert!(matches!(
+            parse_render_mode("kitty"),
+            Ok(ViewportMode::Pixel(ProtocolKind::Kitty))
+        ));
+        assert!(matches!(
+            parse_render_mode("sixel"),
+            Ok(ViewportMode::Pixel(ProtocolKind::Sixel))
+        ));
+        assert!(matches!(
+            parse_render_mode("iterm2"),
+            Ok(ViewportMode::Pixel(ProtocolKind::Iterm2))
+        ));
     }
 
     #[test]
     fn parse_render_mode_rejects_unknown() {
         assert!(parse_render_mode("wireframe").is_err());
+    }
+
+    #[test]
+    fn pixel_dims_uses_native_resolution_when_small() {
+        // 30x15 cells at 8x16 px = 240x240, under MAX_DIM.
+        assert_eq!(pixel_dims(Rect::new(0, 0, 30, 15), (8, 16)), (240, 240));
+    }
+
+    #[test]
+    fn pixel_dims_clamps_longest_side_to_max() {
+        // 400 cells * 8 px = 3200 wide, clamped to MAX_DIM (1280).
+        let (w, h) = pixel_dims(Rect::new(0, 0, 400, 50), (8, 16));
+        assert_eq!(w.max(h), MAX_DIM);
+        assert!(w >= 1 && h >= 1);
+    }
+
+    #[test]
+    fn framebuffer_to_image_maps_pixels() {
+        let mut fb = Framebuffer::new(2, 1);
+        fb.color[0] = Rgb(255, 0, 0);
+        fb.color[1] = Rgb(0, 255, 0);
+        let img = framebuffer_to_image(&fb).to_rgb8();
+        assert_eq!(img.dimensions(), (2, 1));
+        assert_eq!(img.get_pixel(0, 0).0, [255, 0, 0]);
+        assert_eq!(img.get_pixel(1, 0).0, [0, 255, 0]);
+    }
+
+    #[test]
+    fn pixel_mode_falls_back_to_cells_over_cell_only() {
+        let mut viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        viewport.mode = ViewportMode::Pixel(ProtocolKind::Auto);
+        let terminal = render_with_caps(&viewport, 30, 15, TransportCaps::CellOnly);
+        assert!(
+            has_colored_cell(&terminal),
+            "pixel mode over CellOnly should braille-render colored cells"
+        );
+    }
+
+    #[test]
+    fn pixel_mode_encodes_image_on_capable_terminal() {
+        let mut viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        viewport.mode = ViewportMode::Pixel(ProtocolKind::Auto);
+        let caps = TransportCaps::Local {
+            picker_protocol: ProtocolKind::Kitty,
+            font_size: (8, 16),
+        };
+        // Should encode without panicking and write into the buffer.
+        let terminal = render_with_caps(&viewport, 30, 15, caps);
+        assert!(!buffer_to_string(&terminal).is_empty());
     }
 
     #[test]

@@ -201,6 +201,29 @@ fn build_stateful_protocol(
     picker.new_resize_protocol(state.source.clone())
 }
 
+/// Encode an already-decoded image into `area` using a concrete graphics
+/// `protocol` (Kitty/Sixel/iTerm2 — `Halfblocks`/`Auto` are expected to be
+/// resolved away by the caller). `font_size` is the cell pixel size from the
+/// transport probe. Used by `Viewport3D` pixel rendering, which generates its
+/// image in-process rather than decoding consumer bytes.
+pub fn render_image_protocol(
+    buf: &mut Buffer,
+    area: Rect,
+    source: DynamicImage,
+    protocol: ProtocolKind,
+    font_size: (u16, u16),
+) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    #[allow(deprecated)]
+    let mut picker = Picker::from_fontsize(FontSize::from(font_size));
+    picker.set_protocol_type(to_protocol_type(protocol));
+    let mut stateful = picker.new_resize_protocol(source);
+    stateful.resize_encode_render(&Resize::Fit(None), area, buf);
+}
+
 #[rustler::nif]
 fn image_new(bytes: rustler::Binary, opts: ImageOpts) -> Result<ResourceArc<ImageResource>, Error> {
     let raw = bytes.as_slice();
