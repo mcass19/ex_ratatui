@@ -74,6 +74,27 @@ defmodule ExRatatui.Widgets.Viewport3DTest do
       assert :ok = ExRatatui.draw(terminal, [{widget, @rect}])
     end
 
+    test "renders a cylinder as visible geometry (winding faces outward)", %{terminal: terminal} do
+      scene = %Scene{
+        objects: [
+          %Object{
+            mesh: Mesh.cylinder(24),
+            material: %Material{color: {180, 180, 190}},
+            transform: %ExRatatui.ThreeD.Transform{scale: {2.0, 2.0, 2.0}}
+          }
+        ],
+        lights: [
+          Light.ambient({255, 255, 255}, 0.4),
+          Light.directional({0.0, 0.0, -1.0}, {255, 255, 255})
+        ]
+      }
+
+      widget = %Viewport3D{scene: scene, render_mode: :ascii}
+
+      assert :ok = ExRatatui.draw(terminal, [{widget, @rect}])
+      assert String.trim(ExRatatui.get_buffer_content(terminal)) != ""
+    end
+
     test "renders inside a block with a title", %{terminal: terminal} do
       widget = %Viewport3D{scene: cube_scene(), block: %Block{title: "Scene", borders: [:all]}}
 
