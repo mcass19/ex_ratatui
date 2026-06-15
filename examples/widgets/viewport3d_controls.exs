@@ -4,9 +4,12 @@
 # Controls:
 #   arrows  = orbit the camera
 #   i / o   = zoom in / out
-#   m       = cycle render mode (braille / half_block / ascii)
+#   m       = cycle render mode (auto / kitty / sixel / iterm2 / half_block / braille / ascii)
 #   p       = toggle pipeline (rasterize / raytrace)
 #   q       = quit
+#
+# Pixel modes (auto/kitty/sixel/iterm2) render crisp graphics on capable terminals
+# (Ghostty/WezTerm/Kitty) and fall back to braille elsewhere.
 #
 # Requires a true-color terminal. Camera movement is pure: each key event maps
 # to ExRatatui.ThreeD.Camera.orbit/3 or zoom/2 and stores the new camera.
@@ -18,14 +21,14 @@ defmodule Viewport3DControls do
   alias ExRatatui.ThreeD.{Camera, Light, Material, Mesh, Object, Scene}
   alias ExRatatui.Widgets.{Block, Paragraph, Viewport3D}
 
-  @modes [:braille, :half_block, :ascii]
+  @modes [:auto, :kitty, :sixel, :iterm2, :half_block, :braille, :ascii]
 
   @impl true
   def mount(_opts) do
     {:ok,
      %{
        camera: %Camera{position: {3.0, 2.5, 4.0}, target: {0.0, 0.0, 0.0}},
-       render_mode: :braille,
+       render_mode: :auto,
        pipeline: :rasterize
      }}
   end

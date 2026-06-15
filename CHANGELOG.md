@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Scene-graph for articulated models.** `ExRatatui.ThreeD.Node` composes a tree of local transforms and flattens to the flat `Scene` (`flatten/1`, `to_scene/2`), backed by `ExRatatui.ThreeD.Transform.compose/2`. Keep intermediate frames rigid and scale only leaf visuals, and every baked object stays a single `Transform`. See `examples/widgets/viewport3d_articulated.exs`.
 
+- **Pixel-graphics rendering for `Viewport3D`.** `render_mode` now also accepts terminal image protocols — `:auto` (the new default), `:kitty`, `:sixel`, `:iterm2` — rendering the scene as a true-resolution image (crisp, non-blocky) on capable terminals (Ghostty/WezTerm/Kitty), and automatically falling back to `:braille` over CellSession/Livebook, distributed/SSH without passthrough, or unsupported terminals. The cell-blit modes (`:half_block`, `:braille`, `:ascii`) remain available. Reuses the same protocol stack as `ExRatatui.Image`.
+
 ## [0.10.2] - 2026-06-12
 
 ### Added
