@@ -8,9 +8,9 @@ defmodule ExRatatui.Widgets.Viewport3DTest do
 
   doctest ExRatatui.Widgets.Viewport3D
 
-  test "defaults to a braille rasterized empty scene" do
+  test "defaults to an auto rasterized empty scene" do
     widget = %Viewport3D{}
-    assert widget.render_mode == :braille
+    assert widget.render_mode == :auto
     assert widget.pipeline == :rasterize
     assert widget.scene.objects == []
     assert widget.block == nil

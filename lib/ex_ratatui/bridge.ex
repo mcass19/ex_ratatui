@@ -1233,7 +1233,7 @@ defmodule ExRatatui.Bridge do
 
   # --- Viewport3D encoding -------------------------------------------------
 
-  @render_modes [:half_block, :braille, :ascii]
+  @render_modes [:auto, :kitty, :sixel, :iterm2, :half_block, :braille, :ascii]
   @pipelines [:rasterize, :raytrace]
 
   defp validate_render_mode!(mode) when mode in @render_modes, do: :ok

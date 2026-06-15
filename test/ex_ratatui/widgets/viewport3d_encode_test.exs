@@ -150,6 +150,13 @@ defmodule ExRatatui.Widgets.Viewport3DEncodeTest do
   end
 
   describe "validation" do
+    test "encodes every supported render mode as a string" do
+      for mode <- [:auto, :kitty, :sixel, :iterm2, :half_block, :braille, :ascii] do
+        wire = encode(%Viewport3D{render_mode: mode})
+        assert wire["render_mode"] == Atom.to_string(mode)
+      end
+    end
+
     test "rejects an unknown render mode" do
       assert_raise ArgumentError, ~r/render_mode/, fn ->
         encode(%Viewport3D{render_mode: :wireframe})
