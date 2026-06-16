@@ -28,8 +28,7 @@ export EX_RATATUI_BUILD=true
 mix compile
 ```
 
-The `EX_RATATUI_BUILD=true` env var tells the library to compile the Rust NIF
-from source instead of downloading a precompiled binary.
+The `EX_RATATUI_BUILD=true` env var tells the library to compile the Rust NIF from source instead of downloading a precompiled binary.
 
 ## Running Tests
 
