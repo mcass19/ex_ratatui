@@ -34,7 +34,7 @@
 use std::sync::Mutex;
 
 use ratatui::backend::TestBackend;
-use ratatui::buffer::{Buffer, Cell};
+use ratatui::buffer::{Buffer, Cell, CellDiffOption};
 use ratatui::layout::Rect;
 use ratatui::Terminal;
 
@@ -282,7 +282,7 @@ fn encode_cell<'a>(env: Env<'a>, x: u16, y: u16, cell: &Cell) -> Term<'a> {
     let fg = encode_color(env, cell.fg);
     let bg = encode_color(env, cell.bg);
     let mods = encode_modifiers(env, cell.modifier);
-    let skip = cell.skip;
+    let skip = cell.diff_option == CellDiffOption::Skip;
     (x, y, symbol, fg, bg, mods, skip).encode(env)
 }
 
