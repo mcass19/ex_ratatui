@@ -9,7 +9,9 @@
 # Requires a true-color terminal. `probe_image_protocol: true` runs the terminal
 # capability probe after init, so the default `:auto` mode renders crisp pixel
 # graphics scaled to the pane on capable terminals (Ghostty/WezTerm/Kitty) and
-# falls back to braille elsewhere.
+# falls back to braille elsewhere. The camera orbits every frame, and pixel modes
+# re-transmit the image each frame, so `:auto` may flicker on some terminals —
+# press `m` for `:braille` to smooth the motion (see the 3D guide).
 
 defmodule Viewport3DScene do
   use ExRatatui.App, runtime: :reducer

@@ -9,8 +9,12 @@
 # Requires a true-color terminal. `probe_image_protocol: true` runs the terminal
 # capability probe after init, so the default `:auto` mode renders crisp pixel
 # graphics scaled to the pane on capable terminals (Ghostty/WezTerm/Kitty) and
-# falls back to braille elsewhere. This is the path Phase B uses to build shapes
-# the engine has no primitive for (such as cylinders for an articulated model).
+# falls back to braille elsewhere. The pyramid spins every frame, and pixel modes
+# re-transmit the image each frame, so `:auto` may flicker on some terminals —
+# press `m` for `:braille` to smooth the motion (see the 3D guide).
+#
+# This is the path Phase B uses to build shapes the engine has no primitive for
+# (such as cylinders for an articulated model).
 
 defmodule Viewport3DCustomMesh do
   use ExRatatui.App, runtime: :reducer
