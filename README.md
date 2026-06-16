@@ -1,15 +1,22 @@
-# ExRatatui
+<p align="center">
+  <a href="https://github.com/mcass19/ex_ratatui">
+    <img src="https://raw.githubusercontent.com/mcass19/ex_ratatui/main/assets/logo_letters.png" alt="ExRatatui" width="480" />
+  </a>
+</p>
 
-[![Hex.pm](https://img.shields.io/hexpm/v/ex_ratatui.svg)](https://hex.pm/packages/ex_ratatui)
-[![Docs](https://img.shields.io/badge/hex-docs-blue)](https://hexdocs.pm/ex_ratatui)
-[![CI](https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml/badge.svg)](https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml)
-[![License](https://img.shields.io/hexpm/l/ex_ratatui.svg)](https://github.com/mcass19/ex_ratatui/blob/main/LICENSE)
+<p align="center">
+  Elixir bindings for the Rust <a href="https://ratatui.rs">ratatui</a> terminal UI library, via <a href="https://github.com/rustler-beam/rustler">Rustler</a> NIFs.<br />
+  Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, and styling system together with the BEAM superpowers.
+</p>
 
-Elixir bindings for the Rust [ratatui](https://ratatui.rs) terminal UI library, via [Rustler](https://github.com/rustler-beam/rustler) NIFs.
+<p align="center">
+  <a href="https://hex.pm/packages/ex_ratatui"><img src="https://img.shields.io/hexpm/v/ex_ratatui.svg" alt="Hex.pm" /></a>
+  <a href="https://hexdocs.pm/ex_ratatui"><img src="https://img.shields.io/badge/hex-docs-blue" alt="Docs" /></a>
+  <a href="https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml"><img src="https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/mcass19/ex_ratatui/blob/main/LICENSE"><img src="https://img.shields.io/hexpm/l/ex_ratatui.svg" alt="License" /></a>
+</p>
 
-Build rich terminal UIs in Elixir with ratatui's layout engine, widget library, and styling system together with the BEAM superpowers.
-
-![ExRatatui Demo](https://raw.githubusercontent.com/mcass19/ex_ratatui/main/assets/demo.gif)
+---
 
 ## Features
 

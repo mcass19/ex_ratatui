@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Project logo.** New logo assets under `assets/` (`logo` mark and `logo_letters` wordmark, each as SVG/PNG/JPG). The README header is now centered — logotype, then description, then badges — and the logo mark appears next to the project name in the hexdocs sidebar (via the ex_doc `:logo` option, which ships `assets/logo.png` in the Hex package).
+
 ## [0.10.2] - 2026-06-12
 
 ### Added
