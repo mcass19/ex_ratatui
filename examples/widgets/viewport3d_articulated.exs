@@ -4,9 +4,14 @@
 # `Transform.compose/2`.
 # Run with: mix run examples/widgets/viewport3d_articulated.exs
 #
-# Controls: q = quit
+# Controls:
+#   m = cycle render mode (auto / kitty / sixel / iterm2 / half_block / braille / ascii)
+#   q = quit
 #
-# Requires a true-color terminal.
+# Requires a true-color terminal. `probe_image_protocol: true` runs the terminal
+# capability probe after init, so the default `:auto` mode renders crisp pixel
+# graphics scaled to the pane on capable terminals (Ghostty/WezTerm/Kitty) and
+# falls back to braille elsewhere.
 
 defmodule Viewport3DArticulated do
   use ExRatatui.App, runtime: :reducer
@@ -15,9 +20,17 @@ defmodule Viewport3DArticulated do
   alias ExRatatui.ThreeD.{Camera, Light, Material, Mesh, Node, Object, Transform}
   alias ExRatatui.Widgets.{Block, Paragraph, Viewport3D}
 
+  @modes [:auto, :kitty, :sixel, :iterm2, :half_block, :braille, :ascii]
+
   @impl true
   def init(_opts),
-    do: {:ok, %{t: 0.0, camera: %Camera{position: {2.2, 1.8, 2.6}, target: {0.0, 0.6, 0.0}}}}
+    do:
+      {:ok,
+       %{
+         t: 0.0,
+         camera: %Camera{position: {2.2, 1.8, 2.6}, target: {0.0, 0.6, 0.0}},
+         render_mode: :auto
+       }, probe_image_protocol: true}
 
   @impl true
   def render(state, frame) do
@@ -78,21 +91,24 @@ defmodule Viewport3DArticulated do
     viewport = %Viewport3D{
       scene: scene,
       camera: state.camera,
-      render_mode: :half_block,
+      render_mode: state.render_mode,
       block: %Block{
-        title: " Viewport3D — articulated arm (scene-graph) ",
+        title: " Viewport3D — articulated arm (scene-graph)   mode: #{state.render_mode} ",
         borders: [:all],
         border_type: :rounded,
         border_style: %Style{fg: :cyan}
       }
     }
 
-    help = %Paragraph{text: "  q = quit", style: %Style{fg: :dark_gray}}
+    help = %Paragraph{text: "  m = mode   q = quit", style: %Style{fg: :dark_gray}}
     [{viewport, scene_area}, {help, help_area}]
   end
 
   @impl true
   def update({:event, %Event.Key{code: "q", kind: "press"}}, state), do: {:stop, state}
+
+  def update({:event, %Event.Key{code: "m", kind: "press"}}, state),
+    do: {:noreply, %{state | render_mode: next_mode(state.render_mode)}}
 
   def update({:info, :tick}, state) do
     {:noreply, %{state | t: state.t + 0.04, camera: Camera.orbit(state.camera, 0.01, 0.0)}}
@@ -102,6 +118,11 @@ defmodule Viewport3DArticulated do
 
   @impl true
   def subscriptions(_state), do: [Subscription.interval(:tick, 33, :tick)]
+
+  defp next_mode(mode) do
+    index = Enum.find_index(@modes, &(&1 == mode))
+    Enum.at(@modes, rem(index + 1, length(@modes)))
+  end
 end
 
 {:ok, pid} = Viewport3DArticulated.start_link(name: nil)

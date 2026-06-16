@@ -8,8 +8,10 @@
 #   p       = toggle pipeline (rasterize / raytrace)
 #   q       = quit
 #
-# Pixel modes (auto/kitty/sixel/iterm2) render crisp graphics on capable terminals
-# (Ghostty/WezTerm/Kitty) and fall back to braille elsewhere.
+# Pixel modes (auto/kitty/sixel/iterm2) render crisp graphics scaled to the pane
+# on capable terminals (Ghostty/WezTerm/Kitty) and fall back to braille elsewhere.
+# `probe_image_protocol: true` runs the terminal capability probe after mount so
+# the default `:auto` mode resolves to the detected protocol.
 #
 # Requires a true-color terminal. Camera movement is pure: each key event maps
 # to ExRatatui.ThreeD.Camera.orbit/3 or zoom/2 and stores the new camera.
@@ -30,7 +32,7 @@ defmodule Viewport3DControls do
        camera: %Camera{position: {3.0, 2.5, 4.0}, target: {0.0, 0.0, 0.0}},
        render_mode: :auto,
        pipeline: :rasterize
-     }}
+     }, probe_image_protocol: true}
   end
 
   @impl true
