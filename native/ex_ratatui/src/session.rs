@@ -17,8 +17,9 @@
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use ratatui::backend::CrosstermBackend;
-use ratatui::layout::Rect;
+use ratatui::backend::{Backend, ClearType, CrosstermBackend, WindowSize};
+use ratatui::buffer::Cell;
+use ratatui::layout::{Position, Rect, Size};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use rustler::{Atom, Binary, Env, Error, OwnedBinary, Resource, ResourceArc, Term};
@@ -89,6 +90,95 @@ impl Write for SharedWriter {
     }
 }
 
+/// A [`Backend`] that wraps [`CrosstermBackend`] but answers size queries from
+/// a cached value instead of probing the host tty.
+///
+/// ratatui's fixed-viewport [`Terminal::resize`] path clears the viewport via
+/// `Backend::size` to choose the cheapest clear strategy.
+/// `CrosstermBackend::size` delegates to `crossterm::terminal::size()`, which
+/// ioctls the real terminal. Under the BEAM — and in CI, where the test
+/// binary's stdout is a pipe rather than a tty — that query fails, surfacing
+/// as `session resize: Resource temporarily unavailable (os error 11)`. A
+/// session owns its dimensions (the transport dictates them), so there is
+/// never a reason to ask the OS. We answer `size`/`window_size` from the
+/// cached value and delegate every other method straight through to
+/// crossterm, which only ever writes ANSI into the `SharedWriter`.
+pub(crate) struct FixedSizeBackend {
+    inner: CrosstermBackend<SharedWriter>,
+    size: Size,
+}
+
+impl FixedSizeBackend {
+    fn new(inner: CrosstermBackend<SharedWriter>, size: Size) -> Self {
+        Self { inner, size }
+    }
+
+    /// Updates the cached size. Called from [`SessionResource::resize`] before
+    /// the underlying `Terminal::resize` so the clear path sees the new
+    /// dimensions and takes the full-viewport fast path.
+    fn set_size(&mut self, size: Size) {
+        self.size = size;
+    }
+}
+
+impl Backend for FixedSizeBackend {
+    type Error = io::Error;
+
+    fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)>,
+    {
+        self.inner.draw(content)
+    }
+
+    fn append_lines(&mut self, n: u16) -> io::Result<()> {
+        self.inner.append_lines(n)
+    }
+
+    fn hide_cursor(&mut self) -> io::Result<()> {
+        self.inner.hide_cursor()
+    }
+
+    fn show_cursor(&mut self) -> io::Result<()> {
+        self.inner.show_cursor()
+    }
+
+    fn get_cursor_position(&mut self) -> io::Result<Position> {
+        self.inner.get_cursor_position()
+    }
+
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
+        self.inner.set_cursor_position(position)
+    }
+
+    fn clear(&mut self) -> io::Result<()> {
+        self.inner.clear()
+    }
+
+    fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
+        self.inner.clear_region(clear_type)
+    }
+
+    /// Answered from the cached session size — never queries the host tty.
+    fn size(&self) -> io::Result<Size> {
+        Ok(self.size)
+    }
+
+    /// Answered from the cached session size. Pixel dimensions are reported as
+    /// zero; the image render path uses the explicitly-configured font size
+    /// rather than probing the terminal.
+    fn window_size(&mut self) -> io::Result<WindowSize> {
+        Ok(WindowSize {
+            columns_rows: self.size,
+            pixels: Size::new(0, 0),
+        })
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Backend::flush(&mut self.inner)
+    }
+}
+
 /// Per-session resource. Holds its own terminal, writer, input parser
 /// and current size. Protected by coarse mutexes because all NIF entry
 /// points are short-running and the contention per session is effectively
@@ -99,7 +189,7 @@ impl Write for SharedWriter {
 /// without waiting for the BEAM garbage collector. Subsequent operations on
 /// a closed session surface a clear error instead of panicking.
 pub struct SessionResource {
-    pub(crate) terminal: Mutex<Option<Terminal<CrosstermBackend<SharedWriter>>>>,
+    pub(crate) terminal: Mutex<Option<Terminal<FixedSizeBackend>>>,
     pub(crate) writer: SharedWriter,
     pub(crate) input: Mutex<InputParser>,
     pub(crate) size: Mutex<(u16, u16)>,
@@ -128,18 +218,24 @@ impl SessionResource {
     /// Rustler resource registry (which is only initialised at NIF load time).
     ///
     /// The underlying ratatui `Terminal` is built with a [`Viewport::Fixed`]
-    /// viewport so it never calls `CrosstermBackend::size()` — that function
-    /// would otherwise query the host tty via `crossterm::terminal::size()`,
-    /// which fails under the BEAM (and fundamentally violates the whole
-    /// "transport controls the size" contract). A fixed viewport also means
-    /// autoresize is a no-op during draws, so concurrent sessions can never
-    /// drift into the host's terminal dimensions.
+    /// viewport so autoresize is a no-op during draws, and its backend is a
+    /// [`FixedSizeBackend`] so size queries are answered from the cached
+    /// session dimensions rather than `crossterm::terminal::size()` (which
+    /// ioctls the host tty, fails under the BEAM, and fundamentally violates
+    /// the "transport controls the size" contract). Together these keep
+    /// concurrent sessions from ever drifting into — or choking on — the
+    /// host's terminal dimensions. The fixed-viewport `resize` path reaches
+    /// `Backend::size` while clearing, so the backend override is what makes
+    /// resize safe off a tty, not the viewport choice alone.
     ///
     /// No OS-level state is touched — no raw mode, no alt screen, no signal
     /// handlers.
     pub fn new(width: u16, height: u16) -> Result<Self, String> {
         let writer = SharedWriter::new();
-        let backend = CrosstermBackend::new(writer.clone());
+        let backend = FixedSizeBackend::new(
+            CrosstermBackend::new(writer.clone()),
+            Size::new(width, height),
+        );
         let options = TerminalOptions {
             viewport: Viewport::Fixed(Rect::new(0, 0, width, height)),
         };
@@ -241,6 +337,10 @@ impl SessionResource {
             .as_mut()
             .ok_or_else(|| "session is closed".to_string())?;
 
+        // Update the backend's cached size first so the clear-on-resize path
+        // (which reads `Backend::size`) sees the new dimensions and takes the
+        // full-viewport fast path instead of probing the tty.
+        terminal.backend_mut().set_size(Size::new(width, height));
         terminal
             .resize(Rect::new(0, 0, width, height))
             .map_err(|e| format!("session resize: {e}"))?;
@@ -554,6 +654,32 @@ mod tests {
         let result = session.resize(40, 10);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("closed"));
+    }
+
+    #[test]
+    fn fixed_size_backend_answers_size_from_cache_not_the_tty() {
+        // Regression: the fixed-viewport resize path reads `Backend::size`
+        // while clearing. If that delegated to `crossterm::terminal::size()`
+        // it would ioctl the host tty and fail off a real terminal (e.g. CI,
+        // where stdout is a pipe) with EAGAIN. The backend must answer from
+        // its cached dimensions, and `set_size` must update them.
+        let mut backend =
+            FixedSizeBackend::new(CrosstermBackend::new(SharedWriter::new()), Size::new(20, 5));
+        assert_eq!(backend.size().unwrap(), Size::new(20, 5));
+        assert_eq!(
+            backend.window_size().unwrap(),
+            WindowSize {
+                columns_rows: Size::new(20, 5),
+                pixels: Size::new(0, 0),
+            }
+        );
+
+        backend.set_size(Size::new(40, 10));
+        assert_eq!(backend.size().unwrap(), Size::new(40, 10));
+        assert_eq!(
+            backend.window_size().unwrap().columns_rows,
+            Size::new(40, 10)
+        );
     }
 
     #[test]
