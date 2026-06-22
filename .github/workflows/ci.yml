@@ -82,7 +82,16 @@ jobs:
 
       - name: Run cargo tests
         if: ${{ ! matrix.lint }}
-        run: cargo test --manifest-path native/ex_ratatui/Cargo.toml
+        # Run with no controlling terminal and no TERM so the SessionResource
+        # tests fail loudly if anything in the session path ever queries the
+        # host tty. A session is decoupled from the OS terminal. !uerying it
+        # (e.g. crossterm's `terminal::size()`) fails off a tty, which is exactly
+        # the regression `FixedSizeBackend` guards against in src/session.rs.
+        # The pieces: `setsid -w` drops the controlling tty (so crossterm can't
+        # open /dev/tty) and waits to propagate the exit code; stdin from /dev/null
+        # and unset TERM defeat the remaining fallbacks (stdout ioctl on a pipe,
+        # then `tput cols`/`tput lines`).
+        run: env -u TERM setsid -w cargo test --manifest-path native/ex_ratatui/Cargo.toml < /dev/null
 
       - run: mix test --cover
         if: ${{ matrix.lint }}
