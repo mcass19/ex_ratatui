@@ -27,6 +27,7 @@ Local transport:
   Supervisor
   └── Server (GenServer)
         ├── owns terminal reference (NIF)
+        ├── parks the BEAM's tty reader so crossterm owns local input
         ├── polls events on DirtyIo scheduler
         └── calls the app's mount/render/handle_event
 

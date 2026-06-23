@@ -173,6 +173,15 @@ defmodule ExRatatui do
         # TUI loop here
       end)
 
+  For the duration of the run, the BEAM's own terminal reader is parked
+  so the Rust/crossterm poll path owns local input exclusively — this is
+  what keeps keystrokes from being dropped under fast typing when running
+  inside `iex`, a script, or a shell-attached release. The reader resumes
+  on exit. The
+  [Debugging guide](debugging.html#dropped-keystrokes-or-missing-characters)
+  covers the mechanism and the `config :ex_ratatui, detach_local_input: false`
+  opt-out.
+
   ## Options
 
     * `:focus_events` — enable terminal-window focus reporting

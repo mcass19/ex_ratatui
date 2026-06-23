@@ -27,6 +27,7 @@ The runtime loop, four ways — from a raw render/poll loop to the supervised ru
 | [`counter.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/counter.exs) | `mix run examples/basics/counter.exs` | Same loop plus key events. Up/Down keys mutate a counter; shows the render/poll cycle without `ExRatatui.App`. |
 | [`counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/counter_app.exs) | `mix run examples/basics/counter_app.exs` | The same counter, this time as a supervised `ExRatatui.App` with `mount/1`, `render/2`, `handle_event/2`. The typical starting point for real apps. |
 | [`reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/reducer_counter_app.exs) | `mix run examples/basics/reducer_counter_app.exs` | Counter on the reducer runtime. Demonstrates `init/1` + `update/2`, a 1-second `Subscription.interval`, and `render?: false` for tick bookkeeping. |
+| [`echo_chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/echo_chat.exs) | `mix run examples/basics/echo_chat.exs` | A raw render/poll loop that echoes typed lines into a transcript. A plain per-keystroke input buffer — the input-fidelity stress test for fast typing — that stays lossless thanks to the `:local` input handoff (see the [Debugging guide](https://hexdocs.pm/ex_ratatui/debugging.html#dropped-keystrokes-or-missing-characters)). |
 
 ## Widgets
 

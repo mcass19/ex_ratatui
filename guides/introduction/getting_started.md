@@ -99,16 +99,16 @@ You should see a rounded box with a green centered message. Press any key to ret
 
 If instead you get `terminal_init_failed`, you're likely in a non-TTY shell (IDE terminal, background process, piped stdin). Run from a real terminal emulator — see the [Debugging guide](../internals/debugging.md) for more.
 
-> #### A note on IEx and input {: .warning}
+> #### A note on IEx and input {: .tip}
 >
-> Running under `iex -S mix` is the quickest way to try a TUI, and it's fine for light interaction like the demos in this guide. But the IEx shell and the TUI both read the terminal's stdin, and under fast or sustained typing the shell can swallow keystrokes before they reach the app — dropped characters in a text field, missed key repeats. For input-heavy apps (text entry, chat, rapid navigation), run outside the interactive shell, where nothing else is reading stdin:
+> `iex -S mix` is the quickest way to try a TUI. The IEx shell and the TUI both read the terminal, but on a `:local` transport ExRatatui parks the shell's reader for the duration of a run and resumes it on exit, so crossterm sees every keystroke and the shell prompt returns untouched when the TUI quits. Input-heavy apps — text entry, chat, rapid navigation — run cleanly under `iex`, and so do standalone scripts, `mix run`, releases, and the SSH / Erlang-distribution transports.
 >
 > ```sh
 > mix run -e "Hello.run()"   # one-shot, inside a project
 > elixir my_app.exs          # a standalone Mix.install script
 > ```
 >
-> Releases, escripts, and the SSH / Erlang-distribution transports don't share stdin with a shell either, so the same apps run cleanly there. See [Dropped keystrokes under fast typing](../internals/debugging.md#dropped-keystrokes-or-missing-characters) in the Debugging guide for the underlying cause.
+> See [Dropped keystrokes under fast typing](../internals/debugging.md#dropped-keystrokes-or-missing-characters) in the Debugging guide for the mechanism and the opt-out.
 
 ## Your first render
 

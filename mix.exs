@@ -150,6 +150,7 @@ defmodule ExRatatui.MixProject do
       groups_for_modules: [
         Core: [
           ExRatatui,
+          ExRatatui.LocalInput,
           ExRatatui.Session,
           ExRatatui.CellSession,
           ExRatatui.CellSession.Cell,

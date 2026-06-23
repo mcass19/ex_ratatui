@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dropped keystrokes under fast typing on the `:local` transport.** crossterm (in the NIF) reads the controlling terminal directly, but the BEAM keeps its own reader on the same device — the OTP 26+ `prim_tty` reader process (`:user_drv_reader`) that backs `iex`, `elixir script.exs`, `mix run`, and shell-attached releases. Two readers on one terminal means the kernel splits keystroke bytes between them, so under sustained input some bytes were swallowed before reaching the app (more readily on macOS). `ExRatatui.run/2` and the local `ExRatatui.App` server now park that reader for the duration of a session — using `prim_tty`'s own SIGTSTP `disable`/`enable` handoff, the same mechanism the shell uses on Ctrl-Z — so crossterm owns input exclusively, then resume it on teardown so the shell returns intact (termios stays raw throughout; nothing is left in cooked mode). The handoff is a no-op when there is no such reader (older OTP, a release booted with `-noinput`, or piped stdin) and on the session/SSH/distributed transports, which never share a local terminal. Opt out with `config :ex_ratatui, detach_local_input: false`.
+
 ## [0.11.0] - 2026-06-16
 
 ### Added
