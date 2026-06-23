@@ -8,6 +8,7 @@ defmodule ExRatatui.Server do
   alias ExRatatui.CellSession
   alias ExRatatui.Command
   alias ExRatatui.Frame
+  alias ExRatatui.LocalInput
   alias ExRatatui.Native
   alias ExRatatui.Session
   alias ExRatatui.Subscription
@@ -40,7 +41,8 @@ defmodule ExRatatui.Server do
     active_async_commands: 0,
     transport: :local,
     poll_interval: 16,
-    terminal_initialized: false
+    terminal_initialized: false,
+    local_input: :not_detached
   ]
 
   @subscription_message :__ex_ratatui_subscription_tick__
@@ -133,7 +135,10 @@ defmodule ExRatatui.Server do
           terminal_size_fn: terminal_size_fn,
           task_supervisor: Keyword.fetch!(opts, :task_supervisor),
           terminal_initialized: true,
-          runtime_mode: runtime_mode(mod)
+          runtime_mode: runtime_mode(mod),
+          # Hand local input off to crossterm for the session; resumed in
+          # terminate/2. See ExRatatui.LocalInput.
+          local_input: LocalInput.detach()
         }
 
         # Mount-time probe — only honored on :local transport (other
@@ -506,6 +511,7 @@ defmodule ExRatatui.Server do
   def terminate(reason, %__MODULE__{transport: :local, terminal_initialized: true} = state) do
     cancel_subscription_timers(state)
     restore_terminal(state.terminal_ref)
+    LocalInput.reattach(state.local_input)
     state.mod.terminate(reason, state.user_state)
     emit_transport_disconnect(state, reason)
     :ok

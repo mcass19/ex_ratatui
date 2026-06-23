@@ -97,6 +97,7 @@ defmodule ExRatatui do
 
   alias ExRatatui.Event
   alias ExRatatui.Layout.Rect
+  alias ExRatatui.LocalInput
   alias ExRatatui.Native
 
   alias ExRatatui.Widgets.{
@@ -202,9 +203,16 @@ defmodule ExRatatui do
 
   @doc false
   def execute_with_terminal(terminal_ref, fun) do
-    fun.(terminal_ref)
-  after
-    safe_restore_terminal(terminal_ref)
+    # Park the BEAM's tty reader so crossterm owns local input exclusively;
+    # resume it once we've handed the terminal back. See ExRatatui.LocalInput.
+    input = LocalInput.detach()
+
+    try do
+      fun.(terminal_ref)
+    after
+      safe_restore_terminal(terminal_ref)
+      LocalInput.reattach(input)
+    end
   end
 
   @doc false
