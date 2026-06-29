@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         if: ${{ ! matrix.lint }}
         with:
           path: |
@@ -36,13 +36,13 @@ jobs:
             deps
           key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.erlang }}-${{ hashFiles('mix.lock') }}
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         if: ${{ matrix.lint }}
         with:
           path: plts
           key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.erlang }}-${{ hashFiles('mix.lock') }}-plt
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -108,14 +108,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: |
             _build
             deps
           key: ${{ runner.os }}-extras-1.20-29.0.2-${{ hashFiles('mix.lock') }}
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
