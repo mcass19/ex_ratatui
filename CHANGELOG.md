@@ -6,9 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-07-31
+
 ### Fixed
 
 - **`{:fill, weight}` column widths now work on `Table` and `Chart`.** `Constraint::Fill` shipped for `ExRatatui.Layout.split/4`, but `Table` `:widths` and `Chart` `:hidden_legend_constraints` ran through a second, private constraint encoder in the internal bridge layer that never learned the `:fill` shape — so `[{:length, 8}, {:fill, 1}]` widths raised `ArgumentError: invalid layout constraint` deep inside `draw/2` (after `render/2` had already returned), which can freeze an app whose render loop does not expect that path to throw. Both call sites now route through `ExRatatui.Layout.encode_constraint/1`, making it the genuine single source of truth for every constraint shape (it gained a friendly `ArgumentError` for unknown shapes, matching the previous message). `Table` column widths and `Chart` legend constraints accept the full set — `:length`, `:percentage`, `:min`, `:max`, `:ratio`, and `{:fill, weight}`.
+
+### Changed
+
+- **Vendored Rust dependencies bumped.** `ratatui-image` 11.0.5 → 11.0.6, `tui-markdown` 0.3.7 → 0.3.9, and `time` 0.3.51 → 0.3.54 (with `time-macros` 0.2.32). These compile into the precompiled NIF, so every consumer picks them up with this release regardless of their own lock — the first two sit on the `ExRatatui.Image` and `ExRatatui.Widgets.Markdown` rendering paths.
+
+- **Documented the supported OTP range and the OTP 29 gap.** Precompiled binaries cover NIF ABI 2.16 (OTP 26) and 2.17 (OTP 27/28). OTP 29 raised the ABI to 2.18, which the latest `rustler_precompiled` release (0.9.0) does not yet allow, so running there requires the Rust toolchain and `EX_RATATUI_BUILD=true` to build from source. CI now exercises Elixir 1.20 / OTP 29.0.2 that way.
+
+- Added `caudata`, `ex_athena`, `beamcore`, `extop`, and `phoenix_gen_api_tui` to the README's *Built with* section.
 
 ## [0.11.1] - 2026-06-24
 
@@ -520,7 +530,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/mcass19/ex_ratatui/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/mcass19/ex_ratatui/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/mcass19/ex_ratatui/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/mcass19/ex_ratatui/compare/v0.10.1...v0.10.2
