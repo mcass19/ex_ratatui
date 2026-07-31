@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Corrected the OTP 29 note in the README.** It claimed OTP 29 had no precompiled binary and required the Rust toolchain plus `EX_RATATUI_BUILD=true`. Not so: the NIF ABI is backward compatible and `rustler_precompiled` selects the highest available version at or below the current one, so OTP 29 (NIF 2.18) loads the published 2.17 binary with no Rust toolchain. Only publishing a *native* 2.18 artifact is still pending upstream support. The 0.11.2 entry below carried the same error and has been corrected in place — no behaviour changed, only its description.
+
 ## [0.11.2] - 2026-07-31
 
 ### Fixed
@@ -16,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Vendored Rust dependencies bumped.** `ratatui-image` 11.0.5 → 11.0.6, `tui-markdown` 0.3.7 → 0.3.9, and `time` 0.3.51 → 0.3.54 (with `time-macros` 0.2.32). These compile into the precompiled NIF, so every consumer picks them up with this release regardless of their own lock — the first two sit on the `ExRatatui.Image` and `ExRatatui.Widgets.Markdown` rendering paths.
 
-- **Documented the supported OTP range and the OTP 29 gap.** Precompiled binaries cover NIF ABI 2.16 (OTP 26) and 2.17 (OTP 27/28). OTP 29 raised the ABI to 2.18, which the latest `rustler_precompiled` release (0.9.0) does not yet allow, so running there requires the Rust toolchain and `EX_RATATUI_BUILD=true` to build from source. CI now exercises Elixir 1.20 / OTP 29.0.2 that way.
+- **Documented the supported OTP range.** Precompiled binaries cover NIF ABI 2.16 (OTP 26) and 2.17 (OTP 27/28). OTP 29 raised the ABI to 2.18, but the NIF ABI is backward compatible and `rustler_precompiled` selects the highest available version at or below the current one — so OTP 29 loads the 2.17 binary with no Rust toolchain required. Publishing a native 2.18 artifact is still pending upstream `rustler_precompiled` support. CI now covers Elixir 1.20 / OTP 29.0.2.
 
 - Added `caudata`, `ex_athena`, `beamcore`, `extop`, and `phoenix_gen_api_tui` to the README's *Built with* section.
 
