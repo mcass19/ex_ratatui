@@ -36,6 +36,7 @@ defmodule ExRatatui.SSH.IntegrationTest do
     def mount(opts) do
       test_pid = Keyword.fetch!(opts, :test_pid)
       send(test_pid, {:mounted, self()})
+      send(test_pid, {:ssh_user, opts[:ssh_user]})
       {:ok, %{test_pid: test_pid}}
     end
 
@@ -103,6 +104,11 @@ defmodule ExRatatui.SSH.IntegrationTest do
     # channel's linked ExRatatui.Server boots.
     assert_receive {:mounted, server_pid}, 2000
     assert is_pid(server_pid)
+
+    # The username from the real SSH handshake reaches mount/1 — this
+    # is the only coverage of the default `:ssh.connection_info/2`
+    # user_fn; the unit tests all inject a fake.
+    assert_receive {:ssh_user, "alice"}, 2000
 
     # The server does an initial render synchronously inside init/1
     # (via continue_init_ssh/3), which flushes bytes through the

@@ -127,6 +127,7 @@ defmodule ExRatatui.SSH do
   @default_sender &:ssh_connection.send/3
   @default_replier &:ssh_connection.reply_request/4
   @default_starter &ExRatatui.Server.start_link/1
+  @default_user_fn &:ssh.connection_info/2
 
   # Switch the client into the alternate screen buffer and hide the
   # cursor before the first frame lands. The in-memory `Session`
@@ -178,6 +179,7 @@ defmodule ExRatatui.SSH do
     :sender,
     :replier,
     :starter,
+    :user_fn,
     image_protocol: nil,
     image_font_size: nil,
     rendering: false,
@@ -195,6 +197,7 @@ defmodule ExRatatui.SSH do
           sender: (term(), non_neg_integer(), iodata() -> :ok | {:error, term()}),
           replier: (term(), boolean(), :success | :failure, non_neg_integer() -> :ok),
           starter: (keyword() -> {:ok, pid()} | {:error, term()}),
+          user_fn: (term(), [atom()] -> keyword()),
           image_protocol: ExRatatui.Image.protocol() | nil,
           image_font_size: {pos_integer(), pos_integer()} | nil,
           rendering: boolean(),
@@ -236,6 +239,7 @@ defmodule ExRatatui.SSH do
     sender = Keyword.get(args, :sender, @default_sender)
     replier = Keyword.get(args, :replier, @default_replier)
     starter = Keyword.get(args, :starter, @default_starter)
+    user_fn = Keyword.get(args, :user_fn, @default_user_fn)
     subsystem_mode = Keyword.get(args, :subsystem, false)
     image_protocol = Keyword.get(args, :image_protocol)
     image_font_size = Keyword.get(args, :image_font_size)
@@ -246,6 +250,7 @@ defmodule ExRatatui.SSH do
       sender: sender,
       replier: replier,
       starter: starter,
+      user_fn: user_fn,
       subsystem_mode: subsystem_mode,
       image_protocol: image_protocol,
       image_font_size: image_font_size
@@ -482,6 +487,7 @@ defmodule ExRatatui.SSH do
       |> Keyword.put(:mod, state.mod)
       |> Keyword.put(:name, nil)
       |> Keyword.put(:transport, {:session, state.session, writer_fn})
+      |> put_ssh_user(state)
 
     # Write the alt-screen+hide-cursor prelude BEFORE starting the
     # server so the bytes are queued on the SSH channel ahead of any
@@ -501,6 +507,20 @@ defmodule ExRatatui.SSH do
         _ = state.sender.(state.conn, state.channel_id, @leave_screen)
         error
     end
+  end
+
+  # The authenticated username, as sent in the SSH handshake. Present
+  # under `no_auth_needed: true` too — the username is part of the
+  # protocol, not of authentication. Any failure (a conn that died
+  # mid-handshake, a fake conn in unit tests) leaves the key out
+  # rather than taking the channel down before the app starts.
+  defp put_ssh_user(opts, %__MODULE__{conn: conn, user_fn: user_fn}) do
+    case user_fn.(conn, [:user]) do
+      [user: user] when is_list(user) -> Keyword.put(opts, :ssh_user, List.to_string(user))
+      _ -> opts
+    end
+  catch
+    _kind, _reason -> opts
   end
 
   @doc false

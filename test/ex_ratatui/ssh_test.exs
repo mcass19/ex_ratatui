@@ -87,6 +87,7 @@ defmodule ExRatatui.SSHTest do
       assert state.sender == (&:ssh_connection.send/3)
       assert state.replier == (&:ssh_connection.reply_request/4)
       assert state.starter == (&ExRatatui.Server.start_link/1)
+      assert state.user_fn == (&:ssh.connection_info/2)
     end
 
     test "defaults subsystem_mode to false" do
@@ -790,6 +791,51 @@ defmodule ExRatatui.SSHTest do
       # so the client's terminal switches to the alt buffer before any
       # render frames arrive.
       assert_receive {:sent, :conn, _, @enter_screen}
+
+      Session.close(state.session)
+    end
+
+    test "merges the connection's username into the mount opts as ssh_user" do
+      test_pid = self()
+
+      state =
+        build_state(
+          starter: fn opts ->
+            send(test_pid, {:got_opts, opts})
+            {:ok, self()}
+          end,
+          user_fn: fn :conn, [:user] -> [user: ~c"alice"] end
+        )
+        |> prime_with_pty(80, 24)
+
+      {:ok, _} = SSH.start_server(state)
+
+      assert_receive {:got_opts, opts}
+      assert opts[:ssh_user] == "alice"
+
+      Session.close(state.session)
+    end
+
+    test "omits ssh_user when the connection cannot report one" do
+      test_pid = self()
+
+      # A conn that died mid-handshake (or the fake conn atoms the rest
+      # of this file passes) must degrade to no key, never crash the
+      # channel before the app is started.
+      state =
+        build_state(
+          starter: fn opts ->
+            send(test_pid, {:got_opts, opts})
+            {:ok, self()}
+          end,
+          user_fn: fn _conn, _keys -> raise ArgumentError, "dead conn" end
+        )
+        |> prime_with_pty(80, 24)
+
+      {:ok, _} = SSH.start_server(state)
+
+      assert_receive {:got_opts, opts}
+      refute Keyword.has_key?(opts, :ssh_user)
 
       Session.close(state.session)
     end

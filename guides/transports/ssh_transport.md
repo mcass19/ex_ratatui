@@ -238,6 +238,23 @@ Clients won't see host-key warnings between restarts since the key persists. **A
 
 `:app_opts` on the daemon reaches every connected client's `mount/1`, and the same module can be supervised under several transports at once — both are covered once in [One app, many transports](transports.md#one-app-many-transports).
 
+### `ssh_user` — who is on the other end
+
+`:app_opts` is static and shared by every connection. One opt differs per client: `:ssh_user`, the username from the SSH handshake, injected by the channel into that connection's `mount/1` opts.
+
+```elixir
+@impl true
+def mount(opts) do
+  {:ok, %{greeting: "hello, #{opts[:ssh_user] || "stranger"}"}}
+end
+```
+
+The username arrives under `no_auth_needed: true` as well — it travels in the protocol handshake, not in authentication, so a daemon that asks for no credentials still learns what name the client offered. That makes it a natural per-session identity for public or demo daemons, where each client picks its own name with `ssh alice@host`.
+
+Treat it as user input, not as an identity: under `no_auth_needed` anyone can claim any name, and even with authentication a daemon configured with one shared account (`user_passwords: [{~c"admin", ~c"admin"}]`) reports the same `ssh_user` for everybody. Sanitize before display, and never use it for authorization on its own.
+
+The key is absent when the connection cannot report a username (a client that vanished mid-handshake, for example), so always match with a fallback rather than `Keyword.fetch!/2`.
+
 ## Testing
 
 ### Unit tests
