@@ -4,6 +4,11 @@ rustflags = [
     "-C", "link-arg=dynamic_lookup",
 ]
 
+# -crt-static: a cdylib cannot link with crt-static on musl
+# (rust-lang/rust#59302). With it off, rustc links the unwinder as
+# -lgcc_s, which stock musl systems cannot satisfy; build.rs shadows
+# that lookup with a static archive so the artifact stays
+# self-contained (issue #83).
 [target.x86_64-unknown-linux-musl]
 rustflags = [
     "-C", "target-feature=-crt-static",
