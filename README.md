@@ -63,6 +63,8 @@ A precompiled NIF binary for the host platform is downloaded automatically. The 
 
 Precompiled NIF binaries are available for Linux (x86_64, aarch64, armv6/hf, riscv64), macOS (x86_64, aarch64), and Windows (x86_64), covering NIF ABI versions 2.16 (OTP 26) and 2.17 (OTP 27/28) — no Rust toolchain needed. OTP 29 raised the ABI to 2.18; since the NIF ABI is backward compatible, OTP 29 loads the 2.17 binary and also needs no Rust toolchain. A native 2.18 build is pending `rustler_precompiled` support upstream.
 
+On musl systems (Alpine, single-binary [Burrito](https://github.com/burrito-elixir/burrito) payloads, Nerves-style rootfs): the `*-unknown-linux-musl` artifacts published up to v0.11.2 dynamically link `libgcc_s.so.1`, which stock musl systems do not ship — `apk add libgcc` fixes the resulting relocation error. Artifacts from later releases embed the unwinder statically and depend on musl libc alone.
+
 To compile from source instead, install the [Rust toolchain](https://rustup.rs/) and set:
 
 ```sh
