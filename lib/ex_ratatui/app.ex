@@ -53,6 +53,14 @@ defmodule ExRatatui.App do
   Reducer apps receive all terminal input as `{:event, event}` and all
   mailbox messages as `{:info, msg}` through `update/2`.
 
+  The callback runtime does not strictly require the `use`: a module
+  that only declares `@behaviour ExRatatui.App` and implements the
+  required callbacks runs identically, with each missing optional
+  callback falling back to the same default the macro injects. The
+  `use` remains the recommended form — it also provides `start_link/1`
+  and `child_spec/1` for supervision — and the reducer runtime can only
+  be selected through it.
+
   ## Runtime opts
 
   Every state-transition callback (`mount/1`, `init/1`, `handle_event/2`,

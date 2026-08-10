@@ -512,7 +512,7 @@ defmodule ExRatatui.Server do
     cancel_subscription_timers(state)
     restore_terminal(state.terminal_ref)
     LocalInput.reattach(state.local_input)
-    state.mod.terminate(reason, state.user_state)
+    app_terminate(state, reason)
     emit_transport_disconnect(state, reason)
     :ok
   end
@@ -527,7 +527,7 @@ defmodule ExRatatui.Server do
     )
 
     Session.close(state.session)
-    state.mod.terminate(reason, state.user_state)
+    app_terminate(state, reason)
     emit_transport_disconnect(state, reason)
     :ok
   end
@@ -542,7 +542,7 @@ defmodule ExRatatui.Server do
     )
 
     CellSession.close(state.cell_session)
-    state.mod.terminate(reason, state.user_state)
+    app_terminate(state, reason)
     emit_transport_disconnect(state, reason)
     :ok
   end
@@ -552,7 +552,7 @@ defmodule ExRatatui.Server do
         %__MODULE__{transport: :distributed_server, terminal_initialized: true} = state
       ) do
     cancel_subscription_timers(state)
-    state.mod.terminate(reason, state.user_state)
+    app_terminate(state, reason)
     emit_transport_disconnect(state, reason)
     :ok
   end
@@ -825,8 +825,41 @@ defmodule ExRatatui.Server do
     end)
   end
 
+  # `handle_info/2`, `subscriptions/1`, `terminate/2`, and `__runtime__/0` are
+  # optional callbacks: `use ExRatatui.App` injects these same defaults, and a
+  # module that only declares `@behaviour ExRatatui.App` must behave
+  # identically. The reducer runtime is opt-in via `use` (there is no
+  # `__runtime__/0` to read without it), so the fallback is `:callbacks`.
   defp runtime_mode(mod) do
-    mod.__runtime__()
+    if Code.ensure_loaded?(mod) and function_exported?(mod, :__runtime__, 0) do
+      mod.__runtime__()
+    else
+      :callbacks
+    end
+  end
+
+  defp app_handle_info(%__MODULE__{mod: mod, user_state: user_state}, msg) do
+    if function_exported?(mod, :handle_info, 2) do
+      mod.handle_info(msg, user_state)
+    else
+      {:noreply, user_state}
+    end
+  end
+
+  defp app_subscriptions(%__MODULE__{mod: mod, user_state: user_state}) do
+    if function_exported?(mod, :subscriptions, 1) do
+      mod.subscriptions(user_state)
+    else
+      []
+    end
+  end
+
+  defp app_terminate(%__MODULE__{mod: mod, user_state: user_state}, reason) do
+    if function_exported?(mod, :terminate, 2) do
+      mod.terminate(reason, user_state)
+    else
+      :ok
+    end
   end
 
   defp normalize_mount_result({:ok, user_state}), do: {:ok, user_state, default_runtime_opts()}
@@ -1004,7 +1037,8 @@ defmodule ExRatatui.Server do
 
   defp reconcile_subscriptions(%__MODULE__{} = state) do
     desired =
-      state.mod.subscriptions(state.user_state)
+      state
+      |> app_subscriptions()
       |> Subscription.normalize()
       |> Map.new(&{&1.id, &1})
 
@@ -1127,7 +1161,7 @@ defmodule ExRatatui.Server do
 
     result =
       Telemetry.span([:runtime, :update], meta, fn ->
-        state.mod.handle_info(msg, state.user_state)
+        app_handle_info(state, msg)
       end)
 
     result

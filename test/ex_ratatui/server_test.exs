@@ -135,6 +135,82 @@ defmodule ExRatatui.ServerTest do
     end
   end
 
+  # Implements only the required callbacks, without `use ExRatatui.App` — the
+  # server must supply the same defaults the macro would have injected
+  # (__runtime__, handle_info, subscriptions, terminate are all optional).
+  defmodule BehaviourOnlyApp do
+    @behaviour ExRatatui.App
+
+    alias ExRatatui.Layout.Rect
+    alias ExRatatui.Widgets.Paragraph
+
+    @impl true
+    def mount(opts) do
+      test_pid = Keyword.fetch!(opts, :test_pid)
+      {:ok, %{test_pid: test_pid}}
+    end
+
+    @impl true
+    def render(state, frame) do
+      send(state.test_pid, :behaviour_only_rendered)
+
+      [{%Paragraph{text: "bare"}, %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}]
+    end
+
+    @impl true
+    def handle_event(_event, state), do: {:noreply, state}
+  end
+
+  describe "a module that only declares @behaviour ExRatatui.App" do
+    test "mounts and renders under the callbacks runtime" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: BehaviourOnlyApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      assert_receive :behaviour_only_rendered, 1000
+
+      GenServer.stop(pid)
+    end
+
+    test "survives a forwarded info message without a handle_info/2 of its own" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: BehaviourOnlyApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      assert_receive :behaviour_only_rendered, 1000
+
+      send(pid, :no_such_handler)
+      _ = :sys.get_state(pid)
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+
+    test "stops cleanly without a terminate/2 of its own" do
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: BehaviourOnlyApp,
+          name: nil,
+          test_pid: self(),
+          test_mode: {80, 24}
+        )
+
+      assert_receive :behaviour_only_rendered, 1000
+
+      ref = Process.monitor(pid)
+      GenServer.stop(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    end
+  end
+
   describe "local-terminal opts (mouse_capture, focus_events)" do
     setup do
       handler_id = "connect-test-#{inspect(self())}-#{System.unique_integer([:positive])}"
