@@ -1,6 +1,8 @@
 defmodule ExRatatui.Native do
   @moduledoc false
 
+  alias ExRatatui.Native.BuildConfig
+
   @otp_app :ex_ratatui
   @load_lock {__MODULE__, :nif_load_lock}
   @loaded_key {__MODULE__, :nif_loaded}
@@ -59,11 +61,33 @@ defmodule ExRatatui.Native do
 
   version = Mix.Project.config()[:version]
 
+  # Precedence, highest first:
+  #
+  #   1. config :rustler_precompiled, force_build_all: true
+  #      (or RUSTLER_PRECOMPILED_FORCE_BUILD_ALL=1)
+  #   2. config :rustler_precompiled, :force_build, ex_ratatui: true
+  #   3. EX_RATATUI_BUILD=1
+  #
+  # Resolved eagerly here, before the option list is handed to
+  # RustlerPrecompiled: the `:force_build` key must carry the final answer,
+  # because anything that tries to fill it in later can only use
+  # `Keyword.put_new/3` and would find the key already set.
+  force_build? =
+    BuildConfig.force_build?(
+      Application.compile_env(
+        :rustler_precompiled,
+        :force_build_all,
+        BuildConfig.truthy?(System.get_env("RUSTLER_PRECOMPILED_FORCE_BUILD_ALL"))
+      ),
+      Application.compile_env(:rustler_precompiled, [:force_build, @otp_app]),
+      System.get_env("EX_RATATUI_BUILD")
+    )
+
   precompiled_opts = [
     otp_app: @otp_app,
     crate: "ex_ratatui",
     base_url: "https://github.com/mcass19/ex_ratatui/releases/download/v#{version}",
-    force_build: System.get_env("EX_RATATUI_BUILD") in ["1", "true"],
+    force_build: force_build?,
     version: version,
     targets: ~w(
       aarch64-apple-darwin
@@ -79,21 +103,6 @@ defmodule ExRatatui.Native do
     ),
     nif_versions: ["2.16", "2.17"]
   ]
-
-  precompiled_opts =
-    if Application.compile_env(
-         :rustler_precompiled,
-         :force_build_all,
-         System.get_env("RUSTLER_PRECOMPILED_FORCE_BUILD_ALL") in ["1", "true"]
-       ) do
-      Keyword.put(precompiled_opts, :force_build, true)
-    else
-      Keyword.put_new(
-        precompiled_opts,
-        :force_build,
-        Application.compile_env(:rustler_precompiled, [:force_build, @otp_app])
-      )
-    end
 
   case RustlerPrecompiled.__using__(__MODULE__, precompiled_opts) do
     {:force_build, rustler_opts} ->

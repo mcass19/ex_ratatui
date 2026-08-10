@@ -69,6 +69,14 @@ To compile from source instead, install the [Rust toolchain](https://rustup.rs/)
 export EX_RATATUI_BUILD=true
 ```
 
+Or, without an env var, in your `config/config.exs`:
+
+```elixir
+config :rustler_precompiled, :force_build, ex_ratatui: true
+```
+
+The application config takes precedence over `EX_RATATUI_BUILD`, and `config :rustler_precompiled, force_build_all: true` takes precedence over both.
+
 ## Quick Start
 
 ```elixir

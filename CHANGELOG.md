@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **`config :rustler_precompiled, :force_build, ex_ratatui: true` now actually forces a build from source.** `ExRatatui.Native` always put a `:force_build` key into the option list (derived from `EX_RATATUI_BUILD`) and then tried to apply the per-application config with `Keyword.put_new/3`, which never overwrites an existing key — so the documented `rustler_precompiled` escape hatch was silently ignored and the precompiled NIF was downloaded anyway. The three inputs are now resolved explicitly, highest precedence first: `:force_build_all` (or `RUSTLER_PRECOMPILED_FORCE_BUILD_ALL`), then `config :rustler_precompiled, :force_build, ex_ratatui: true/false`, then `EX_RATATUI_BUILD`. Behaviour is unchanged when the per-application config is absent.
+
 - **Corrected the OTP 29 note in the README.** It claimed OTP 29 had no precompiled binary and required the Rust toolchain plus `EX_RATATUI_BUILD=true`. Not so: the NIF ABI is backward compatible and `rustler_precompiled` selects the highest available version at or below the current one, so OTP 29 (NIF 2.18) loads the published 2.17 binary with no Rust toolchain. Only publishing a *native* 2.18 artifact is still pending upstream support. The 0.11.2 entry below carried the same error and has been corrected in place — no behaviour changed, only its description.
 
 ## [0.11.2] - 2026-07-31
