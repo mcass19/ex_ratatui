@@ -24,6 +24,9 @@ syntect = "5"
 render3d = { path = "vendor/render3d", default-features = false }
 ratatui-3d = { path = "vendor/ratatui-3d", default-features = false }
 
+[build-dependencies]
+cc = "1"
+
 [features]
 default = ["nif_version_2_16"]
 nif_version_2_16 = ["rustler/nif_version_2_16"]

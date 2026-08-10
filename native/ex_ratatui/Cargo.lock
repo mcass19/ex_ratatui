@@ -533,6 +533,7 @@ dependencies = [
 name = "ex_ratatui"
 version = "0.11.2"
 dependencies = [
+ "cc",
  "crossterm",
  "image",
  "ratatui",
