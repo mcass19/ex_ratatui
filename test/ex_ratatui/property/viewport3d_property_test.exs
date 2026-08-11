@@ -23,6 +23,14 @@ defmodule ExRatatui.Property.Viewport3DPropertyTest do
 
   defp coord, do: float(min: -5.0, max: 5.0)
   defp vec3_gen, do: {coord(), coord(), coord()}
+
+  # The NIF rejects a zero-length light direction, and vec3_gen/0 does
+  # reach {0.0, 0.0, 0.0} — floats shrink toward 0.0. The bound keeps a
+  # component large enough that the f32 length check cannot underflow.
+  defp nonzero_vec3_gen do
+    filter(vec3_gen(), fn {x, y, z} -> abs(x) + abs(y) + abs(z) > 1.0e-6 end)
+  end
+
   defp channel, do: integer(0..255)
   defp rgb_gen, do: {channel(), channel(), channel()}
   defp unit, do: float(min: 0.0, max: 1.0)
@@ -71,7 +79,7 @@ defmodule ExRatatui.Property.Viewport3DPropertyTest do
   defp light_gen do
     one_of([
       bind({rgb_gen(), unit()}, fn {c, i} -> constant(Light.ambient(c, i)) end),
-      bind({vec3_gen(), rgb_gen()}, fn {d, c} -> constant(Light.directional(d, c)) end),
+      bind({nonzero_vec3_gen(), rgb_gen()}, fn {d, c} -> constant(Light.directional(d, c)) end),
       bind({vec3_gen(), rgb_gen()}, fn {p, c} -> constant(Light.point(p, c)) end)
     ])
   end
