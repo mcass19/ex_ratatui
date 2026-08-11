@@ -145,12 +145,20 @@ jobs:
   # native/ex_ratatui/build.rs (#83): build the NIF natively on musl and
   # assert the artifact is self-contained, so a build.rs or toolchain
   # change that reintroduces the dependency fails here instead of at the
-  # next release tag.
+  # next release tag. Runs on both architectures: the outline-atomics
+  # hazard is aarch64-only and needs a modern gcc to surface, which the
+  # release matrix never exercises (cross ships gcc 9.2, predating
+  # outline atomics), so the arm64 runner is the only path that covers it.
   musl:
-    name: musl NIF self-contained
+    name: musl NIF self-contained (${{ matrix.runner }})
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     container: rust:1-alpine
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
 
     steps:
       # build-base provides the musl gcc that build.rs queries for
@@ -164,8 +172,8 @@ jobs:
           path: |
             /usr/local/cargo/registry
             native/ex_ratatui/target
-          key: musl-cargo-${{ hashFiles('native/ex_ratatui/Cargo.lock') }}
-          restore-keys: musl-cargo-
+          key: musl-cargo-${{ matrix.runner }}-${{ hashFiles('native/ex_ratatui/Cargo.lock') }}
+          restore-keys: musl-cargo-${{ matrix.runner }}-
 
       # Run from inside the crate: cargo discovers .cargo/config.toml from
       # the working directory, not from --manifest-path, and the musl
