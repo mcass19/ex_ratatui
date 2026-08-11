@@ -53,4 +53,22 @@ fn main() {
     fs::create_dir_all(&shim_dir).expect("failed to create the libgcc_s shim directory");
     fs::copy(&archive, shim_dir.join("libgcc_s.a")).expect("failed to copy libgcc_eh.a");
     println!("cargo:rustc-link-search=native={}", shim_dir.display());
+
+    // With GCC >= 10 on aarch64, libgcc_eh.a's objects reference the
+    // outline-atomics helpers (__aarch64_swp8_acq_rel, ...), which live in
+    // libgcc.a — not in libgcc_eh.a, and not exported by libgcc_s.so.1
+    // either. Left unresolved they produce a cdylib that links silently and
+    // fails to dlopen. libgcc.a sits next to the shim (in case the linker
+    // is not driven through the C compiler) and a trailing -lgcc resolves
+    // any helpers still outstanding after the shimmed -lgcc_s.
+    if let Ok(out) = Command::new(compiler.path())
+        .arg("-print-file-name=libgcc.a")
+        .output()
+    {
+        let builtins = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+        if builtins.is_absolute() && builtins.exists() {
+            fs::copy(&builtins, shim_dir.join("libgcc.a")).expect("failed to copy libgcc.a");
+        }
+    }
+    println!("cargo:rustc-link-arg=-lgcc");
 }
