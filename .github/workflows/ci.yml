@@ -167,6 +167,11 @@ jobs:
           key: musl-cargo-${{ hashFiles('native/ex_ratatui/Cargo.lock') }}
           restore-keys: musl-cargo-
 
-      - run: cargo build --release --manifest-path native/ex_ratatui/Cargo.toml
+      # Run from inside the crate: cargo discovers .cargo/config.toml from
+      # the working directory, not from --manifest-path, and the musl
+      # rustflags (-crt-static) live there — without them rustc refuses to
+      # produce a cdylib for musl at all.
+      - run: cargo build --release
+        working-directory: native/ex_ratatui
 
       - run: sh .github/scripts/check_musl_nif.sh native/ex_ratatui/target/release/libex_ratatui.so
