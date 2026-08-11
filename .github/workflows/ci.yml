@@ -153,7 +153,6 @@ jobs:
     name: musl NIF self-contained (${{ matrix.runner }})
     timeout-minutes: 15
     runs-on: ${{ matrix.runner }}
-    container: rust:1-alpine
 
     strategy:
       fail-fast: false
@@ -161,25 +160,31 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
 
     steps:
-      # build-base provides the musl gcc that build.rs queries for
-      # libgcc_eh.a; binutils provides readelf for the assertion script.
-      - run: apk add --no-cache build-base binutils git
-
       - uses: actions/checkout@v7
 
       - uses: actions/cache@v6
         with:
           path: |
-            /usr/local/cargo/registry
+            cargo-registry
             native/ex_ratatui/target
           key: musl-cargo-${{ matrix.runner }}-${{ hashFiles('native/ex_ratatui/Cargo.lock') }}
           restore-keys: musl-cargo-${{ matrix.runner }}-
 
-      # Run from inside the crate: cargo discovers .cargo/config.toml from
-      # the working directory, not from --manifest-path, and the musl
-      # rustflags (-crt-static) live there — without them rustc refuses to
-      # produce a cdylib for musl at all.
-      - run: cargo build --release
-        working-directory: native/ex_ratatui
+      # The build runs through `docker run` rather than `container:`
+      # because Node-based actions (checkout, cache) only support Alpine
+      # containers on x64 runners — on arm64 the job would fail before the
+      # first step. build-base provides the musl gcc that build.rs queries
+      # for libgcc_eh.a. The workdir is the crate itself: cargo discovers
+      # .cargo/config.toml from the working directory, not from
+      # --manifest-path, and the musl rustflags (-crt-static) live there —
+      # without them rustc refuses to produce a cdylib for musl at all.
+      - name: Build the NIF on Alpine
+        run: |
+          docker run --rm \
+            -v "$PWD":/work -w /work/native/ex_ratatui \
+            -v "$PWD/cargo-registry":/usr/local/cargo/registry \
+            rust:1-alpine \
+            sh -c 'apk add --no-cache build-base && cargo build --release'
 
+      # readelf on the glibc host reads the musl ELF fine.
       - run: sh .github/scripts/check_musl_nif.sh native/ex_ratatui/target/release/libex_ratatui.so
