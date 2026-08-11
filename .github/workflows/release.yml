@@ -57,6 +57,13 @@ jobs:
           cross-version: ${{ matrix.job.cross-version || 'from-source' }}
           project-dir: "native/ex_ratatui"
 
+      - name: Ensure the musl NIF is self-contained
+        if: contains(matrix.job.target, 'musl')
+        run: |
+          mkdir -p /tmp/nif-gate
+          tar -xzf "${{ steps.build-crate.outputs.file-path }}" -C /tmp/nif-gate
+          sh .github/scripts/check_musl_nif.sh "$(find /tmp/nif-gate -name '*.so' | head -1)"
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.build-crate.outputs.file-name }}
