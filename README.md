@@ -79,6 +79,12 @@ config :rustler_precompiled, :force_build, ex_ratatui: true
 
 The application config takes precedence over `EX_RATATUI_BUILD`, and `config :rustler_precompiled, force_build_all: true` takes precedence over both.
 
+Either way, forcing a build also requires Rustler in the consuming project's dependencies — ex_ratatui declares `:rustler` as optional, and optional dependencies are not fetched transitively, so without it the build fails with `Rustler.Compiler is not available`:
+
+```elixir
+{:rustler, ">= 0.0.0"}
+```
+
 ## Quick Start
 
 ```elixir
