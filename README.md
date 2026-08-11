@@ -85,6 +85,8 @@ Either way, forcing a build also requires Rustler in the consuming project's dep
 {:rustler, ">= 0.0.0"}
 ```
 
+Forcing a build is also required when depending on a git tag instead of Hex (`{:ex_ratatui, github: "mcass19/ex_ratatui", tag: "..."}`): the checksum file for a release's precompiled artifacts can only be committed after the tag triggers their build, so each tag predates its own checksums and the precompiled path fails with `the precompiled NIF file does not exist in the checksum file`. The Hex package always carries the complete checksum file.
+
 ## Quick Start
 
 ```elixir
