@@ -75,7 +75,7 @@ if Code.ensure_loaded?(Igniter) do
 
     @release_config """
     [
-      steps: [:assemble, &Burrito.wrap/1],
+      steps: [:assemble, &ExRatatui.Burrito.verify_linux_nif/1, &Burrito.wrap/1],
       burrito: [
         targets: [
           linux: [os: :linux, cpu: :x86_64],

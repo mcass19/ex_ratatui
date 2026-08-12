@@ -164,7 +164,8 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Telemetry
         ],
         Application: [
-          ExRatatui.App
+          ExRatatui.App,
+          ExRatatui.Burrito
         ],
         "Reducer Runtime": [
           ExRatatui.Command,

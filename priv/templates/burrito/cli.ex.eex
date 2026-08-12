@@ -1,17 +1,14 @@
 @moduledoc """
-Burrito entry point. Boots the TUI, waits for it to exit, then stops the
-VM with a matching exit code so the wrapper returns control to the shell.
+Burrito entry point — a thin shim over `ExRatatui.Burrito.main/3`, so
+entry-point protocol fixes ship with ex_ratatui upgrades instead of
+freezing here.
 
-Runs as a supervised `Task` — the child spec is keyed on this module, so
-regenerating the wiring stays idempotent and unrelated `Task` children
-are left alone. `main/1` is a no-op unless the app runs inside a
-burrito-wrapped binary (`Burrito.Util.running_standalone?/0`), so
-`mix test` and `iex -S mix` never boot the TUI over the session.
-
-A `--version` flag is recognised anywhere in argv for non-interactive
-smoke tests (CI uses it to assert the wrapped binary boots and loads the
-NIF without needing a TTY). `ensure_loaded/0` triggers the NIF dlopen so
-a precompiled-NIF/host mismatch fails here rather than silently exiting 0.
+Runs as a supervised `Task` keyed on this module, so regenerating the
+wiring stays idempotent and unrelated `Task` children are left alone.
+The delegate is a no-op outside a burrito-wrapped binary (`mix test` and
+`iex -S mix` never boot the TUI over the session), recognises
+`--version` anywhere in argv for non-interactive smoke tests, and stops
+the VM with a non-zero exit code when the TUI crashes or fails to start.
 """
 
 use Task
@@ -23,53 +20,5 @@ def start_link(_arg) do
 end
 
 def main(argv) do
-  if Burrito.Util.running_standalone?() do
-    run(argv)
-  else
-    :ok
-  end
-rescue
-  # A raise anywhere in the entry point (ensure_loaded/0 raises on a
-  # NIF/host mismatch) would otherwise kill this :temporary task without
-  # reaching System.stop, hanging the wrapped binary on an idle BEAM.
-  exception ->
-    IO.puts(:stderr, "<%= @app %> crashed: " <> Exception.message(exception))
-    System.stop(1)
-end
-
-defp run(argv) do
-  if "--version" in argv do
-    :ok = ExRatatui.Native.ensure_loaded()
-    IO.puts("<%= @app %> #{@version}")
-    System.stop(0)
-  else
-    run_tui()
-  end
-end
-
-defp run_tui do
-  case <%= inspect(@tui_module) %>.start_link([]) do
-    {:ok, pid} ->
-      # An abnormal TUI exit must arrive as a DOWN message — not as an
-      # exit signal that kills this task before it can set the exit code,
-      # leaving the wrapped binary hanging on an idle BEAM.
-      ref = Process.monitor(pid)
-      Process.unlink(pid)
-
-      receive do
-        {:DOWN, ^ref, :process, ^pid, reason} -> shut_down(reason)
-      end
-
-    {:error, reason} ->
-      IO.puts(:stderr, "<%= @app %> failed to start: #{inspect(reason)}")
-      System.stop(1)
-  end
-end
-
-defp shut_down(reason) when reason in [:normal, :shutdown], do: System.stop(0)
-defp shut_down({:shutdown, _}), do: System.stop(0)
-
-defp shut_down(reason) do
-  IO.puts(:stderr, "<%= @app %> terminated: #{inspect(reason)}")
-  System.stop(1)
+  ExRatatui.Burrito.main(<%= inspect(@tui_module) %>, argv, name: "<%= @app %>", version: @version)
 end
