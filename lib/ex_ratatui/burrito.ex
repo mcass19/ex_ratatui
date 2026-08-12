@@ -76,19 +76,30 @@ defmodule ExRatatui.Burrito do
   A no-op unless `BURRITO_TARGET=linux`. Detection is a byte scan of the
   assembled NIF: glibc-linked ELFs embed `libc.so.6` and `GLIBC_` version
   references, musl ones reference `libc.so` alone.
+
+  Only the NIF this build actually loads is scanned, named by
+  `ExRatatui.Native.load_from/0`. `priv/native` is a junk drawer —
+  rustler_precompiled never evicts the artifacts of earlier versions or
+  ABIs, and a path dependency carries the whole directory into the
+  release — so scanning every `.so` there fails on stale glibc siblings
+  that no runtime ever opens.
   """
-  @spec verify_linux_nif(Mix.Release.t()) :: Mix.Release.t()
-  def verify_linux_nif(release) do
+  @spec verify_linux_nif(Mix.Release.t(), {atom(), String.t()}) :: Mix.Release.t()
+  def verify_linux_nif(release, load_from \\ ExRatatui.Native.load_from()) do
     if System.get_env("BURRITO_TARGET") == "linux" do
+      {_otp_app, relative_path} = load_from
+
       release.path
-      |> Path.join("lib/ex_ratatui-*/priv/native/*.so")
+      |> Path.join("lib/ex_ratatui-*/#{relative_path}.so")
       |> Path.wildcard()
       |> case do
         # An assembled release must contain the NIF — an empty match means
         # the layout changed and this check would otherwise silently pass
         # while verifying nothing.
         [] ->
-          Mix.raise("no ex_ratatui NIF found under #{release.path}/lib/ex_ratatui-*/priv/native/")
+          Mix.raise(
+            "no ex_ratatui NIF found at #{release.path}/lib/ex_ratatui-*/#{relative_path}.so"
+          )
 
         so_paths ->
           Enum.each(so_paths, &verify_musl!/1)
@@ -111,8 +122,12 @@ defmodule ExRatatui.Burrito do
 
           TARGET_ABI=musl BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
 
-      If the error persists, a previously resolved glibc NIF is cached — \
-      wipe _build/prod/lib/ex_ratatui/priv/native/ and rebuild.
+      TARGET_ABI only picks between precompiled NIFs, so it has no effect \
+      on a locally built crate: unset EX_RATATUI_BUILD and any \
+      `:force_build` rustler_precompiled config before releasing.
+
+      If the error persists, an already compiled dependency is holding the \
+      glibc NIF — wipe _build/prod/lib/ex_ratatui and rebuild.
       """)
     end
   end

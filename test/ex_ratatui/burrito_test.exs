@@ -144,14 +144,24 @@ defmodule ExRatatui.BurritoTest do
     end
   end
 
-  describe "verify_linux_nif/1" do
+  describe "verify_linux_nif/2" do
+    # The loaded artifact is whatever this build resolved, so the fixture
+    # names it the way the release step learns it — never by hardcoding a
+    # filename, which would only hold for one ABI and build mode.
+    @load_from {:ex_ratatui,
+                "priv/native/libex_ratatui-v0.12.0-nif-2.17-x86_64-unknown-linux-musl"}
+
     setup do
       root = Path.join(System.tmp_dir!(), "burrito_verify_#{System.unique_integer([:positive])}")
       nif_dir = Path.join(root, "lib/ex_ratatui-0.12.0/priv/native")
       File.mkdir_p!(nif_dir)
       on_exit(fn -> File.rm_rf(root) end)
 
-      {:ok, release: %{path: root}, nif: Path.join(nif_dir, "ex_ratatui.so")}
+      {:ok, release: %{path: root}, nif_dir: nif_dir, nif: nif_path(root, @load_from)}
+    end
+
+    defp nif_path(root, {_otp_app, relative_path}) do
+      Path.join([root, "lib/ex_ratatui-0.12.0", relative_path <> ".so"])
     end
 
     defp linux_target(fun) do
@@ -165,6 +175,34 @@ defmodule ExRatatui.BurritoTest do
       File.write!(nif, "\x7fELF...libc.so\x00...")
 
       linux_target(fn ->
+        assert ExRatatui.Burrito.verify_linux_nif(release, @load_from) == release
+      end)
+    end
+
+    test "ignores the stale artifacts alongside it", %{
+      release: release,
+      nif_dir: nif_dir,
+      nif: nif
+    } do
+      File.write!(nif, "\x7fELF...libc.so\x00...")
+      File.write!(Path.join(nif_dir, "ex_ratatui.so"), "\x7fELF...libc.so.6\x00...")
+
+      File.write!(
+        Path.join(nif_dir, "libex_ratatui-v0.11.2-nif-2.17-x86_64-unknown-linux-gnu.so"),
+        "\x7fELF...GLIBC_2.17\x00..."
+      )
+
+      linux_target(fn ->
+        assert ExRatatui.Burrito.verify_linux_nif(release, @load_from) == release
+      end)
+    end
+
+    test "defaults to the NIF this build loads", %{release: release} do
+      nif = nif_path(release.path, ExRatatui.Native.load_from())
+      File.mkdir_p!(Path.dirname(nif))
+      File.write!(nif, "\x7fELF...libc.so\x00...")
+
+      linux_target(fn ->
         assert ExRatatui.Burrito.verify_linux_nif(release) == release
       end)
     end
@@ -173,8 +211,8 @@ defmodule ExRatatui.BurritoTest do
       File.write!(nif, "\x7fELF...libc.so.6\x00...")
 
       linux_target(fn ->
-        assert_raise Mix.Error, ~r/glibc NIF.*TARGET_ABI=musl/s, fn ->
-          ExRatatui.Burrito.verify_linux_nif(release)
+        assert_raise Mix.Error, ~r/glibc NIF.*TARGET_ABI=musl.*EX_RATATUI_BUILD/s, fn ->
+          ExRatatui.Burrito.verify_linux_nif(release, @load_from)
         end
       end)
     end
@@ -184,7 +222,7 @@ defmodule ExRatatui.BurritoTest do
 
       linux_target(fn ->
         assert_raise Mix.Error, ~r/glibc NIF/, fn ->
-          ExRatatui.Burrito.verify_linux_nif(release)
+          ExRatatui.Burrito.verify_linux_nif(release, @load_from)
         end
       end)
     end
@@ -192,7 +230,7 @@ defmodule ExRatatui.BurritoTest do
     test "raises when the release contains no NIF to verify", %{release: release} do
       linux_target(fn ->
         assert_raise Mix.Error, ~r/no ex_ratatui NIF found/, fn ->
-          ExRatatui.Burrito.verify_linux_nif(release)
+          ExRatatui.Burrito.verify_linux_nif(release, @load_from)
         end
       end)
     end
@@ -201,7 +239,7 @@ defmodule ExRatatui.BurritoTest do
       File.write!(nif, "\x7fELF...GLIBC_2.17\x00...")
 
       System.delete_env("BURRITO_TARGET")
-      assert ExRatatui.Burrito.verify_linux_nif(release) == release
+      assert ExRatatui.Burrito.verify_linux_nif(release, @load_from) == release
     end
   end
 end
