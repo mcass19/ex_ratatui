@@ -76,7 +76,7 @@ end
 defp releases do
   [
     my_tui: [
-      steps: [:assemble, &Burrito.wrap/1],
+      steps: [:assemble, &ExRatatui.Burrito.verify_linux_nif/1, &Burrito.wrap/1],
       burrito: [
         targets: [
           linux: [os: :linux, cpu: :x86_64],
@@ -89,6 +89,8 @@ defp releases do
   ]
 end
 ```
+
+`ExRatatui.Burrito.verify_linux_nif/1` is a guard against the most common packaging mistake: building the linux target without `TARGET_ABI=musl` (covered under [Building](#building)) assembles a glibc NIF that cannot load inside burrito's musl wrapper — the step fails the build with the exact fix instead of letting a broken binary ship.
 
 Wire the Application as Burrito's entry point. Burrito expects a `:mod` in `application/0`; the CLI module below is a supervised `Task` that reads command-line arguments via `Burrito.Util.Args.argv/0`:
 
@@ -122,57 +124,19 @@ end
 defmodule MyTui.CLI do
   use Task
 
+  @version Mix.Project.config()[:version]
+
   def start_link(_arg) do
     Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])
   end
 
   def main(argv) do
-    if Burrito.Util.running_standalone?() do
-      run(argv)
-    else
-      # mix test / iex -S mix boot the same application and this same
-      # task — exit quietly instead of taking over the session.
-      :ok
-    end
-  rescue
-    # A raise anywhere in the entry point would otherwise kill this
-    # :temporary task without reaching System.stop, hanging the wrapped
-    # binary on an idle BEAM.
-    exception ->
-      IO.puts(:stderr, "my_tui crashed: " <> Exception.message(exception))
-      System.stop(1)
-  end
-
-  defp run(_argv) do
-    case MyTui.TUI.start_link([]) do
-      {:ok, pid} ->
-        # An abnormal TUI exit must arrive as a DOWN message — not as an
-        # exit signal that kills this task before it can set the exit
-        # code, leaving the wrapped binary hanging on an idle BEAM.
-        ref = Process.monitor(pid)
-        Process.unlink(pid)
-
-        receive do
-          {:DOWN, ^ref, :process, ^pid, reason} -> shut_down(reason)
-        end
-
-      {:error, reason} ->
-        IO.puts(:stderr, "my_tui failed to start: #{inspect(reason)}")
-        System.stop(1)
-    end
-  end
-
-  defp shut_down(reason) when reason in [:normal, :shutdown], do: System.stop(0)
-  defp shut_down({:shutdown, _}), do: System.stop(0)
-
-  defp shut_down(reason) do
-    IO.puts(:stderr, "my_tui terminated: #{inspect(reason)}")
-    System.stop(1)
+    ExRatatui.Burrito.main(MyTui.TUI, argv, name: "my_tui", version: @version)
   end
 end
 ```
 
-`MyTui.TUI` is any module using `ExRatatui.App`. The CLI's job is to boot that GenServer, wait for it to exit, then stop the VM with a matching exit code so the wrapper returns control to the shell. Three details matter beyond the happy path. The `running_standalone?/0` gate: the supervised task starts on *every* application boot — `mix test` and `iex -S mix` included — and burrito's `__BURRITO` env var (which `running_standalone?/0` checks) is the supported way to run the TUI only inside the wrapped binary. The `use Task` shape: keying the child spec on the CLI module itself keeps the wiring idempotent and cannot collide with unrelated `Task` children in the tree. And the `rescue` in `main/1` plus the `Process.unlink/1` before the `receive`: a raise in the entry point (`ensure_loaded/0` raises on a NIF/host mismatch) or an abnormal TUI exit would otherwise kill the task before it can report a non-zero exit code, and the wrapped binary would hang on an idle BEAM instead of returning to the shell.
+`MyTui.TUI` is any module using `ExRatatui.App`. The entry-point protocol itself — boot the TUI, wait for it to exit, stop the VM with a matching exit code so the wrapper returns control to the shell — lives in `ExRatatui.Burrito.main/3`, so its fixes arrive with ex_ratatui upgrades instead of freezing in this module. Three behaviours it provides matter beyond the happy path. It is a no-op outside a burrito-wrapped binary: the supervised task starts on *every* application boot — `mix test` and `iex -S mix` included — and burrito's `__BURRITO` env var is the supported way to run the TUI only inside the wrapped binary. `--version` anywhere in argv prints and exits 0 without a TTY, first forcing the NIF `dlopen` so a NIF/host mismatch fails loudly. And every failure path — the TUI crashing, failing to start, or the entry point raising — reports on stderr and exits 1 instead of hanging the wrapper on an idle BEAM. The `use Task` shape matters too: keying the child spec on the CLI module keeps the wiring idempotent and cannot collide with unrelated `Task` children in the tree.
 
 ## Building
 
@@ -192,6 +156,29 @@ burrito_out/
 ```
 
 Repeat with `BURRITO_TARGET=macos`, `macos_silicon`, `windows` to produce the other artifacts — **on a host that matches the target OS**. While zig can cross-compile burrito's wrapper from any host, `rustler_precompiled` resolves the bundled NIF from the build host's triple, so a macOS or Windows release built on Linux ends up with a Linux `.so` inside and fails to load. The per-target CI matrix below is the canonical way to produce all artifacts in one pipeline.
+
+## Testing the wrapped binary
+
+The same checklist works on every target — it is what this repo's CI runs against the demo, plus the interactive checks CI cannot do.
+
+Non-interactive smoke — proves the BEAM boots and the NIF loads without a TTY:
+
+```sh
+./burrito_out/my_tui_linux --version
+echo $?        # 0, after printing "my_tui 0.1.0"
+```
+
+On Windows (PowerShell), the same pair is `.\burrito_out\my_tui_windows.exe --version` and `$LASTEXITCODE`.
+
+Interactive — run the binary on a real terminal: the TUI takes over the alternate screen, input works, and quitting restores the shell. Then check the exit codes: `echo $?` reports 0 after a clean quit, and 1 when the TUI crashed or the binary ran without a usable terminal (piped stdin, for example — it must exit, not hang).
+
+Dev-session gate — from the consumer project itself, `mix test` and `iex -S mix` must behave normally: the CLI task starts with the application but never boots the TUI outside the wrapped binary.
+
+One caveat when iterating: the wrapper caches the extracted release by version, so a rebuild with an unchanged `version:` re-executes the *cached* copy. Clear it between test builds with the wrapper's built-in maintenance command:
+
+```sh
+./burrito_out/my_tui_linux maintenance uninstall
+```
 
 ## Per-target CI matrix
 

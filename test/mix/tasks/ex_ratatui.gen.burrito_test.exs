@@ -33,6 +33,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert diff =~ "macos: [os: :darwin, cpu: :x86_64]"
       assert diff =~ "macos_silicon: [os: :darwin, cpu: :aarch64]"
       assert diff =~ "windows: [os: :windows, cpu: :x86_64]"
+      assert diff =~ "&ExRatatui.Burrito.verify_linux_nif/1"
       assert diff =~ "&Burrito.wrap/1"
     end
 
@@ -68,21 +69,15 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       end
     end
 
-    test "creates lib/test/cli.ex gated on burrito with a --version smoke", %{igniter: igniter} do
+    test "creates lib/test/cli.ex as a thin shim over ExRatatui.Burrito", %{igniter: igniter} do
       assert_creates(igniter, "lib/test/cli.ex")
 
       content = created_content(igniter, "lib/test/cli.ex")
       assert content =~ "use Task"
       assert content =~ "Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])"
-      assert content =~ "Burrito.Util.running_standalone?()"
-      assert content =~ ~s|"--version" in argv|
-      assert content =~ ~s|IO.puts("test \#{@version}")|
-      assert content =~ "ExRatatui.Native.ensure_loaded()"
-      assert content =~ "Test.TUI.start_link([])"
-      assert content =~ "Process.monitor(pid)"
-      assert content =~ "Process.unlink(pid)"
-      assert content =~ "rescue"
-      assert content =~ "System.stop(1)"
+
+      assert content =~
+               ~s|ExRatatui.Burrito.main(Test.TUI, argv, name: "test", version: @version)|
     end
 
     test "creates .mise.toml pinning zig 0.15.2", %{igniter: igniter} do
