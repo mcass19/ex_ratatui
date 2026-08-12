@@ -133,3 +133,7 @@ iex> ExRatatui.Distributed.attach(:"app@hostname", SystemMonitor)
 ```
 
 The app node runs the BEAM logic; the client node owns the terminal (and the NIF). See [Running TUIs over Erlang Distribution](../guides/transports/distributed_transport.md).
+
+## Package an app as a single binary
+
+[`burrito_demo/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/burrito_demo) packages the basics counter as a self-contained native executable via [Burrito](https://github.com/burrito-elixir/burrito) — end users need no Erlang, Elixir, or Rust on the target machine. See the [subdir README](https://github.com/mcass19/ex_ratatui/blob/main/examples/burrito_demo/README.md) for build steps, and [Packaging with Burrito](../guides/packaging/packaging_with_burrito.md) for the full story.
