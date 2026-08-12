@@ -77,12 +77,12 @@ defmodule ExRatatui.Burrito do
   assembled NIF: glibc-linked ELFs embed `libc.so.6` and `GLIBC_` version
   references, musl ones reference `libc.so` alone.
 
-  Only the NIF this build actually loads is scanned, named by
-  `ExRatatui.Native.load_from/0`. `priv/native` is a junk drawer —
-  rustler_precompiled never evicts the artifacts of earlier versions or
-  ABIs, and a path dependency carries the whole directory into the
-  release — so scanning every `.so` there fails on stale glibc siblings
-  that no runtime ever opens.
+  Only the NIF this build actually loads is scanned — the single path
+  handed to `:erlang.load_nif/2`, which `load_from` names. `priv/native`
+  is a junk drawer otherwise: rustler_precompiled never evicts the
+  artifacts of earlier versions or ABIs, and a path dependency carries
+  the whole directory into the release, so scanning every `.so` there
+  fails on stale glibc siblings that no runtime ever opens.
   """
   @spec verify_linux_nif(Mix.Release.t(), {atom(), String.t()}) :: Mix.Release.t()
   def verify_linux_nif(release, load_from \\ ExRatatui.Native.load_from()) do
