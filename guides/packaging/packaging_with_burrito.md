@@ -4,27 +4,6 @@ Shipping a TUI built on `ExRatatui.App` normally means asking end users to insta
 
 ex_ratatui itself stays a library — it does not depend on Burrito at runtime and does not produce its own binaries. Burrito is something a consumer project opts into.
 
-## The shape of a wrapped app
-
-```
-                                  one-time on first run
-                          ┌────────────────────────────────┐
-                          ▼                                │
-  ┌──────────────────┐    ┌─────────────────────────────┐  │
-  │  my_tui_linux    │ ─► │  ~/.local/share/.burrito/   │  │
-  │  (~17 MB ELF)    │    │   my_tui_erts-28_1.0.0/     │  │
-  └──────────────────┘    │    ├─ erts-28/              │  │
-           │              │    ├─ lib/ex_ratatui-0.12.0/│  │
-           │              │    │   priv/native/*.so     │  │
-           │              │    ├─ releases/1.0.0/       │  │
-           │              │    └─ bin/                  │  │
-           │              └─────────────────────────────┘  │
-           │                                               │
-           └─── re-exec into the cached release ───────────┘
-```
-
-Build time, the burrito wrapper is a zig-compiled launcher embedding a compressed payload (the full OTP release). At runtime, the wrapper checks whether the cache already holds an extracted copy of this exact version, extracts the payload if not, and execs the standard `release/bin/<app> start` entry point. The wrapped BEAM has full TTY, SIGWINCH, and Ctrl-C handling — nothing in the wrapper interferes with the terminal once the BEAM takes over.
-
 ## Prerequisites
 
 - Erlang/OTP and Elixir matching ex_ratatui's `mix.exs` requirements.
@@ -40,7 +19,19 @@ zig = "0.15.2"
 
 ## Quick start
 
-The fastest path is reading [`examples/burrito_demo/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/burrito_demo) in this repo — it's a complete working project. The walkthrough below mirrors that example and is the same shape `mix ex_ratatui.gen.burrito` produces.
+`mix ex_ratatui.gen.burrito` does the whole setup in one command:
+
+```sh
+mix ex_ratatui.gen.burrito --tui-module MyTui.TUI --ci github
+```
+
+It patches `mix.exs`, scaffolds the Application and CLI modules, and optionally drops the matrix CI workflow into `.github/workflows/`. The generator is opt-in: ex_ratatui declares `igniter` as `optional: true`, so projects that never run the task pay nothing for it.
+
+That leaves nothing to do but [build](#building). The section below is the same wiring by hand — worth reading to understand what the generator wrote, or to retrofit a project that already has its own Application and release config.
+
+## Wiring it by hand
+
+[`examples/burrito_demo/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/burrito_demo) in this repo is the finished version of everything below, and what the generator produces matches it.
 
 Start from a normal OTP-shaped TUI project:
 
@@ -90,7 +81,7 @@ defp releases do
 end
 ```
 
-`ExRatatui.Burrito.verify_linux_nif/1` is a guard against the most common packaging mistake: building the linux target without `TARGET_ABI=musl` (covered under [Building](#building)) assembles a glibc NIF that cannot load inside burrito's musl wrapper — the step fails the build with the exact fix instead of letting a broken binary ship.
+`ExRatatui.Burrito.verify_linux_nif/2` is a guard against the most common packaging mistake: building the linux target without `TARGET_ABI=musl` (covered under [Building](#building)) assembles a glibc NIF that cannot load inside burrito's musl wrapper — the step fails the build with the exact fix instead of letting a broken binary ship. It is wired as the arity-1 capture above; the second argument names the NIF to scan and defaults to the one this build loads.
 
 Wire the Application as Burrito's entry point. Burrito expects a `:mod` in `application/0`; the CLI module below is a supervised `Task` that reads command-line arguments via `Burrito.Util.Args.argv/0`:
 
@@ -212,6 +203,33 @@ curl -L https://github.com/<owner>/<repo>/releases/latest/download/my_tui_linux 
   -o my_tui && chmod +x my_tui && ./my_tui
 ```
 
+## The shape of a wrapped app
+
+Everything above treats the binary as a black box. Opening it up explains most of the gotchas that follow — a wrapped app is a single file at rest and an ordinary OTP release once it runs, and the first launch turns one into the other:
+
+```
+   my_tui_linux (~21 MB)             ~/.local/share/.burrito/
+  ┌───────────────────────┐         ┌───────────────────────────────────────┐
+  │ zig launcher          │ unpack  │ my_tui_erts-17.0.4_1.0.0/             │
+  │ ───────────────────── │ ──────► │  ├─ bin/                release entry │
+  │ compressed payload    │  (once) │  ├─ erts-17.0.4/        the BEAM      │
+  │  = the whole release  │         │  ├─ lib/…/priv/native/  the NIFs      │
+  └───────────────────────┘         │  ├─ releases/1.0.0/                   │
+              │                     │  └─ _metadata.json                    │
+              └──────── re-exec ───►└───────────────────────────────────────┘
+```
+
+The binary itself is a zig-compiled launcher wrapped around a compressed copy of the release. Every launch it derives the cache directory name, unpacks the payload there if the directory is missing, then execs that release's standard `bin/<app> start`. So the first run pays for the unpack and every later run goes straight to the re-exec.
+
+That directory name is `<app>_erts-<erts version>_<app version>`, and both halves matter:
+
+- **`erts-17.0.4`** is the version of the ERTS bundled at build time — the runtime the release was compiled against, *not* the OTP release number. ERTS 17.0.x ships with OTP 29, ERTS 16.x with OTP 28.
+- **`1.0.0`** is the app version from `mix.exs`.
+
+Because the name pins both, a rebuilt binary never reuses a stale unpack: bumping the app version, or rebuilding on a newer OTP, unpacks into a fresh directory and leaves the old one alone. That is also why the cache accumulates directories over time — [NIF cache location](#nif-cache-location) below has the per-OS paths for finding and clearing them.
+
+The wrapped BEAM has full TTY, SIGWINCH, and Ctrl-C handling — nothing in the wrapper interferes with the terminal once the BEAM takes over.
+
 ## Gotchas
 
 ### Terminal handoff
@@ -235,29 +253,21 @@ Unsigned binaries on Windows frequently trigger SmartScreen prompts and get flag
 
 ### NIF cache location
 
-The unpacked release lives in a per-user cache:
+The unpacked release lives in a per-user cache, one directory per `<app>_erts-<erts version>_<app version>` combination:
 
 | OS | Path |
 |---|---|
-| Linux | `~/.local/share/.burrito/<app>_erts-<v>_<version>/` |
-| macOS | `~/Library/Application Support/.burrito/<app>_erts-<v>_<version>/` |
-| Windows | `%LOCALAPPDATA%\.burrito\<app>_erts-<v>_<version>\` |
+| Linux | `~/.local/share/.burrito/` |
+| macOS | `~/Library/Application Support/.burrito/` |
+| Windows | `%LOCALAPPDATA%\.burrito\` |
 
-The directory name encodes the ERTS and release version, so multiple versions of the same app can coexist. The ex_ratatui NIF lives at `lib/ex_ratatui-<v>/priv/native/libex_ratatui-*.so` (or `.dylib` / `.dll`) inside that directory — handy to know when debugging "the NIF won't load."
+Inside one of those directories, the ex_ratatui NIF sits at `lib/ex_ratatui-<v>/priv/native/libex_ratatui-*.so` (or `.dylib` / `.dll`) — handy to know when debugging "the NIF won't load." Clearing a cache is safe at any time; the next launch just pays for the unpack again.
 
 ### Per-target dependencies in the payload
 
 OTP releases bundle the contents of every dependency's `priv/` directory. If `priv/native/` in the consumer's `_build/<env>/lib/ex_ratatui/` happens to hold multiple precompiled NIF variants (a side effect of bumping ex_ratatui versions across dev sessions), all of them ship inside the binary even though only one is used. Setting the [`TARGET_*` environment variables](https://hexdocs.pm/rustler_precompiled/RustlerPrecompiled.html#module-environment-variables) before `mix deps.compile` (or wiping `_build/<env>/lib/ex_ratatui/priv/native/` between rebuilds) keeps the payload to a single matching variant.
 
-## Generator shortcut
-
-`mix ex_ratatui.gen.burrito` collapses the entire setup above into:
-
-```sh
-mix ex_ratatui.gen.burrito --tui-module MyTui.TUI --ci github
-```
-
-The task patches `mix.exs`, scaffolds the Application + CLI modules, and optionally drops the matrix CI workflow into `.github/workflows/`. The generator is opt-in: ex_ratatui declares `igniter` as `optional: true`, so projects that never run the task pay nothing for it.
+This is payload weight, not a correctness problem, and `verify_linux_nif/2` scans only the variant the release actually loads — a leftover glibc `.so` sitting next to the musl one will not fail the build.
 
 ## Where to next
 
