@@ -3,9 +3,11 @@ defmodule BurritoDemo.CLI do
   Burrito entry point. Boots the TUI, waits for it to exit, then stops the
   VM with a matching exit code so the wrapper returns control to the shell.
 
-  `main/1` is a no-op unless the app runs inside a burrito-wrapped binary
-  (`Burrito.Util.running_standalone?/0`), so `mix test` and `iex -S mix`
-  never boot the TUI over the session.
+  Runs as a supervised `Task` — the child spec is keyed on this module, so
+  regenerating the wiring stays idempotent and unrelated `Task` children
+  are left alone. `main/1` is a no-op unless the app runs inside a
+  burrito-wrapped binary (`Burrito.Util.running_standalone?/0`), so
+  `mix test` and `iex -S mix` never boot the TUI over the session.
 
   A `--version` flag is recognised anywhere in argv for non-interactive
   smoke tests (CI uses it to assert the wrapped binary boots and loads the
@@ -13,7 +15,13 @@ defmodule BurritoDemo.CLI do
   a precompiled-NIF/host mismatch fails here rather than silently exiting 0.
   """
 
+  use Task
+
   @version Mix.Project.config()[:version]
+
+  def start_link(_arg) do
+    Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])
+  end
 
   def main(argv) do
     if Burrito.Util.running_standalone?() do
@@ -21,6 +29,13 @@ defmodule BurritoDemo.CLI do
     else
       :ok
     end
+  rescue
+    # A raise anywhere in the entry point (ensure_loaded/0 raises on a
+    # NIF/host mismatch) would otherwise kill this :temporary task without
+    # reaching System.stop, hanging the wrapped binary on an idle BEAM.
+    exception ->
+      IO.puts(:stderr, "burrito_demo crashed: " <> Exception.message(exception))
+      System.stop(1)
   end
 
   defp run(argv) do
