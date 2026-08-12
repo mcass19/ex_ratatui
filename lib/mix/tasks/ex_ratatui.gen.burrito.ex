@@ -56,7 +56,7 @@ if Code.ensure_loaded?(Igniter) do
       options = igniter.args.options
 
       tui_module = IgniterModule.parse(options[:tui_module])
-      cli_module = Module.concat([Macro.camelize("#{app}"), "CLI"])
+      cli_module = IgniterModule.module_name(igniter, "CLI")
 
       igniter
       |> IgniterDeps.add_dep({:burrito, "~> 1.5"})
@@ -68,28 +68,48 @@ if Code.ensure_loaded?(Igniter) do
       |> next_steps_notice(app, options[:ci])
     end
 
-    defp patch_releases(igniter, app) do
-      code = """
-      [
-        #{app}: [
-          steps: [:assemble, &Burrito.wrap/1],
-          burrito: [
-            targets: [
-              linux: [os: :linux, cpu: :x86_64],
-              macos: [os: :darwin, cpu: :x86_64],
-              macos_silicon: [os: :darwin, cpu: :aarch64],
-              windows: [os: :windows, cpu: :x86_64]
-            ]
-          ]
+    @release_config """
+    [
+      steps: [:assemble, &Burrito.wrap/1],
+      burrito: [
+        targets: [
+          linux: [os: :linux, cpu: :x86_64],
+          macos: [os: :darwin, cpu: :x86_64],
+          macos_silicon: [os: :darwin, cpu: :aarch64],
+          windows: [os: :windows, cpu: :x86_64]
         ]
       ]
-      """
+    ]
+    """
 
-      {:ok, quoted} = Code.string_to_quoted(code)
-
-      IgniterMixProject.update(igniter, :project, [:releases], fn _ ->
-        {:ok, {:code, quoted}}
+    # A consumer may already configure releases — merge our entry in
+    # instead of replacing the value, and leave an existing entry for
+    # this app untouched. A non-literal value (`releases: releases()`)
+    # cannot be patched structurally, so warn rather than clobber it.
+    defp patch_releases(igniter, app) do
+      IgniterMixProject.update(igniter, :project, [:releases], fn
+        nil -> {:ok, {:code, "[\n  #{app}: #{@release_config}]"}}
+        zipper -> merge_release_entry(zipper, app)
       end)
+    end
+
+    defp merge_release_entry(zipper, app) do
+      if Igniter.Code.List.list?(zipper) do
+        Igniter.Code.Keyword.put_in_keyword(
+          zipper,
+          [app],
+          Sourceror.parse_string!(@release_config),
+          fn existing -> {:ok, existing} end
+        )
+      else
+        {:warning,
+         """
+         `releases:` in mix.exs is not a literal keyword list, so it was
+         left untouched. Add this entry manually:
+
+             #{app}: #{String.trim_trailing(@release_config)}
+         """}
+      end
     end
 
     defp wire_application_child(igniter, cli_module) do
@@ -103,13 +123,35 @@ if Code.ensure_loaded?(Igniter) do
            fn -> unquote(cli_module).main(Burrito.Util.Args.argv()) end
          end}
 
-      IgniterApp.add_new_child(igniter, {Task, task_fun})
+      patched = IgniterApp.add_new_child(igniter, {Task, task_fun})
+
+      # add_new_child silently no-ops when the tree already supervises a
+      # `{Task, ...}` child — the entry point would never be wired and the
+      # wrapped binary would boot to an idle BEAM.
+      if sources_content(patched) == sources_content(igniter) do
+        Igniter.add_warning(patched, """
+        The application already supervises a Task child, so the burrito entry
+        point was not added. Wire it manually in the application's children:
+
+            {Task, fn -> #{inspect(cli_module)}.main(Burrito.Util.Args.argv()) end}
+        """)
+      else
+        patched
+      end
     end
 
+    defp sources_content(igniter) do
+      Map.new(igniter.rewrite.sources, fn {path, source} ->
+        {path, Rewrite.Source.get(source, :content)}
+      end)
+    end
+
+    # The template holds only the module body — create_module/3 provides
+    # the `defmodule` wrapper itself, so a template with its own wrapper
+    # would nest the module inside a same-named outer one.
     defp create_cli_module(igniter, cli_module, tui_module, app) do
       content =
         render_template("cli.ex.eex",
-          cli_module: cli_module,
           tui_module: tui_module,
           app: app
         )

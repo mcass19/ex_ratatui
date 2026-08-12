@@ -1,4 +1,4 @@
-# Toolchain pin for examples/burrito_demo.
+# Toolchain pin for burrito_demo burrito builds.
 #
 # Burrito 1.5 requires zig exactly 0.15.2 — newer or older versions are
 # rejected at `mix release` time.
