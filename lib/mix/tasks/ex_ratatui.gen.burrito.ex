@@ -6,11 +6,16 @@ if Code.ensure_loaded?(Igniter) do
     Patches the current project to ship as a single-file native binary via
     [Burrito](https://github.com/burrito-elixir/burrito).
 
-    Adds `{:burrito, "~> 1.5"}`, wires `releases/0` with the four standard
-    targets (linux, macos, macos_silicon, windows), creates a CLI module
-    with a `main/1` entry point, adds a `.mise.toml` pinning `zig 0.15.2`,
-    and — when `--ci github` is passed — drops a release workflow into
-    `.github/workflows/`.
+    Adds `{:burrito, "~> 1.5"}`, merges a release with the four standard
+    targets (linux, macos, macos_silicon, windows) into `releases:` without
+    disturbing existing entries, creates a CLI module with a `main/1` entry
+    point, adds a `.mise.toml` pinning `zig 0.15.2`, and — when `--ci
+    github` is passed — drops a release workflow into `.github/workflows/`.
+
+    The generated CLI only boots the TUI inside the wrapped binary
+    (`Burrito.Util.running_standalone?/0`), so the consumer's `mix test`
+    and `iex -S mix` are unaffected, and it stops the VM with a non-zero
+    exit code when the TUI crashes or the terminal cannot initialize.
 
     See `guides/packaging/packaging_with_burrito.md` for the end-to-end
     story this task automates.
@@ -99,7 +104,17 @@ if Code.ensure_loaded?(Igniter) do
           zipper,
           [app],
           Sourceror.parse_string!(@release_config),
-          fn existing -> {:ok, existing} end
+          # An existing entry for this app is kept, but silence here would
+          # read as success while `mix release` never wraps in Burrito.
+          fn _existing ->
+            {:warning,
+             """
+             `releases:` already has a `#{app}:` entry; it was left untouched.
+             For a burrito build, ensure its steps include `&Burrito.wrap/1`:
+
+                 #{app}: #{String.trim_trailing(@release_config)}
+             """}
+          end
         )
       else
         {:warning,
@@ -112,38 +127,12 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
+    # The generated CLI is itself a `Task` (`use Task` + `start_link/1`),
+    # so the child spec is keyed on the CLI module: add_new_child's dedup
+    # cannot collide with unrelated `{Task, ...}` children, and re-running
+    # the generator on an already-wired project is an idempotent no-op.
     defp wire_application_child(igniter, cli_module) do
-      # The `Burrito.Util.Args.argv()` reference lands literally in the
-      # generated consumer module — aliasing it here would not propagate
-      # into the quoted AST.
-      # credo:disable-for-lines:5 Credo.Check.Design.AliasUsage
-      task_fun =
-        {:code,
-         quote do
-           fn -> unquote(cli_module).main(Burrito.Util.Args.argv()) end
-         end}
-
-      patched = IgniterApp.add_new_child(igniter, {Task, task_fun})
-
-      # add_new_child silently no-ops when the tree already supervises a
-      # `{Task, ...}` child — the entry point would never be wired and the
-      # wrapped binary would boot to an idle BEAM.
-      if sources_content(patched) == sources_content(igniter) do
-        Igniter.add_warning(patched, """
-        The application already supervises a Task child, so the burrito entry
-        point was not added. Wire it manually in the application's children:
-
-            {Task, fn -> #{inspect(cli_module)}.main(Burrito.Util.Args.argv()) end}
-        """)
-      else
-        patched
-      end
-    end
-
-    defp sources_content(igniter) do
-      Map.new(igniter.rewrite.sources, fn {path, source} ->
-        {path, Rewrite.Source.get(source, :content)}
-      end)
+      IgniterApp.add_new_child(igniter, cli_module)
     end
 
     # The template holds only the module body — create_module/3 provides
@@ -160,27 +149,33 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_mise_toml(igniter, app) do
-      content = render_template("mise.toml.eex", app: app)
-      Igniter.create_new_file(igniter, ".mise.toml", content, on_exists: :skip)
-    end
-
-    defp maybe_create_ci_workflow(igniter, "github", app) do
-      content = render_template("release.yml.eex", app: app)
-
-      Igniter.create_new_file(
-        igniter,
-        ".github/workflows/release.yml",
-        content,
+      Igniter.copy_template(igniter, template_path("mise.toml.eex"), ".mise.toml", [app: app],
         on_exists: :skip
       )
     end
 
-    defp maybe_create_ci_workflow(igniter, _, _), do: igniter
+    defp maybe_create_ci_workflow(igniter, "github", app) do
+      Igniter.copy_template(
+        igniter,
+        template_path("release.yml.eex"),
+        ".github/workflows/release.yml",
+        [app: app],
+        on_exists: :skip
+      )
+    end
+
+    defp maybe_create_ci_workflow(igniter, "none", _), do: igniter
+
+    defp maybe_create_ci_workflow(igniter, other, _) do
+      Igniter.add_issue(igniter, "unknown --ci value #{inspect(other)}; expected none or github")
+    end
 
     defp render_template(name, assigns) do
-      [:code.priv_dir(:ex_ratatui), "templates", "burrito", name]
-      |> Path.join()
-      |> EEx.eval_file(assigns: assigns)
+      EEx.eval_file(template_path(name), assigns: assigns)
+    end
+
+    defp template_path(name) do
+      Path.join([:code.priv_dir(:ex_ratatui), "templates", "burrito", name])
     end
 
     defp next_steps_notice(igniter, app, ci) do

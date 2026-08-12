@@ -36,7 +36,7 @@ jobs:
             # Burrito's linux wrapper uses a musl runtime, so the bundled
             # NIF must be the musl variant even when building on glibc.
             target_abi: musl
-          - os: macos-13
+          - os: macos-15-intel
             target: macos
             artifact: <%= @app %>_macos
           - os: macos-14
