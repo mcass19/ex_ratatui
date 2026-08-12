@@ -1,6 +1,6 @@
 defmodule BurritoDemo.Counter do
   @moduledoc """
-  Counter TUI ported from `examples/counter_app.exs`. Same widget tree,
+  Counter TUI ported from `examples/basics/counter_app.exs`. Same widget tree,
   same key bindings — just packaged as a real module instead of a script.
   """
 

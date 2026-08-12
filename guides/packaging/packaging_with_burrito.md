@@ -143,22 +143,46 @@ end
 ```elixir
 # lib/my_tui/cli.ex
 defmodule MyTui.CLI do
-  def main(_argv) do
-    {:ok, pid} = MyTui.TUI.start_link([])
-    ref = Process.monitor(pid)
-
-    receive do
-      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+  def main(argv) do
+    if Burrito.Util.running_standalone?() do
+      run(argv)
+    else
+      # mix test / iex -S mix boot the same application and this same
+      # Task — exit quietly instead of taking over the session.
+      :ok
     end
+  end
 
-    System.stop(0)
+  defp run(_argv) do
+    case MyTui.TUI.start_link([]) do
+      {:ok, pid} ->
+        # An abnormal TUI exit must arrive as a DOWN message — not as an
+        # exit signal that kills this task before it can set the exit
+        # code, leaving the wrapped binary hanging on an idle BEAM.
+        ref = Process.monitor(pid)
+        Process.unlink(pid)
+
+        receive do
+          {:DOWN, ^ref, :process, ^pid, reason} -> shut_down(reason)
+        end
+
+      {:error, reason} ->
+        IO.puts(:stderr, "my_tui failed to start: #{inspect(reason)}")
+        System.stop(1)
+    end
+  end
+
+  defp shut_down(reason) when reason in [:normal, :shutdown], do: System.stop(0)
+  defp shut_down({:shutdown, _}), do: System.stop(0)
+
+  defp shut_down(reason) do
+    IO.puts(:stderr, "my_tui terminated: #{inspect(reason)}")
+    System.stop(1)
   end
 end
 ```
 
-`MyTui.TUI` is any module using `ExRatatui.App`. The CLI's job is to boot
-that GenServer, wait for it to exit, then stop the VM so the wrapper
-returns control to the shell.
+`MyTui.TUI` is any module using `ExRatatui.App`. The CLI's job is to boot that GenServer, wait for it to exit, then stop the VM with a matching exit code so the wrapper returns control to the shell. Two details matter beyond the happy path. The `running_standalone?/0` gate: the supervised Task starts on *every* application boot — `mix test` and `iex -S mix` included — and burrito's `__BURRITO` env var (which `running_standalone?/0` checks) is the supported way to run the TUI only inside the wrapped binary. And the `Process.unlink/1` before the `receive`: `start_link/1` links, so without it an abnormal TUI exit kills the CLI task before it can report a non-zero exit code, and the wrapped binary hangs on an idle BEAM instead of returning to the shell.
 
 ## Building
 
@@ -293,7 +317,7 @@ Once `mix ex_ratatui.gen.burrito` lands, the entire setup above collapses
 into:
 
 ```sh
-mix ex_ratatui.gen.burrito --app my_tui --ci github
+mix ex_ratatui.gen.burrito --tui-module MyTui.TUI --ci github
 ```
 
 The task patches `mix.exs`, scaffolds the Application + CLI modules, and
