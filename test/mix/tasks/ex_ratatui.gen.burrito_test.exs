@@ -36,11 +36,11 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert diff =~ "&Burrito.wrap/1"
     end
 
-    test "adds a Task child wired to the CLI entry point", %{igniter: igniter} do
+    test "adds the CLI module as a supervised child", %{igniter: igniter} do
       diff = diff(igniter)
 
-      assert diff =~ "Task"
-      assert diff =~ "Test.CLI.main(Burrito.Util.Args.argv())"
+      assert diff =~ "Test.CLI"
+      refute diff =~ "{Task,"
     end
 
     # The strongest regression guard for the generated module shape: the
@@ -72,6 +72,8 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert_creates(igniter, "lib/test/cli.ex")
 
       content = created_content(igniter, "lib/test/cli.ex")
+      assert content =~ "use Task"
+      assert content =~ "Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])"
       assert content =~ "Burrito.Util.running_standalone?()"
       assert content =~ ~s|"--version" in argv|
       assert content =~ ~s|IO.puts("test \#{@version}")|
@@ -79,6 +81,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert content =~ "Test.TUI.start_link([])"
       assert content =~ "Process.monitor(pid)"
       assert content =~ "Process.unlink(pid)"
+      assert content =~ "rescue"
       assert content =~ "System.stop(1)"
     end
 
@@ -114,7 +117,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       assert content =~ "&Burrito.wrap/1"
     end
 
-    test "leaves an existing entry for this app untouched" do
+    test "keeps an existing entry for this app and warns that it will not wrap" do
       igniter =
         [files: %{"mix.exs" => mix_exs(releases: "[test: [steps: [:assemble]]]")}]
         |> test_project()
@@ -123,6 +126,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       content = created_content(igniter, "mix.exs")
       assert content =~ "test: [steps: [:assemble]]"
       refute content =~ "&Burrito.wrap/1"
+      assert Enum.any?(igniter.warnings, &(&1 =~ "already has a `test:` entry"))
     end
 
     test "merges into a private function reference instead of clobbering it" do
@@ -148,7 +152,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
   end
 
   describe "application wiring" do
-    test "warns when an existing Task child prevents wiring the entry point" do
+    test "wires the CLI alongside an unrelated Task child" do
       files = %{
         "mix.exs" => mix_exs(application: "[mod: {Test.Application, []}]"),
         "lib/test/application.ex" => """
@@ -171,7 +175,20 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
         |> test_project()
         |> Igniter.compose_task("ex_ratatui.gen.burrito", ["--tui-module", "Test.TUI"])
 
-      assert Enum.any?(igniter.warnings, &(&1 =~ "already supervises a Task child"))
+      content = created_content(igniter, "lib/test/application.ex")
+      assert content =~ "{Task, fn -> :already_here end}"
+      assert content =~ "Test.CLI"
+      assert igniter.warnings == []
+    end
+
+    test "re-running the generator does not duplicate the child" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ex_ratatui.gen.burrito", ["--tui-module", "Test.TUI"])
+        |> Igniter.compose_task("ex_ratatui.gen.burrito", ["--tui-module", "Test.TUI"])
+
+      content = created_content(igniter, "lib/test/application.ex")
+      assert length(String.split(content, "Test.CLI")) == 2
     end
   end
 
@@ -224,7 +241,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
       diff = diff(igniter)
 
       assert diff =~ "ubuntu-latest"
-      assert diff =~ "macos-13"
+      assert diff =~ "macos-15-intel"
       assert diff =~ "macos-14"
       assert diff =~ "windows-latest"
       assert diff =~ "BURRITO_TARGET: ${{ matrix.target }}"
@@ -248,6 +265,21 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
         ])
 
       refute_creates(igniter, ".github/workflows/release.yml")
+    end
+  end
+
+  describe "with an unknown --ci value" do
+    test "reports an issue instead of silently skipping" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ex_ratatui.gen.burrito", [
+          "--tui-module",
+          "Test.TUI",
+          "--ci",
+          "gitlab"
+        ])
+
+      assert Enum.any?(igniter.issues, &(&1 =~ ~s(unknown --ci value "gitlab")))
     end
   end
 
