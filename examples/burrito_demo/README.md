@@ -1,6 +1,6 @@
 # burrito_demo — single-binary distribution example
 
-Packages the `examples/counter_app.exs` TUI as a self-contained native
+Packages the `examples/basics/counter_app.exs` TUI as a self-contained native
 binary via [Burrito](https://github.com/burrito-elixir/burrito). End users
 download one file, run it, and the BEAM + ex_ratatui + Rust NIF are
 extracted on first launch into a per-user cache directory.
