@@ -148,6 +148,8 @@ TARGET_ABI=musl BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
 
 `TARGET_ABI=musl` is required for the `linux` target. Burrito's linux wrapper uses a musl runtime, so the bundled NIF must be the musl variant — without the override, `rustler_precompiled` resolves the NIF from the build host (typically glibc), and a glibc `.so` cannot load inside the musl environment, so the wrapped binary crashes at NIF load. The musl artifacts are fully self-contained since ex_ratatui 0.12.0 (older ones additionally needed `libgcc_s.so.1` on the target — see #83). The other targets do not need this override; pass `TARGET_ABI=musl` only when `BURRITO_TARGET=linux`.
 
+`TARGET_ABI` only chooses between precompiled artifacts, so it is silently ignored whenever the crate is built from source — with `EX_RATATUI_BUILD` exported, or `:force_build` set in the `rustler_precompiled` config, the release gets a NIF compiled against the build host's glibc no matter what `TARGET_ABI` says. Unset both before releasing the linux target.
+
 Output lands in `burrito_out/`:
 
 ```

@@ -126,6 +126,13 @@ defmodule ExRatatui.Native do
       raise precomp_error
   end
 
+  # The `{otp_app, path}` pair `load_nif/0` resolves against, exposed for
+  # packaging checks that need the one NIF this build loads: `priv/native`
+  # accumulates every artifact ever resolved there, and only this one is
+  # ever handed to `:erlang.load_nif/2`.
+  @doc false
+  def load_from, do: @load_from
+
   @doc false
   def ensure_loaded do
     if loaded?() do
