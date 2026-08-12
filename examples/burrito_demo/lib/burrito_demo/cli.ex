@@ -1,36 +1,62 @@
 defmodule BurritoDemo.CLI do
   @moduledoc """
-  Burrito entry point. Boots the counter TUI, waits for it to exit, and
-  stops the VM so the wrapper returns control to the shell.
+  Burrito entry point. Boots the TUI, waits for it to exit, then stops the
+  VM with a matching exit code so the wrapper returns control to the shell.
 
-  Recognises a `--version` flag for non-interactive smoke tests — CI uses
-  it to assert that the wrapped binary boots and loads the NIF without
-  needing a TTY. `ensure_loaded/0` triggers the NIF dlopen so a
-  precompiled-NIF/host mismatch fails here rather than silently exiting 0.
+  `main/1` is a no-op unless the app runs inside a burrito-wrapped binary
+  (`Burrito.Util.running_standalone?/0`), so `mix test` and `iex -S mix`
+  never boot the TUI over the session.
+
+  A `--version` flag is recognised anywhere in argv for non-interactive
+  smoke tests (CI uses it to assert the wrapped binary boots and loads the
+  NIF without needing a TTY). `ensure_loaded/0` triggers the NIF dlopen so
+  a precompiled-NIF/host mismatch fails here rather than silently exiting 0.
   """
 
   @version Mix.Project.config()[:version]
 
   def main(argv) do
-    case argv do
-      ["--version" | _] ->
-        :ok = ExRatatui.Native.ensure_loaded()
-        IO.puts("burrito_demo #{@version}")
-        System.stop(0)
+    if Burrito.Util.running_standalone?() do
+      run(argv)
+    else
+      :ok
+    end
+  end
 
-      _ ->
-        run_tui()
+  defp run(argv) do
+    if "--version" in argv do
+      :ok = ExRatatui.Native.ensure_loaded()
+      IO.puts("burrito_demo #{@version}")
+      System.stop(0)
+    else
+      run_tui()
     end
   end
 
   defp run_tui do
-    {:ok, pid} = BurritoDemo.Counter.start_link([])
-    ref = Process.monitor(pid)
+    case BurritoDemo.Counter.start_link([]) do
+      {:ok, pid} ->
+        # An abnormal TUI exit must arrive as a DOWN message — not as an
+        # exit signal that kills this task before it can set the exit code,
+        # leaving the wrapped binary hanging on an idle BEAM.
+        ref = Process.monitor(pid)
+        Process.unlink(pid)
 
-    receive do
-      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+        receive do
+          {:DOWN, ^ref, :process, ^pid, reason} -> shut_down(reason)
+        end
+
+      {:error, reason} ->
+        IO.puts(:stderr, "burrito_demo failed to start: #{inspect(reason)}")
+        System.stop(1)
     end
+  end
 
-    System.stop(0)
+  defp shut_down(reason) when reason in [:normal, :shutdown], do: System.stop(0)
+  defp shut_down({:shutdown, _}), do: System.stop(0)
+
+  defp shut_down(reason) do
+    IO.puts(:stderr, "burrito_demo terminated: #{inspect(reason)}")
+    System.stop(1)
   end
 end
