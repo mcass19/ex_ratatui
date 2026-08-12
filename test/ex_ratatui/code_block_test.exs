@@ -212,15 +212,16 @@ defmodule ExRatatui.CodeBlockTest do
     end
 
     test "emits start + stop with language, theme, bytes, and line_count" do
+      me = self()
       _ = CodeBlock.highlight("fn main() {}\nfn other() {}", "rust", :solarized_dark)
 
-      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], start_meas,
+      assert_receive {:tel, ^me, [:ex_ratatui, :code_block, :highlight, :start], start_meas,
                       %{language: "rust", theme: "Solarized (dark)", bytes: bytes}}
 
       assert is_integer(start_meas.monotonic_time)
       assert bytes == byte_size("fn main() {}\nfn other() {}")
 
-      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :stop], stop_meas,
+      assert_receive {:tel, ^me, [:ex_ratatui, :code_block, :highlight, :stop], stop_meas,
                       %{
                         language: "rust",
                         theme: "Solarized (dark)",
@@ -233,18 +234,21 @@ defmodule ExRatatui.CodeBlockTest do
     end
 
     test "passes nil language through to telemetry metadata" do
+      me = self()
       _ = CodeBlock.highlight("hello", nil, :base16_ocean_dark)
 
-      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], _, %{language: nil}}
+      assert_receive {:tel, ^me, [:ex_ratatui, :code_block, :highlight, :start], _,
+                      %{language: nil}}
 
-      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :stop], _,
+      assert_receive {:tel, ^me, [:ex_ratatui, :code_block, :highlight, :stop], _,
                       %{language: nil, line_count: 1}}
     end
 
     test "atom language is normalised to a string in telemetry metadata" do
+      me = self()
       _ = CodeBlock.highlight("x", :elixir, :base16_ocean_dark)
 
-      assert_receive {:tel, [:ex_ratatui, :code_block, :highlight, :start], _,
+      assert_receive {:tel, ^me, [:ex_ratatui, :code_block, :highlight, :start], _,
                       %{language: "elixir"}}
     end
   end
@@ -252,7 +256,10 @@ defmodule ExRatatui.CodeBlockTest do
   # Captured module function — :telemetry warns at info level when
   # attached handlers are local/anonymous functions, citing a perf
   # penalty per dispatch. Using `&__MODULE__.forward_tel/4` silences it.
+  # Handlers are global and run in the emitting process, so the message
+  # carries `self()` — each test matches on its own pid to stay immune
+  # to highlight calls from concurrently running tests.
   def forward_tel(event, measurements, metadata, %{probe: probe}) do
-    send(probe, {:tel, event, measurements, metadata})
+    send(probe, {:tel, self(), event, measurements, metadata})
   end
 end
