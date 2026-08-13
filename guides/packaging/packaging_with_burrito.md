@@ -7,14 +7,14 @@ ex_ratatui itself stays a library — it does not depend on Burrito at runtime a
 ## Prerequisites
 
 - Erlang/OTP and Elixir matching ex_ratatui's `mix.exs` requirements.
-- `zig` **exactly 0.15.2**. Burrito 1.5 hard-pins this; any other version is rejected at `mix release` time. `mise install zig@0.15.2` is the shortest path; the broader install matrix is on the [Burrito README](https://github.com/burrito-elixir/burrito#requirements).
+- `zig` **exactly 0.16.0**. Burrito 1.6 hard-pins this; any other version is rejected at `mix release` time. `mise install zig@0.16.0` is the shortest path; the broader install matrix is on the [Burrito README](https://github.com/burrito-elixir/burrito#requirements). (On macOS 26 "Tahoe" this pin is mandatory: Zig 0.15.2 cannot link native binaries against the SDK 26 toolchain — see [ziglang/zig#31658](https://codeberg.org/ziglang/zig/issues/31658) — which is why Burrito moved to 0.16.0 in 1.6.)
 - `xz` on `PATH`. Usually already present on Linux and macOS.
 
 A `.mise.toml` in the consumer project keeps the toolchain reproducible:
 
 ```toml
 [tools]
-zig = "0.15.2"
+zig = "0.16.0"
 ```
 
 ## Quick start
@@ -46,7 +46,7 @@ Add ex_ratatui and burrito to `mix.exs`:
 defp deps do
   [
     {:ex_ratatui, "~> 0.12"},
-    {:burrito, "~> 1.5"}
+    {:burrito, "~> 1.6"}
   ]
 end
 ```

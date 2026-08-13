@@ -1,7 +1,8 @@
 # Toolchain pin for burrito_demo burrito builds.
 #
-# Burrito 1.5 requires zig exactly 0.15.2 — newer or older versions are
-# rejected at `mix release` time.
+# Burrito 1.6 requires zig exactly 0.16.0 — newer or older versions are
+# rejected at `mix release` time. (0.15.2 cannot link native binaries on
+# macOS 26 "Tahoe": the SDK 26 change breaks its linker — ziglang/zig#31658.)
 
 [tools]
-zig = "0.15.2"
+zig = "0.16.0"

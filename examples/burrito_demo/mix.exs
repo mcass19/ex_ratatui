@@ -26,7 +26,7 @@ defmodule BurritoDemo.MixProject do
     [
       {:ex_ratatui, path: "../.."},
       {:rustler, ">= 0.0.0", optional: true},
-      {:burrito, "~> 1.5"}
+      {:burrito, "~> 1.6"}
     ]
   end
 
