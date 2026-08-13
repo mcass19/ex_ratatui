@@ -12,6 +12,15 @@ name: Burrito Demo
 # The linux job builds with TARGET_ABI=musl, so the published musl NIF —
 # the artifact every musl consumer downloads — is smoke-tested inside
 # burrito's musl wrapper on every push.
+#
+# During a release there is a window where the tree cannot build: the
+# version-bump commit precedes the published artifacts and the checksum
+# entries for the new version, so rustler_precompiled rejects the
+# download by design. Whether a given commit can build is a local fact —
+# the committed checksum file either covers @version or it does not —
+# so the guard job greps for it and skips the build (green) when absent.
+# The checksum commit that always follows a release re-triggers this
+# workflow and smoke-tests the freshly published NIFs.
 
 on:
   pull_request:
@@ -20,7 +29,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  guard:
+    name: Checksums cover @version?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      buildable: ${{ steps.check.outputs.buildable }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check the checksum file covers the current version
+        id: check
+        run: |
+          version=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs | head -n1 | tr -d '\r')
+          if grep -qF -- "-v${version}-nif-" checksum-Elixir.ExRatatui.Native.exs; then
+            echo "buildable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "buildable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No v${version} entries in the NIF checksum file (release in flight) — skipping; the checksum commit will exercise the new artifacts."
+          fi
+
   build:
+    needs: guard
+    if: needs.guard.outputs.buildable == 'true'
     name: ${{ matrix.target }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
