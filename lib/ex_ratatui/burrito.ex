@@ -4,8 +4,17 @@ defmodule ExRatatui.Burrito do
   [Burrito](https://github.com/burrito-elixir/burrito).
 
   The CLI module scaffolded by `mix ex_ratatui.gen.burrito` is a thin shim
-  that delegates to `main/3`, so fixes to the entry-point protocol ship
-  with ex_ratatui upgrades instead of freezing in generated consumer code.
+  that delegates to `start_link/3`, so fixes to the entry-point protocol
+  ship with ex_ratatui upgrades instead of freezing in generated consumer
+  code.
+
+  Inside a wrapped binary the TUI runs **synchronously**, blocking OTP
+  application startup for its whole lifetime. Burrito boots the release
+  with `:elixir.start_cli`, which halts the node the moment the boot's
+  `-s` call returns — running the TUI in an async task loses that race and
+  the binary exits before drawing a frame. Blocking `Application.start`
+  keeps the boot (and therefore the VM) alive until the TUI exits, at
+  which point `main/3` stops the VM itself.
   `verify_linux_nif/1` is a release step that turns the most common
   packaging mistake — building the linux target without `TARGET_ABI=musl`
   — into an immediate build error instead of a shipped-broken binary.
@@ -18,7 +27,31 @@ defmodule ExRatatui.Burrito do
   """
 
   @doc """
-  Entry point for a burrito-wrapped TUI.
+  Supervised entry point for a burrito-wrapped TUI — the scaffolded CLI's
+  `start_link/1` delegates here.
+
+  Inside a wrapped binary (`__BURRITO` set) the TUI runs **synchronously**
+  in the calling process, so a supervised child's `start_link` blocks OTP
+  boot until the TUI exits — see the moduledoc for why an async task would
+  lose the race against Burrito's `start_cli` halt. `main/3` stops the VM
+  when the TUI exits, so this never returns in a wrapped binary.
+
+  Outside a wrapped binary (a consumer's `mix test` / `iex -S mix`) it
+  starts an async, no-op task, so the supervised child never takes over
+  the session. Options are the same as `main/3`.
+  """
+  @spec start_link(module(), [String.t()], keyword()) :: {:ok, pid()} | :ignore
+  def start_link(tui_module, argv, opts) do
+    if standalone?() do
+      main(tui_module, argv, opts)
+      :ignore
+    else
+      Task.start_link(fn -> main(tui_module, argv, opts) end)
+    end
+  end
+
+  @doc """
+  Runs a burrito-wrapped TUI to completion.
 
   Boots `tui_module` (any module using `ExRatatui.App`), waits for it to
   exit, then stops the VM with a matching exit code so the wrapper
@@ -26,9 +59,9 @@ defmodule ExRatatui.Burrito do
   crashes, fails to start (no TTY, NIF/host mismatch), or the entry point
   itself raises.
 
-  A no-op unless running inside a burrito-wrapped binary — the supervised
-  task also starts under the consumer's `mix test` and `iex -S mix`, and
-  must not take over those sessions. A `--version` flag anywhere in
+  A no-op unless running inside a burrito-wrapped binary. Callers reach
+  this through `start_link/3`, which runs it synchronously in a wrapped
+  binary and asynchronously otherwise. A `--version` flag anywhere in
   `argv` prints `name version` and exits 0 without a TTY; it first forces
   the NIF `dlopen`, so a precompiled-NIF/host mismatch fails loudly
   rather than silently exiting 0.
@@ -39,12 +72,15 @@ defmodule ExRatatui.Burrito do
       and error messages.
     * `:version` — the version string `--version` prints.
     * `:halt` — 1-arity function invoked with the exit code instead of
-      `System.stop/1`; exists for tests and embedders.
+      `System.halt/1`; exists for tests and embedders. Defaults to
+      `System.halt/1` rather than `System.stop/1` because the TUI runs
+      during application startup — a graceful `System.stop/1` would wait
+      on the same still-starting application and deadlock.
   """
   @spec main(module(), [String.t()], keyword()) :: :ok
   def main(tui_module, argv, opts) do
     name = Keyword.fetch!(opts, :name)
-    halt = Keyword.get(opts, :halt, &System.stop/1)
+    halt = Keyword.get(opts, :halt, &System.halt/1)
 
     try do
       if standalone?() do

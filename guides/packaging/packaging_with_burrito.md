@@ -118,16 +118,15 @@ defmodule MyTui.CLI do
   @version Mix.Project.config()[:version]
 
   def start_link(_arg) do
-    Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])
-  end
-
-  def main(argv) do
-    ExRatatui.Burrito.main(MyTui.TUI, argv, name: "my_tui", version: @version)
+    ExRatatui.Burrito.start_link(MyTui.TUI, Burrito.Util.Args.argv(),
+      name: "my_tui",
+      version: @version
+    )
   end
 end
 ```
 
-`MyTui.TUI` is any module using `ExRatatui.App`. The entry-point protocol itself — boot the TUI, wait for it to exit, stop the VM with a matching exit code so the wrapper returns control to the shell — lives in `ExRatatui.Burrito.main/3`, so its fixes arrive with ex_ratatui upgrades instead of freezing in this module. Three behaviours it provides matter beyond the happy path. It is a no-op outside a burrito-wrapped binary: the supervised task starts on *every* application boot — `mix test` and `iex -S mix` included — and burrito's `__BURRITO` env var is the supported way to run the TUI only inside the wrapped binary. `--version` anywhere in argv prints and exits 0 without a TTY, first forcing the NIF `dlopen` so a NIF/host mismatch fails loudly. And every failure path — the TUI crashing, failing to start, or the entry point raising — reports on stderr and exits 1 instead of hanging the wrapper on an idle BEAM. The `use Task` shape matters too: keying the child spec on the CLI module keeps the wiring idempotent and cannot collide with unrelated `Task` children in the tree.
+`MyTui.TUI` is any module using `ExRatatui.App`. The entry-point protocol — boot the TUI, wait for it to exit, stop the VM with a matching exit code so the wrapper returns control to the shell — lives in `ExRatatui.Burrito.start_link/3`, so its fixes arrive with ex_ratatui upgrades instead of freezing in this module. Inside a wrapped binary it runs the TUI **synchronously**, blocking application startup for the TUI's lifetime: burrito boots the release with `:elixir.start_cli`, which halts the node the instant the boot's `-s` call returns, so a TUI spawned into an async task would be killed before it drew a frame — blocking the boot keeps the VM alive until the TUI exits. Outside a wrapped binary (`mix test`, `iex -S mix`, detected via burrito's `__BURRITO` env var) it is instead an async no-op, so it never takes over those sessions. `--version` anywhere in argv prints and exits 0 without a TTY, first forcing the NIF `dlopen` so a NIF/host mismatch fails loudly; and every failure path — the TUI crashing, failing to start, or the entry point raising — reports on stderr and exits 1. The `use Task` shape matters too: keying the child spec on the CLI module keeps the wiring idempotent and cannot collide with unrelated `Task` children in the tree.
 
 ## Building
 

@@ -60,7 +60,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
 
       try do
         assert modules == [Test.CLI]
-        assert function_exported?(Test.CLI, :main, 1)
+        assert function_exported?(Test.CLI, :start_link, 1)
       after
         Enum.each(modules, fn mod ->
           :code.purge(mod)
@@ -74,10 +74,12 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
 
       content = created_content(igniter, "lib/test/cli.ex")
       assert content =~ "use Task"
-      assert content =~ "Task.start_link(__MODULE__, :main, [Burrito.Util.Args.argv()])"
 
       assert content =~
-               ~s|ExRatatui.Burrito.main(Test.TUI, argv, name: "test", version: @version)|
+               ~s|ExRatatui.Burrito.start_link(Test.TUI, Burrito.Util.Args.argv(),|
+
+      assert content =~ ~s|name: "test"|
+      assert content =~ "version: @version"
     end
 
     test "creates .mise.toml pinning zig 0.16.0", %{igniter: igniter} do
