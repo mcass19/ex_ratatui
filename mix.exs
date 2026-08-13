@@ -4,7 +4,7 @@ defmodule ExRatatui.MixProject do
   @description "Elixir bindings for the Rust ratatui terminal UI library"
   @source_url "https://github.com/mcass19/ex_ratatui"
   @changelog_url @source_url <> "/blob/main/CHANGELOG.md"
-  @version "0.12.0"
+  @version "0.13.0"
 
   def project do
     [

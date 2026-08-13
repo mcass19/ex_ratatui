@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-13
+
 ### Added
 
 - **Single-binary distribution via [Burrito](https://github.com/burrito-elixir/burrito).** The new [Packaging with Burrito guide](guides/packaging/packaging_with_burrito.md) walks through wrapping any `ExRatatui.App` into a self-contained native binary per OS/arch — Linux x86_64, macOS x86_64, macOS aarch64, and Windows x86_64. End users download one file, run it, and the BEAM + ex_ratatui + Rust NIF unpack into a per-user cache on first launch. On Linux the wrapper runs a musl runtime, so releases build with `TARGET_ABI=musl` and bundle the musl NIF — self-contained since the 0.12.0 fix for #83. `examples/burrito_demo/` is the reference consumer, and `.github/workflows/burrito_demo.yml` is the regression CI proving the linux (musl), macOS apple-silicon, and windows targets build + smoke-test green on every push — intel macOS builds the same way, it just has no CI leg.
@@ -558,7 +560,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/mcass19/ex_ratatui/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/mcass19/ex_ratatui/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/mcass19/ex_ratatui/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/mcass19/ex_ratatui/compare/v0.11.0...v0.11.1
