@@ -6,10 +6,10 @@ if Code.ensure_loaded?(Igniter) do
     Patches the current project to ship as a single-file native binary via
     [Burrito](https://github.com/burrito-elixir/burrito).
 
-    Adds `{:burrito, "~> 1.5"}`, merges a release with the four standard
+    Adds `{:burrito, "~> 1.6"}`, merges a release with the four standard
     targets (linux, macos, macos_silicon, windows) into `releases:` without
     disturbing existing entries, creates a CLI module with a `main/1` entry
-    point, adds a `.mise.toml` pinning `zig 0.15.2`, and — when `--ci
+    point, adds a `.mise.toml` pinning `zig 0.16.0`, and — when `--ci
     github` is passed — drops a release workflow into `.github/workflows/`.
 
     The generated CLI only boots the TUI inside the wrapped binary
@@ -64,7 +64,7 @@ if Code.ensure_loaded?(Igniter) do
       cli_module = IgniterModule.module_name(igniter, "CLI")
 
       igniter
-      |> IgniterDeps.add_dep({:burrito, "~> 1.5"})
+      |> IgniterDeps.add_dep({:burrito, "~> 1.6"})
       |> patch_releases(app)
       |> wire_application_child(cli_module)
       |> create_cli_module(cli_module, tui_module, app)
@@ -184,7 +184,7 @@ if Code.ensure_loaded?(Igniter) do
       Next steps:
 
         1. mix deps.get
-        2. mise install              (one-time; pins zig 0.15.2)
+        2. mise install              (one-time; pins zig 0.16.0)
         3. TARGET_ABI=musl BURRITO_TARGET=linux MIX_ENV=prod mix release --overwrite
         4. ./burrito_out/#{app}_linux --version
 

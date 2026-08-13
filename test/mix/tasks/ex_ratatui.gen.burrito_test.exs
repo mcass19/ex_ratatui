@@ -20,7 +20,7 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
 
     test "adds burrito to deps", %{igniter: igniter} do
       assert_has_patch(igniter, "mix.exs", """
-      + |      {:burrito, "~> 1.5"}
+      + |      {:burrito, "~> 1.6"}
       """)
     end
 
@@ -80,10 +80,10 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
                ~s|ExRatatui.Burrito.main(Test.TUI, argv, name: "test", version: @version)|
     end
 
-    test "creates .mise.toml pinning zig 0.15.2", %{igniter: igniter} do
+    test "creates .mise.toml pinning zig 0.16.0", %{igniter: igniter} do
       assert_creates(igniter, ".mise.toml")
       diff = diff(igniter)
-      assert diff =~ ~s(zig = "0.15.2")
+      assert diff =~ ~s(zig = "0.16.0")
     end
 
     test "does not create a CI workflow by default", %{igniter: igniter} do

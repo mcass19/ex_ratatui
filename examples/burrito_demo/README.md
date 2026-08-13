@@ -8,7 +8,7 @@ For the wider story, see the [Packaging with Burrito guide](../../guides/packagi
 
 ## Prerequisites
 
-`mise install` from this directory provides `zig 0.15.2` (pinned by Burrito 1.5). `xz` must be on `PATH` (already present on Linux and macOS).
+`mise install` from this directory provides `zig 0.16.0` (pinned by Burrito 1.6). `xz` must be on `PATH` (already present on Linux and macOS).
 
 ## Build
 
