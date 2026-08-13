@@ -144,6 +144,32 @@ defmodule ExRatatui.BurritoTest do
     end
   end
 
+  describe "start_link/3" do
+    test "outside a wrapped binary, starts an async no-op task" do
+      System.delete_env("__BURRITO")
+
+      assert {:ok, pid} =
+               ExRatatui.Burrito.start_link(CrashExit, [], name: "demo", halt: halt_fun(self()))
+
+      assert is_pid(pid)
+      refute_receive {:halted, _}
+    end
+
+    test "inside a wrapped binary, runs the TUI synchronously and then halts" do
+      standalone(fn ->
+        # Synchronous: blocks until the stub TUI exits, so the halt has
+        # already fired by the time start_link/3 returns.
+        assert :ignore =
+                 ExRatatui.Burrito.start_link(NormalExit, [],
+                   name: "demo",
+                   halt: halt_fun(self())
+                 )
+
+        assert_received {:halted, 0}
+      end)
+    end
+  end
+
   describe "verify_linux_nif/2" do
     # The loaded artifact is whatever this build resolved, so the fixture
     # names it the way the release step learns it — never by hardcoding a

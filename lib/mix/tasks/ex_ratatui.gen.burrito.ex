@@ -8,8 +8,9 @@ if Code.ensure_loaded?(Igniter) do
 
     Adds `{:burrito, "~> 1.6"}`, merges a release with the four standard
     targets (linux, macos, macos_silicon, windows) into `releases:` without
-    disturbing existing entries, creates a CLI module with a `main/1` entry
-    point, adds a `.mise.toml` pinning `zig 0.16.0`, and — when `--ci
+    disturbing existing entries, creates a CLI module delegating to
+    `ExRatatui.Burrito.start_link/3`, adds a `.mise.toml` pinning
+    `zig 0.16.0`, and — when `--ci
     github` is passed — drops a release workflow into `.github/workflows/`.
 
     The generated CLI only boots the TUI inside the wrapped binary

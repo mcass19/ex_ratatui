@@ -31,7 +31,7 @@ Output lands at `burrito_out/burrito_demo_linux` (~21 MB). For `macos`, `macos_s
 ./burrito_out/burrito_demo_linux
 ```
 
-First run unpacks to `~/.local/share/.burrito/burrito_demo_erts-<erts version>_0.1.0/` and re-execs. Subsequent runs skip the unpack.
+First run unpacks to `~/.local/share/.burrito/burrito_demo_erts-<erts version>_0.1.0/` (macOS uses `~/Library/Application Support/.burrito/`) and re-execs. Subsequent runs skip the unpack. Run the binary as your normal user, never with `sudo` — a `sudo` run writes the cache as root, and later non-root runs then fail with `error: AccessDenied`.
 
 Controls match the original counter:
 
@@ -53,7 +53,7 @@ The cache directory is shared with other Burrito apps on the same machine, so th
 ## How the wiring fits together
 
 - `mix.exs` names `BurritoDemo.Application` as the OTP `:mod`, which supervises `BurritoDemo.CLI` as a `Task`.
-- `BurritoDemo.CLI` is a thin shim: it reads `Burrito.Util.Args.argv/0` and hands off to `ExRatatui.Burrito.main/3`, so entry-point fixes arrive with ex_ratatui upgrades instead of freezing in this file. The delegate is a no-op outside a wrapped binary, so `mix test` and `iex -S mix` never boot the TUI over the session.
+- `BurritoDemo.CLI` is a thin shim: it reads `Burrito.Util.Args.argv/0` and hands off to `ExRatatui.Burrito.start_link/3`, so entry-point fixes arrive with ex_ratatui upgrades instead of freezing in this file. Inside the wrapped binary the TUI runs synchronously and keeps the VM alive (burrito boots via `:elixir.start_cli`, which halts the node once boot returns — an async task would be killed before drawing); outside one (`mix test`, `iex -S mix`) it is an async no-op that never boots the TUI over the session.
 - The release `steps` run `&ExRatatui.Burrito.verify_linux_nif/1` between `:assemble` and `&Burrito.wrap/1`. On the linux target it scans the NIF this build loads and fails the release if it is a glibc build, rather than shipping a binary that dies at NIF load on every end-user machine.
 
 `mix ex_ratatui.gen.burrito` generates this same wiring in a consumer project.
@@ -61,5 +61,5 @@ The cache directory is shared with other Burrito apps on the same machine, so th
 ## What this proves
 
 - ex_ratatui's precompiled NIF survives the Burrito unpack/relocate cycle on Linux x86_64, macOS (x86_64 and aarch64), and Windows x86_64.
-- The OTP `:mod` callback plus a `Task` delegating to `ExRatatui.Burrito.main/3` is enough to bridge Burrito's entry point into a TUI render loop, with matching process exit codes for clean and crashed shutdowns.
+- The OTP `:mod` callback plus a `Task` delegating to `ExRatatui.Burrito.start_link/3` is enough to bridge Burrito's entry point into a TUI render loop, with matching process exit codes for clean and crashed shutdowns.
 - The linux target can be built on a glibc host — no musl container needed: `TARGET_ABI=musl` resolves the musl artifact from the rustler_precompiled cache, and the resulting binary loads it fine when run on that same glibc host.
