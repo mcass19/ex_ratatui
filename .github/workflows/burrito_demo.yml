@@ -36,7 +36,7 @@ jobs:
     outputs:
       buildable: ${{ steps.check.outputs.buildable }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check the checksum file covers the current version
         id: check
@@ -78,7 +78,7 @@ jobs:
             artifact: burrito_demo_windows.exe
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: erlef/setup-beam@v1
         with:
@@ -111,7 +111,7 @@ jobs:
         working-directory: examples/burrito_demo
         run: ./burrito_out/${{ matrix.artifact }} --version
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: examples/burrito_demo/burrito_out/${{ matrix.artifact }}
