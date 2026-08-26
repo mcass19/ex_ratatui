@@ -31,3 +31,11 @@ cc = "1"
 default = ["nif_version_2_16"]
 nif_version_2_16 = ["rustler/nif_version_2_16"]
 nif_version_2_17 = ["rustler/nif_version_2_17"]
+
+# Size-tuned release profile for the precompiled artifacts. `opt-level` stays
+# at the default 3: "s"/"z" shrink further but de-prioritize the hot paths
+# (3D rasterizer, image decode, sixel quantization).
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1
