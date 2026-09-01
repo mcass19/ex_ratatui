@@ -48,7 +48,8 @@ defmodule ExRatatui.MixProject do
         plt_local_path: "plts",
         plt_core_path: "plts/core",
         plt_add_apps: [:rustler, :mix]
-      ]
+      ],
+      usage_rules: usage_rules()
     ]
   end
 
@@ -81,12 +82,30 @@ defmodule ExRatatui.MixProject do
       {:igniter, "~> 0.8", optional: true},
 
       # Dev
+      {:usage_rules, "~> 1.2", only: [:dev]},
       {:ex_doc, "~> 0.35", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4", only: :dev, runtime: false},
 
       # Test
       {:stream_data, "~> 1.1", only: :test}
+    ]
+  end
+
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      skills: [
+        location: ".claude/skills",
+        build: [
+          "elixir-core": [
+            description:
+              "Use this skill when writing or refactoring any Elixir code — core language idioms, OTP patterns, and Igniter code generation.",
+            # :usage_rules auto-includes its sub-rules (:elixir, :otp)
+            usage_rules: [:usage_rules, :igniter]
+          ]
+        ]
+      ]
     ]
   end
 
