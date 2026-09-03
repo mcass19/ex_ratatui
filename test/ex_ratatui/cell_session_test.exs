@@ -537,6 +537,32 @@ defmodule ExRatatui.CellSessionTest do
       :ok = CellSession.close(session)
     end
 
+    test "draw/2 clips a widget area to the session buffer instead of panicking" do
+      # A scrolled WidgetList blits rows by raw buffer index; an area past the
+      # buffer (a frame planned before a pty shrink) must clip, not panic.
+      alias ExRatatui.Widgets.WidgetList
+
+      session = CellSession.new(20, 5)
+      item = %Paragraph{text: "one\ntwo\nthree"}
+      list = %WidgetList{items: [{item, 3}, {item, 3}], scroll_offset: 1}
+      past_right = %Rect{x: 15, y: 0, width: 10, height: 3}
+      past_bottom = %Rect{x: 0, y: 4, width: 8, height: 4}
+      outside = %Rect{x: 25, y: 7, width: 4, height: 2}
+
+      assert :ok =
+               CellSession.draw(session, [
+                 {list, past_right},
+                 {list, past_bottom},
+                 {list, outside}
+               ])
+
+      %Snapshot{cells: cells} = CellSession.take_cells(session)
+      row0 = cells |> Enum.filter(&(&1.row == 0)) |> Enum.map_join(& &1.symbol)
+      assert row0 =~ "two"
+
+      :ok = CellSession.close(session)
+    end
+
     test "take_cells/1 returns a Snapshot of Cell structs" do
       session = CellSession.new(3, 1)
       :ok = CellSession.draw(session, [])

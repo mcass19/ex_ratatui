@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Drawing no longer panics when a widget area exceeds the buffer.** The terminal autoresizes inside `draw`, so a frame planned before a window or pty shrink can carry areas past the new buffer; ratatui's widgets clip themselves, but `WidgetList` blits rows by raw buffer index and panicked inside the NIF (`index outside of buffer`). Every widget area is now intersected with the target buffer at the one rendering entry point, so `draw/2`, `Session`, `CellSession` and nested content (`Popup`, `WidgetList` items) are all covered.
+
 ### Changed
 
 - **Smaller precompiled NIF.** The Rust crate now builds with a size-tuned release profile (`strip = "symbols"`, fat LTO, `codegen-units = 1`), shrinking the artifact by ~13% on disk (5.3 → 4.6 MB on x86_64-linux-gnu) and ~9% as a download (2.36 → 2.14 MB compressed) with no functional change. `opt-level` deliberately stays at the default 3 — `"s"`/`"z"` would shrink further but de-prioritize the hot paths (the 3D rasterizer, image decode, sixel quantization). Headless render benchmarks across core widgets, markdown/syntect highlighting, and both 3D pipelines show frame times flat to slightly improved (raytrace ~6% faster from LTO).

@@ -24,6 +24,25 @@ defmodule ExRatatui.Integration.RenderingTest do
       assert {:error, "terminal not initialized"} = result
     end
 
+    test "clips a widget area to the frame instead of panicking", %{terminal: terminal} do
+      # A frame planned for a bigger terminal can reach `draw/2` after the
+      # terminal shrank (autoresize happens inside draw), so a command's area
+      # may lie past the buffer. Ratatui's own widgets clip themselves; a
+      # scrolled WidgetList blits rows by raw buffer index and panicked.
+      alias ExRatatui.Widgets.WidgetList
+
+      item = %Paragraph{text: "one\ntwo\nthree"}
+      list = %WidgetList{items: [{item, 3}, {item, 3}], scroll_offset: 1}
+      past_right = %Rect{x: 30, y: 0, width: 20, height: 4}
+      past_bottom = %Rect{x: 0, y: 8, width: 10, height: 5}
+      outside = %Rect{x: 45, y: 12, width: 5, height: 2}
+
+      assert :ok =
+               ExRatatui.draw(terminal, [{list, past_right}, {list, past_bottom}, {list, outside}])
+
+      assert ExRatatui.get_buffer_content(terminal) =~ "two"
+    end
+
     test "accepts paragraph with default style", %{terminal: terminal} do
       paragraph = %Paragraph{text: "Hello, world!"}
       rect = %Rect{x: 0, y: 0, width: 40, height: 5}
