@@ -1493,6 +1493,10 @@ fn render_widget(frame: &mut ratatui::Frame, cmd: &RenderCommand, caps: Transpor
 }
 
 pub fn render_widget_data(buf: &mut Buffer, widget: &WidgetData, area: Rect, caps: TransportCaps) {
+    // Ratatui's widgets clip themselves, but WidgetList blits rows by raw
+    // index; clamp once here so draw, sessions, CellSession and nested
+    // widgets are all safe when a frame outlives a window shrink.
+    let area = area.intersection(*buf.area());
     match widget {
         WidgetData::Paragraph(data) => paragraph::render(buf, data, area),
         WidgetData::BigText(data) => big_text::render(buf, data, area),
