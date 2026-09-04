@@ -6,7 +6,9 @@ defmodule ExRatatui.Image do
   backed by [ratatui-image](https://github.com/ratatui/ratatui-image). The
   same widget renders across every ExRatatui transport: in a Kitty-graphics
   capable local terminal it uses the Kitty protocol; over `CellSession`
-  (Livebook / Kino) it falls back to Unicode halfblocks automatically.
+  (Livebook / Kino) it falls back to Unicode halfblocks automatically; over
+  a `CellSession` created with a `:font_size` (e-ink, a canvas) it ships
+  the decoded bitmap as an `ExRatatui.CellSession.Region`.
 
   ```elixir
   {:ok, picture} = ExRatatui.Image.new(File.read!("priv/slides/cover.png"))
@@ -23,7 +25,9 @@ defmodule ExRatatui.Image do
       `:auto` resolves at render time using the transport's capabilities
       (see the [Images guide](guides/core/images.md) for the resolution table).
       Explicit protocols are honored except over `CellSession`-style
-      transports where `:halfblocks` is forced.
+      transports where `:halfblocks` is forced — unless the session was
+      created with a `:font_size`, in which case every request but
+      `:halfblocks` becomes a pixel region.
     * `:resize` - resize strategy. `:fit` (default, preserve aspect ratio
       inside the rect), `:crop` (preserve aspect, fill the rect, crop the
       overflow), or `:scale` (stretch to fill).

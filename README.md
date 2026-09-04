@@ -145,7 +145,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Running TUIs over SSH](guides/transports/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/transports/custom_transports.md) | Plug in a custom transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
-| [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers |
+| [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers — plus RGB pixel regions for images and 3D on surfaces that own pixels |
 | [Architecture](guides/internals/architecture.md) | The NIF bridge and the per-transport process trees |
 | [Testing](guides/internals/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
 | [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |

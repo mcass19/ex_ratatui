@@ -18,11 +18,14 @@ defmodule ExRatatui.CellSession.Snapshot do
     * `:height` — terminal height in cells
     * `:cells` — list of `t:ExRatatui.CellSession.Cell.t/0` in
       row-major order: `(0,0), (1,0), ..., (W-1,0), (0,1), ...`
+    * `:regions` — list of `t:ExRatatui.CellSession.Region.t/0`, the
+      pixel regions on screen (bitmaps from pixel-mode widgets). Always
+      empty for a session created without a `:font_size`.
 
   ## Examples
 
       iex> %ExRatatui.CellSession.Snapshot{}
-      %ExRatatui.CellSession.Snapshot{width: 0, height: 0, cells: []}
+      %ExRatatui.CellSession.Snapshot{width: 0, height: 0, cells: [], regions: []}
   """
 
   alias ExRatatui.CellSession.{Cell, Region}

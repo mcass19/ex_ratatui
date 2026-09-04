@@ -38,11 +38,15 @@ defmodule ExRatatui.CellSession.Diff do
     * `:ops` — list of `t:ExRatatui.CellSession.Cell.t/0` for cells
       that changed. Empty list means the buffer is identical to the
       prior snapshot.
+    * `:regions` — list of `t:ExRatatui.CellSession.Region.t/0`, the
+      **complete** set of pixel regions on screen for this frame (not a
+      delta). Always empty for a session created without a
+      `:font_size`.
 
   ## Examples
 
       iex> %ExRatatui.CellSession.Diff{}
-      %ExRatatui.CellSession.Diff{width: 0, height: 0, ops: []}
+      %ExRatatui.CellSession.Diff{width: 0, height: 0, ops: [], regions: []}
   """
 
   alias ExRatatui.CellSession.{Cell, Region}

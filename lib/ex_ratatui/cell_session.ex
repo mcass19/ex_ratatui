@@ -26,6 +26,19 @@ defmodule ExRatatui.CellSession do
   resize semantics — is the same. An `ExRatatui.App` doesn't know
   which session type is hosting it.
 
+  ## Pixel regions
+
+  A consumer that owns real pixels (an e-ink panel, a canvas) can
+  create the session with its cell size, `new(cols, rows, font_size:
+  {w, h})`. Pixel-mode widgets — `ExRatatui.Widgets.Viewport3D` in
+  `:auto`/`:kitty`/`:sixel`/`:iterm2`, `ExRatatui.Widgets.Image` with
+  any protocol but `:halfblocks` — then render to RGB bitmaps that
+  travel next to the cells as `ExRatatui.CellSession.Region` structs in
+  `Snapshot.regions` / `Diff.regions` (the complete list on screen each
+  frame; the covered cells arrive blank). Without a font size the
+  session only ever emits cells and those widgets fall back to half
+  blocks.
+
   ## Lifecycle
 
       session  = ExRatatui.CellSession.new(80, 24)
