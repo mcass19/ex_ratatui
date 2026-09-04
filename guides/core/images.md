@@ -28,7 +28,7 @@ Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so a
 
 | Option | Values | Default | What it does |
 |---|---|---|---|
-| `:protocol` | `:auto`, `:halfblocks`, `:kitty`, `:sixel`, `:iterm2` | `:auto` | Which terminal protocol to render with. `:auto` resolves at render time against the transport (see [resolution table](#protocol-resolution)). Explicit protocols are honored except over `CellSession` where `:halfblocks` is forced. |
+| `:protocol` | `:auto`, `:halfblocks`, `:kitty`, `:sixel`, `:iterm2` | `:auto` | Which terminal protocol to render with. `:auto` resolves at render time against the transport (see [resolution table](#protocol-resolution)). Explicit protocols are honored except over a plain `CellSession`, where `:halfblocks` is forced; a `CellSession` created with a `:font_size` turns every non-`:halfblocks` request into a pixel region. |
 | `:resize` | `:fit`, `:crop`, `:scale` | `:fit` | `:fit` preserves aspect inside the rect (anchored top-left if smaller). `:crop` preserves aspect, fills the rect, crops the overflow. `:scale` stretches to fill (no aspect preservation). |
 | `:background` | `nil`, any `t:ExRatatui.Style.color/0`, or raw `{r, g, b}` | `nil` | Color used to fill transparent pixels / unused area for halfblocks. |
 
@@ -49,8 +49,9 @@ Each transport stamps its own capability hint. Widget-level `:auto` resolves aga
 | Distributed (`image_protocol: :kitty` + `image_font_size: {10, 20}`) | `:kitty` | Honored with accurate scaling |
 | Distributed (no opts) | `:halfblocks` | Honored |
 | `CellSession` (Livebook / Kino) | `:halfblocks` | **Forced to `:halfblocks`** (escape sequences can't survive cell diffing) |
+| `CellSession` with `font_size: {w, h}` (e-ink, canvas) | A pixel region | A pixel region — the decoded bitmap ships in `Diff.regions`, see the [CellSession guide](cell_session.html#pixel-regions-for-surfaces-with-real-pixels) |
 
-This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in a local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching.
+This means **the same model code is portable**: a slide deck that renders pixel-perfect Kitty graphics in a local Kitty terminal will silently fall back to halfblocks when the same `ExRatatui.App` is driven from a Livebook cell — no branching. A consumer that owns pixels and states its cell size gets the real bitmap from the same code, with `:resize` and `:background` behaving as they do on a terminal (`:fit` never upscales, `:scale` fills, `:crop` clips; `:background` fills the rest of the rect).
 
 Image widgets work over **every** transport, including `ExRatatui.Distributed` — image bytes are snapshotted into the render tree, costing roughly the source file size per frame on the wire. Fine for stills; watch the bandwidth when animating large images.
 
@@ -106,7 +107,7 @@ Per-image explicit choices (`ExRatatui.Image.new(bytes, protocol: :sixel)`) are 
 
 ## Font-size caveat
 
-Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensions to scale Kitty / Sixel / iTerm2 payloads correctly. The default is `(8, 16)`; `auto_local_protocol/1` replaces it with the real value reported by the terminal. If Kitty graphics look mis-scaled, run the probe.
+Cells aren't pixels. The render pipeline needs the terminal's cell-pixel dimensions to scale Kitty / Sixel / iTerm2 payloads correctly. The default is `(8, 16)`; `auto_local_protocol/1` replaces it with the real value reported by the terminal. If Kitty graphics look mis-scaled, run the probe. On a `CellSession` the consumer supplies the value itself through `font_size:`, and passing the same tuple to `ExRatatui.Image.render_size/4` makes the prediction match the region the session ships.
 
 ## Examples
 
