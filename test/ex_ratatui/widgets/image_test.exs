@@ -134,4 +134,57 @@ defmodule ExRatatui.Widgets.ImageTest do
                draw_through_cell_session(half, 4, 4)
     end
   end
+
+  describe "pixel regions on a font-size CellSession" do
+    alias ExRatatui.CellSession
+    alias ExRatatui.CellSession.{Region, Snapshot}
+
+    defp draw_with_font_size(widget, width, height) do
+      session = CellSession.new(width, height, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: width, height: height}
+      :ok = CellSession.draw(session, [{widget, rect}])
+      %Snapshot{} = snapshot = CellSession.take_cells(session)
+      :ok = CellSession.close(session)
+      snapshot
+    end
+
+    test ":auto ships the picture as a region instead of half blocks" do
+      {:ok, widget} = Image.new(@valid_png)
+      %Snapshot{regions: [%Region{} = region], cells: cells} = draw_with_font_size(widget, 4, 4)
+
+      # A 1x1 source at :fit stays 1x1 and covers a single cell, padded
+      # to the 6x8 cell in RGB8.
+      assert {region.x, region.y, region.width, region.height} == {0, 0, 1, 1}
+      assert {region.pixel_width, region.pixel_height} == {6, 8}
+      assert region.format == :rgb8
+      assert byte_size(region.data) == 6 * 8 * 3
+      refute Enum.any?(cells, &(&1.symbol == "▀"))
+    end
+
+    test "explicit terminal protocols become regions too" do
+      for protocol <- [:kitty, :sixel, :iterm2] do
+        {:ok, widget} = Image.new(@valid_png, protocol: protocol)
+        assert %Snapshot{regions: [%Region{}]} = draw_with_font_size(widget, 4, 4)
+      end
+    end
+
+    test ":halfblocks stays a cell mode" do
+      {:ok, widget} = Image.new(@valid_png, protocol: :halfblocks)
+      assert %Snapshot{regions: []} = draw_with_font_size(widget, 4, 4)
+    end
+
+    test "resize: :scale fills the area and background: fills the whole rect" do
+      {:ok, scaled} = Image.new(@valid_png, resize: :scale)
+      %Snapshot{regions: [region]} = draw_with_font_size(scaled, 4, 4)
+      # 24x32 px box, square source -> 24x24 -> 4 cols x 3 rows.
+      assert {region.width, region.height} == {4, 3}
+      assert {region.pixel_width, region.pixel_height} == {24, 24}
+
+      {:ok, backed} = Image.new(@valid_png, background: {255, 255, 255})
+      %Snapshot{regions: [region]} = draw_with_font_size(backed, 4, 4)
+      assert {region.width, region.height} == {4, 4}
+      assert {region.pixel_width, region.pixel_height} == {24, 32}
+      assert binary_part(region.data, byte_size(region.data) - 3, 3) == <<255, 255, 255>>
+    end
+  end
 end

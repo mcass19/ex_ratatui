@@ -23,10 +23,55 @@ defmodule ExRatatui.Server.CellSessionTransportTest do
   alias ExRatatui.CellSession
   alias ExRatatui.CellSession.Diff
   alias ExRatatui.Frame
-  alias ExRatatui.Test.ServerApps.{Echo, FailingMount, StopOnAnyEvent}
+  alias ExRatatui.Test.ServerApps.{Cube, Echo, FailingMount, StopOnAnyEvent}
 
   defp cell_writer(test_pid) do
     fn %Diff{} = diff -> send(test_pid, {:writer_diff, diff}) end
+  end
+
+  describe "pixel regions" do
+    test "a session with a font size hands the writer the frame's regions" do
+      cell_session = CellSession.new(20, 10, font_size: {6, 8})
+
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: Cube,
+          name: nil,
+          transport: {:cell_session, cell_session, cell_writer(self())}
+        )
+
+      assert_receive {:writer_diff, %Diff{regions: [region]} = diff}, 1000
+      assert length(diff.ops) == 200
+      assert {region.width, region.height} == {20, 10}
+      assert {region.pixel_width, region.pixel_height} == {120, 80}
+      assert byte_size(region.data) == 120 * 80 * 3
+
+      # A re-render with nothing changed ships no ops but still the
+      # complete region list.
+      send(
+        pid,
+        {:ex_ratatui_event, %ExRatatui.Event.Key{code: "x", modifiers: [], kind: "press"}}
+      )
+
+      assert_receive {:writer_diff, %Diff{ops: [], regions: [^region]}}, 1000
+
+      GenServer.stop(pid)
+    end
+
+    test "a session without a font size never carries regions" do
+      cell_session = CellSession.new(20, 10)
+
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: Cube,
+          name: nil,
+          transport: {:cell_session, cell_session, cell_writer(self())}
+        )
+
+      assert_receive {:writer_diff, %Diff{regions: []}}, 1000
+
+      GenServer.stop(pid)
+    end
   end
 
   describe "lifecycle" do

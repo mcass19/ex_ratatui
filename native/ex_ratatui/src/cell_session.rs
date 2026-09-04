@@ -42,6 +42,7 @@ use rustler::{Atom, Binary, Encoder, Env, Error, ResourceArc, Term};
 
 use crate::events::NifEvent;
 use crate::image::TransportCaps;
+use crate::pixel_region::{self, PixelRegion};
 use crate::rendering::{decode_render_commands, render_widget_data, RenderCommand};
 use crate::session_input::InputParser;
 use crate::style::{encode_color, encode_modifiers};
@@ -54,6 +55,7 @@ mod atoms {
         height,
         cells,
         ops,
+        regions,
     }
 }
 
@@ -80,11 +82,19 @@ mod atoms {
 /// buffer. `take_cells` does **not** touch this slot — pure snapshots
 /// stay stateless so consumers can mix snapshots and diffs without
 /// surprising the diff baseline.
+///
+/// `font_size` is the consumer's cell pixel size when it declared one at
+/// construction. It switches `draw` from `TransportCaps::CellOnly` to
+/// `TransportCaps::PixelRegions`, and `regions` then holds the pixel
+/// regions the most recent draw produced; both snapshot and diff payloads
+/// carry that complete list.
 pub struct CellSessionResource {
     pub(crate) terminal: Mutex<Option<Terminal<TestBackend>>>,
     pub(crate) input: Mutex<InputParser>,
     pub(crate) size: Mutex<(u16, u16)>,
     pub(crate) prev_buffer: Mutex<Option<Buffer>>,
+    pub(crate) font_size: Option<(u16, u16)>,
+    pub(crate) regions: Mutex<Vec<PixelRegion>>,
 }
 
 #[rustler::resource_impl]
@@ -103,6 +113,23 @@ impl CellSessionResource {
     /// no host-tty query path to defend against, so we don't need
     /// [`ratatui::Viewport::Fixed`] gymnastics here.
     pub fn new(width: u16, height: u16) -> Result<Self, String> {
+        Self::with_font_size(width, height, None)
+    }
+
+    /// Like [`new`](Self::new), with the consumer's cell pixel size. A
+    /// session that knows its font size renders pixel-mode widgets as
+    /// pixel regions instead of forcing them down the half-block path.
+    pub fn with_font_size(
+        width: u16,
+        height: u16,
+        font_size: Option<(u16, u16)>,
+    ) -> Result<Self, String> {
+        if let Some((fw, fh)) = font_size {
+            if fw == 0 || fh == 0 {
+                return Err("cell session font size must be positive".to_string());
+            }
+        }
+
         let backend = TestBackend::new(width, height);
         let terminal =
             Terminal::new(backend).map_err(|e| format!("cell session terminal init: {e}"))?;
@@ -112,7 +139,27 @@ impl CellSessionResource {
             input: Mutex::new(InputParser::new()),
             size: Mutex::new((width, height)),
             prev_buffer: Mutex::new(None),
+            font_size,
+            regions: Mutex::new(Vec::new()),
         })
+    }
+
+    /// The capabilities widgets render with: pixel regions when the
+    /// consumer declared a font size, cells only otherwise.
+    fn caps(&self) -> TransportCaps {
+        match self.font_size {
+            Some(font_size) => TransportCaps::PixelRegions { font_size },
+            None => TransportCaps::CellOnly,
+        }
+    }
+
+    /// The pixel regions produced by the most recent draw (empty when the
+    /// session has no font size or nothing pixel-mode was drawn).
+    pub(crate) fn current_regions(&self) -> Result<Vec<PixelRegion>, String> {
+        self.regions
+            .lock()
+            .map(|regions| regions.clone())
+            .map_err(|_| "cell session regions lock poisoned".to_string())
     }
 
     /// Drops the inner ratatui `Terminal` and any cached diff baseline.
@@ -134,6 +181,9 @@ impl CellSessionResource {
         if let Ok(mut prev_guard) = self.prev_buffer.lock() {
             *prev_guard = None;
         }
+        if let Ok(mut regions_guard) = self.regions.lock() {
+            regions_guard.clear();
+        }
         Ok(())
     }
 
@@ -151,22 +201,28 @@ impl CellSessionResource {
             .as_mut()
             .ok_or_else(|| "cell session is closed".to_string())?;
 
-        terminal
-            .draw(|frame| {
-                for command in &commands {
-                    // CellSession only emits cells — terminal escape sequences
-                    // (Kitty / Sixel / iTerm2) cannot survive cell diffing, so
-                    // images are forced down the halfblocks path regardless of
-                    // the user's requested protocol.
-                    render_widget_data(
-                        frame.buffer_mut(),
-                        &command.widget,
-                        command.area,
-                        TransportCaps::CellOnly,
-                    );
-                }
-            })
-            .map_err(|e| format!("cell session draw: {e}"))?;
+        // Terminal escape sequences (Kitty / Sixel / iTerm2) cannot survive
+        // cell diffing, so a plain session forces images down the
+        // halfblocks path regardless of the requested protocol. A session
+        // with a font size instead collects pixel regions: widgets push
+        // their bitmaps while the draw runs and we gather them afterwards.
+        let caps = self.caps();
+        pixel_region::begin_collecting();
+
+        let drawn = terminal.draw(|frame| {
+            for command in &commands {
+                render_widget_data(frame.buffer_mut(), &command.widget, command.area, caps);
+            }
+        });
+
+        let regions = pixel_region::finish_collecting();
+        drawn.map_err(|e| format!("cell session draw: {e}"))?;
+
+        let mut regions_guard = self
+            .regions
+            .lock()
+            .map_err(|_| "cell session regions lock poisoned".to_string())?;
+        *regions_guard = regions;
 
         Ok(())
     }
@@ -349,7 +405,7 @@ fn collect_changed_cells<'a>(env: Env<'a>, prev: &Buffer, curr: &Buffer) -> Vec<
 /// is whatever `collect_all_cells` produced. `map_put` on a freshly
 /// constructed map cannot fail (the only failure mode is calling it on
 /// a non-map term), so the unwraps are safe.
-fn encode_full_payload<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
+fn encode_full_payload<'a>(env: Env<'a>, buffer: &Buffer, regions: &[PixelRegion]) -> Term<'a> {
     let width = buffer.area.width;
     let height = buffer.area.height;
     let cells = collect_all_cells(env, buffer);
@@ -361,6 +417,11 @@ fn encode_full_payload<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
         .expect("map_put on fresh map cannot fail")
         .map_put(atoms::cells().encode(env), cells.encode(env))
         .expect("map_put on fresh map cannot fail")
+        .map_put(
+            atoms::regions().encode(env),
+            pixel_region::encode_regions(env, regions),
+        )
+        .expect("map_put on fresh map cannot fail")
 }
 
 /// Wraps a Vec of cell tuples into the `%{width, height, ops: [...]}` map
@@ -368,14 +429,25 @@ fn encode_full_payload<'a>(env: Env<'a>, buffer: &Buffer) -> Term<'a> {
 /// except for the `:ops` field name, which signals "these are deltas, not
 /// the full grid." Width/height are still the FULL terminal dimensions —
 /// consumers need them to size their viewport regardless of how many ops
-/// fit in the diff.
-fn encode_diff_payload<'a>(env: Env<'a>, width: u16, height: u16, ops: Vec<Term<'a>>) -> Term<'a> {
+/// fit in the diff. `regions` is the complete current list, never a delta.
+fn encode_diff_payload<'a>(
+    env: Env<'a>,
+    width: u16,
+    height: u16,
+    ops: Vec<Term<'a>>,
+    regions: &[PixelRegion],
+) -> Term<'a> {
     Term::map_new(env)
         .map_put(atoms::width().encode(env), width.encode(env))
         .expect("map_put on fresh map cannot fail")
         .map_put(atoms::height().encode(env), height.encode(env))
         .expect("map_put on fresh map cannot fail")
         .map_put(atoms::ops().encode(env), ops.encode(env))
+        .expect("map_put on fresh map cannot fail")
+        .map_put(
+            atoms::regions().encode(env),
+            pixel_region::encode_regions(env, regions),
+        )
         .expect("map_put on fresh map cannot fail")
 }
 
@@ -388,6 +460,19 @@ fn nif_error(message: String) -> Error {
 #[rustler::nif]
 fn cell_session_new(width: u16, height: u16) -> Result<ResourceArc<CellSessionResource>, Error> {
     let session = CellSessionResource::new(width, height).map_err(nif_error)?;
+    Ok(ResourceArc::new(session))
+}
+
+/// `cell_session_new/3`: a session whose consumer owns real pixels of
+/// `font_size` per cell, so pixel-mode widgets ship regions.
+#[rustler::nif(name = "cell_session_new")]
+fn cell_session_new_with_font_size(
+    width: u16,
+    height: u16,
+    font_size: (u16, u16),
+) -> Result<ResourceArc<CellSessionResource>, Error> {
+    let session =
+        CellSessionResource::with_font_size(width, height, Some(font_size)).map_err(nif_error)?;
     Ok(ResourceArc::new(session))
 }
 
@@ -441,8 +526,9 @@ fn cell_session_take_cells<'a>(
     env: Env<'a>,
     resource: ResourceArc<CellSessionResource>,
 ) -> Result<Term<'a>, Error> {
+    let regions = resource.current_regions().map_err(nif_error)?;
     resource
-        .with_buffer(|buffer| encode_full_payload(env, buffer))
+        .with_buffer(|buffer| encode_full_payload(env, buffer, &regions))
         .map_err(nif_error)
 }
 
@@ -495,7 +581,8 @@ fn cell_session_take_cells_diff<'a>(
     // diffed against.
     *prev_guard = Some(curr_buffer.clone());
 
-    Ok(encode_diff_payload(env, width, height, ops))
+    let regions = resource.current_regions().map_err(nif_error)?;
+    Ok(encode_diff_payload(env, width, height, ops, &regions))
 }
 
 #[cfg(test)]
@@ -516,6 +603,58 @@ mod tests {
         // remote terminals don't choke on session creation.
         let session = CellSessionResource::new(1, 1).unwrap();
         assert_eq!(session.current_size().unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn cell_session_resource_without_font_size_is_cell_only() {
+        let session = CellSessionResource::new(10, 5).unwrap();
+        assert_eq!(session.caps(), TransportCaps::CellOnly);
+        assert!(session.current_regions().unwrap().is_empty());
+    }
+
+    #[test]
+    fn cell_session_resource_with_font_size_collects_pixel_regions() {
+        let session = CellSessionResource::with_font_size(10, 5, Some((6, 8))).unwrap();
+        assert_eq!(
+            session.caps(),
+            TransportCaps::PixelRegions { font_size: (6, 8) }
+        );
+    }
+
+    #[test]
+    fn cell_session_resource_rejects_a_zero_font_size() {
+        assert!(CellSessionResource::with_font_size(10, 5, Some((0, 8))).is_err());
+        assert!(CellSessionResource::with_font_size(10, 5, Some((6, 0))).is_err());
+    }
+
+    #[test]
+    fn cell_session_resource_draw_replaces_regions_and_close_clears_them() {
+        let session = CellSessionResource::with_font_size(10, 5, Some((6, 8))).unwrap();
+        session.regions.lock().unwrap().push(PixelRegion {
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            pixel_width: 6,
+            pixel_height: 8,
+            data: vec![0; 6 * 8 * 3],
+        });
+
+        // A draw with no pixel-mode widgets leaves no regions behind.
+        session.draw(Vec::new()).unwrap();
+        assert!(session.current_regions().unwrap().is_empty());
+
+        session.regions.lock().unwrap().push(PixelRegion {
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            pixel_width: 6,
+            pixel_height: 8,
+            data: vec![0; 6 * 8 * 3],
+        });
+        session.close().unwrap();
+        assert!(session.regions.lock().unwrap().is_empty());
     }
 
     #[test]

@@ -98,6 +98,16 @@ defmodule ExRatatui.CellSession do
   in-memory `TestBackend` buffer that callers drain via `take_cells/1`.
   Both dimensions must be at least `1`.
 
+  ## Options
+
+    * `:font_size` — `{width, height}` of one cell in pixels, for
+      consumers that paint onto real pixels (an e-ink panel, a canvas).
+      A session that knows its font size renders pixel-mode widgets
+      (`ExRatatui.Widgets.Viewport3D`, `ExRatatui.Widgets.Image`) as
+      `ExRatatui.CellSession.Region` bitmaps shipped alongside the cells,
+      instead of forcing them down the half-block path. Without it the
+      session only ever emits cells.
+
   ## Examples
 
       iex> session = ExRatatui.CellSession.new(80, 24)
@@ -105,12 +115,25 @@ defmodule ExRatatui.CellSession do
       {80, 24}
       iex> ExRatatui.CellSession.close(session)
       :ok
+
+      iex> session = ExRatatui.CellSession.new(66, 37, font_size: {6, 8})
+      iex> ExRatatui.CellSession.size(session)
+      {66, 37}
+      iex> ExRatatui.CellSession.close(session)
+      :ok
   """
-  @spec new(pos_integer(), pos_integer()) :: t()
-  def new(width, height)
-      when is_integer(width) and width > 0 and is_integer(height) and height > 0 do
-    %__MODULE__{ref: Native.cell_session_new(width, height)}
+  @spec new(pos_integer(), pos_integer(), keyword()) :: t()
+  def new(width, height, opts \\ [])
+      when is_integer(width) and width > 0 and is_integer(height) and height > 0 and
+             is_list(opts) do
+    %__MODULE__{ref: new_ref(width, height, Keyword.get(opts, :font_size))}
   end
+
+  defp new_ref(width, height, nil), do: Native.cell_session_new(width, height)
+
+  defp new_ref(width, height, {fw, fh} = font_size)
+       when is_integer(fw) and fw > 0 and is_integer(fh) and fh > 0,
+       do: Native.cell_session_new(width, height, font_size)
 
   @doc """
   Renders a list of `{widget, rect}` tuples into the session's terminal.

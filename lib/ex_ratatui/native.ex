@@ -32,6 +32,7 @@ defmodule ExRatatui.Native do
     session_resize: 3,
     session_size: 1,
     cell_session_new: 2,
+    cell_session_new: 3,
     cell_session_close: 1,
     cell_session_draw: 2,
     cell_session_take_cells: 1,

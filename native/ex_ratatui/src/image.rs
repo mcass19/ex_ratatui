@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use image::DynamicImage;
+use image::{imageops, DynamicImage, GenericImageView, Rgba, RgbaImage};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui_image::picker::{Picker, ProtocolType};
@@ -8,6 +8,8 @@ use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{FontSize, Resize, ResizeEncodeRender};
 
 use rustler::{Env, Error, NifTaggedEnum, OwnedBinary, Resource, ResourceArc};
+
+use crate::pixel_region::{self, PixelRegion};
 
 mod atoms {
     rustler::atoms! {
@@ -49,9 +51,16 @@ pub struct ImageOpts {
 /// (SSH / Distributed / custom). `Local` is set by the local terminal
 /// once `image_probe_terminal/0` has cached a `Picker::from_query_stdio`
 /// result via `terminal_set_local_probe/3`.
+///
+/// `PixelRegions` is a `CellSession` whose consumer declared its cell pixel
+/// size: pixel-mode widgets rasterize to RGB8 and ship the bitmap out of
+/// band (see `crate::pixel_region`) instead of encoding a terminal protocol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransportCaps {
     CellOnly,
+    PixelRegions {
+        font_size: (u16, u16),
+    },
     Local {
         picker_protocol: ProtocolKind,
         font_size: (u16, u16),
@@ -65,6 +74,7 @@ impl TransportCaps {
     pub fn font_size(&self) -> (u16, u16) {
         match self {
             TransportCaps::Local { font_size, .. } => *font_size,
+            TransportCaps::PixelRegions { font_size } => *font_size,
             // 8x16 is a reasonable terminal default. Refined in chunk 7
             // when we probe the local terminal for the real cell pixel size.
             _ => (8, 16),
@@ -76,6 +86,10 @@ pub fn resolve_protocol(requested: ProtocolKind, caps: TransportCaps) -> Protoco
     match (requested, caps) {
         // Cell-based transports can only carry halfblocks. Forced fallback.
         (_, TransportCaps::CellOnly) => ProtocolKind::Halfblocks,
+        // Pixel-region sessions never encode a protocol: the widget dispatch
+        // turns any pixel request into a region, so the request passes
+        // through untouched (an explicit `:halfblocks` stays a cell mode).
+        (requested, TransportCaps::PixelRegions { .. }) => requested,
         (
             ProtocolKind::Auto,
             TransportCaps::Local {
@@ -157,6 +171,15 @@ pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: 
         return;
     }
 
+    // A surface with real pixels: any pixel request becomes a region. An
+    // explicit `:halfblocks` is a cell mode and keeps the cell path.
+    if let TransportCaps::PixelRegions { font_size } = caps {
+        if state.requested_protocol != ProtocolKind::Halfblocks {
+            render_region(buf, state, area, font_size);
+            return;
+        }
+    }
+
     let resolved = resolve_protocol(state.requested_protocol, caps);
 
     // Rebuild the encoder state when the resolved protocol changes (or on
@@ -179,6 +202,68 @@ pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: 
     let resize = to_resize(state.resize);
     if let Some(cache) = state.cache.as_mut() {
         cache.stateful.resize_encode_render(&resize, area, buf);
+    }
+}
+
+/// Pixel-region rendering. Mirrors ratatui-image's `Resize` semantics on
+/// the decoded source (`Fit` never upscales, `Scale` always fills, `Crop`
+/// clips bottom/right), anchors the picture at the area's top-left, and
+/// ships it as an RGB8 region. With a `background` the region covers the
+/// whole area and the colour fills what the picture does not; without one
+/// the region only covers the cells the picture touches, padded to whole
+/// cells in black. Either way the bitmap is an exact multiple of the cell
+/// size (or the capped size), so consumers scale it uniformly.
+fn render_region(buf: &mut Buffer, state: &ImageState, area: Rect, font_size: (u16, u16)) {
+    let (fw, fh) = (font_size.0 as u32, font_size.1 as u32);
+    let (target_w, target_h) = pixel_region::rect_pixel_dims(area, font_size);
+    let picture = fit_source(&state.source, state.resize, target_w, target_h);
+    let (pw, ph) = picture.dimensions();
+
+    let (rect, canvas_w, canvas_h) = match state.background {
+        Some(_) => (area, target_w, target_h),
+        None => {
+            let cols = pw.div_ceil(fw).min(area.width as u32) as u16;
+            let rows = ph.div_ceil(fh).min(area.height as u32) as u16;
+            let rect = Rect::new(area.x, area.y, cols, rows);
+            (rect, cols as u32 * fw, rows as u32 * fh)
+        }
+    };
+
+    if rect.width == 0 || rect.height == 0 {
+        return;
+    }
+
+    let (r, g, b) = state.background.unwrap_or((0, 0, 0));
+    let mut canvas = RgbaImage::from_pixel(canvas_w, canvas_h, Rgba([r, g, b, 255]));
+    imageops::overlay(&mut canvas, &picture, 0, 0);
+    let data = DynamicImage::ImageRgba8(canvas).to_rgb8().into_raw();
+
+    pixel_region::blank_area(buf, rect);
+    pixel_region::push(PixelRegion {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        pixel_width: canvas_w,
+        pixel_height: canvas_h,
+        data,
+    });
+}
+
+/// The source picture sized for a `target_w × target_h` pixel box.
+fn fit_source(
+    source: &DynamicImage,
+    resize: ResizeKind,
+    target_w: u32,
+    target_h: u32,
+) -> DynamicImage {
+    let (w, h) = source.dimensions();
+    match resize {
+        ResizeKind::Fit if w <= target_w && h <= target_h => source.clone(),
+        ResizeKind::Fit | ResizeKind::Scale => {
+            source.resize(target_w, target_h, imageops::FilterType::Nearest)
+        }
+        ResizeKind::Crop => source.crop_imm(0, 0, w.min(target_w), h.min(target_h)),
     }
 }
 
@@ -483,5 +568,174 @@ mod tests {
             state.cache.as_ref().unwrap().active_protocol,
             ProtocolKind::Kitty,
         );
+    }
+
+    // ---- pixel regions --------------------------------------------------
+
+    const REGION_CAPS: TransportCaps = TransportCaps::PixelRegions { font_size: (6, 8) };
+
+    fn solid_png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
+        let buf = image::RgbImage::from_fn(width, height, |_, _| image::Rgb(rgb));
+        let mut out: Vec<u8> = Vec::new();
+        DynamicImage::ImageRgb8(buf)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .expect("encode test PNG");
+        out
+    }
+
+    fn state_from(
+        bytes: Vec<u8>,
+        resize: ResizeKind,
+        background: Option<(u8, u8, u8)>,
+    ) -> ImageState {
+        let source = image::load_from_memory(&bytes).unwrap();
+        ImageState {
+            source,
+            source_bytes: bytes,
+            requested_protocol: ProtocolKind::Auto,
+            resize,
+            background,
+            cache: None,
+        }
+    }
+
+    fn render_regions(state: &mut ImageState, area: Rect) -> (Buffer, Vec<PixelRegion>) {
+        let mut buf = Buffer::empty(area);
+        pixel_region::begin_collecting();
+        render_state(&mut buf, state, area, REGION_CAPS);
+        (buf, pixel_region::finish_collecting())
+    }
+
+    fn pixel(region: &PixelRegion, x: u32, y: u32) -> [u8; 3] {
+        let i = ((y * region.pixel_width + x) * 3) as usize;
+        [region.data[i], region.data[i + 1], region.data[i + 2]]
+    }
+
+    #[test]
+    fn region_fit_keeps_a_small_source_at_native_size_padded_to_whole_cells() {
+        let mut state = state_from(solid_png(2, 2, [255, 0, 0]), ResizeKind::Fit, None);
+        let (buf, regions) = render_regions(&mut state, Rect::new(0, 0, 4, 4));
+
+        assert_eq!(regions.len(), 1);
+        let region = &regions[0];
+        assert_eq!(
+            (region.x, region.y, region.width, region.height),
+            (0, 0, 1, 1)
+        );
+        assert_eq!((region.pixel_width, region.pixel_height), (6, 8));
+        assert_eq!(region.data.len(), 6 * 8 * 3);
+        assert_eq!(pixel(region, 0, 0), [255, 0, 0]);
+        assert_eq!(pixel(region, 1, 1), [255, 0, 0]);
+        assert_eq!(
+            pixel(region, 2, 2),
+            [0, 0, 0],
+            "padding is black without a background"
+        );
+        assert_eq!(buf[(0, 0)].symbol(), " ");
+        assert!(
+            state.cache.is_none(),
+            "no protocol encoder is built for a region"
+        );
+    }
+
+    #[test]
+    fn region_scale_fills_the_area_preserving_aspect() {
+        let mut state = state_from(solid_png(2, 2, [0, 255, 0]), ResizeKind::Scale, None);
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 4, 4));
+
+        // 24x32 px box, square source -> 24x24 -> 4 cols x 3 rows of cells.
+        let region = &regions[0];
+        assert_eq!((region.width, region.height), (4, 3));
+        assert_eq!((region.pixel_width, region.pixel_height), (24, 24));
+        assert_eq!(pixel(region, 23, 23), [0, 255, 0]);
+    }
+
+    #[test]
+    fn region_crop_clips_the_bottom_and_right() {
+        let mut state = state_from(solid_png(10, 10, [0, 0, 255]), ResizeKind::Crop, None);
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 1, 1));
+
+        let region = &regions[0];
+        assert_eq!((region.width, region.height), (1, 1));
+        assert_eq!((region.pixel_width, region.pixel_height), (6, 8));
+        assert!(region.data.chunks(3).all(|px| px == [0, 0, 255]));
+    }
+
+    #[test]
+    fn region_with_background_covers_the_whole_area() {
+        let mut state = state_from(
+            solid_png(2, 2, [255, 0, 0]),
+            ResizeKind::Fit,
+            Some((1, 2, 3)),
+        );
+        let (buf, regions) = render_regions(&mut state, Rect::new(2, 1, 4, 4));
+
+        let region = &regions[0];
+        assert_eq!(
+            (region.x, region.y, region.width, region.height),
+            (2, 1, 4, 4)
+        );
+        assert_eq!((region.pixel_width, region.pixel_height), (24, 32));
+        assert_eq!(pixel(region, 0, 0), [255, 0, 0]);
+        assert_eq!(pixel(region, 23, 31), [1, 2, 3]);
+        assert_eq!(buf[(5, 4)].symbol(), " ");
+    }
+
+    #[test]
+    fn region_fit_downsizes_a_large_source() {
+        let mut state = state_from(solid_png(100, 50, [9, 9, 9]), ResizeKind::Fit, None);
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 4, 4));
+
+        // 24x32 box, 2:1 source -> 24x12 -> 4 cols x 2 rows.
+        let region = &regions[0];
+        assert_eq!((region.width, region.height), (4, 2));
+        assert_eq!((region.pixel_width, region.pixel_height), (24, 16));
+    }
+
+    #[test]
+    fn region_is_capped_on_its_longest_side() {
+        let mut state = state_from(
+            solid_png(2, 2, [255, 0, 0]),
+            ResizeKind::Scale,
+            Some((0, 0, 0)),
+        );
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 300, 200));
+
+        let region = &regions[0];
+        assert_eq!((region.width, region.height), (300, 200));
+        assert_eq!(
+            region.pixel_width.max(region.pixel_height),
+            pixel_region::MAX_DIM
+        );
+    }
+
+    #[test]
+    fn explicit_halfblocks_stays_a_cell_mode_on_a_pixel_region_session() {
+        let mut state = fresh_state(ProtocolKind::Halfblocks, ResizeKind::Fit);
+        let (buf, regions) = render_regions(&mut state, Rect::new(0, 0, 4, 4));
+
+        assert!(regions.is_empty());
+        assert_eq!(
+            state.cache.as_ref().unwrap().active_protocol,
+            ProtocolKind::Halfblocks
+        );
+        assert!((0..4).any(|x| buf[(x, 0)].symbol() != " "));
+    }
+
+    #[test]
+    fn rgba_sources_blend_over_the_background() {
+        let buf = image::RgbaImage::from_fn(2, 2, |_, _| image::Rgba([255, 255, 255, 0]));
+        let mut bytes: Vec<u8> = Vec::new();
+        DynamicImage::ImageRgba8(buf)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+        let mut state = state_from(bytes, ResizeKind::Fit, Some((10, 20, 30)));
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 1, 1));
+
+        // Fully transparent white over the background reads as the background.
+        assert_eq!(pixel(&regions[0], 0, 0), [10, 20, 30]);
     }
 }

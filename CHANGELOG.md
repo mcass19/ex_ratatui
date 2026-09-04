@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `ExRatatui.CellSession.new/3` accepts `font_size: {width, height}`, the consumer's cell size in pixels. On such a session `Viewport3D` in a pixel render mode (`:auto`, `:kitty`, `:sixel`, `:iterm2`) and `Image` with any protocol but `:halfblocks` render to a real bitmap instead of half blocks: the frame's `%Snapshot{}` and `%Diff{}` gain a `regions` list of `ExRatatui.CellSession.Region` structs (cell rect, pixel size, `:rgb8` bytes), the complete set on screen each frame, and the covered cells arrive blank. `Image` keeps its `:resize` semantics (`:fit` never upscales, `:scale` fills, `:crop` clips) and `:background` fills the rest of the rect. Sessions created without a font size are unchanged. Built for pixel surfaces such as e-ink panels and browser canvases.
+
 ## [0.13.1] - 2026-09-04
 
 ### Fixed

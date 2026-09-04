@@ -45,14 +45,15 @@ defmodule ExRatatui.CellSession.Diff do
       %ExRatatui.CellSession.Diff{width: 0, height: 0, ops: []}
   """
 
-  alias ExRatatui.CellSession.Cell
+  alias ExRatatui.CellSession.{Cell, Region}
 
-  defstruct width: 0, height: 0, ops: []
+  defstruct width: 0, height: 0, ops: [], regions: []
 
   @type t :: %__MODULE__{
           width: non_neg_integer(),
           height: non_neg_integer(),
-          ops: [Cell.t()]
+          ops: [Cell.t()],
+          regions: [Region.t()]
         }
 
   @doc """
@@ -63,13 +64,15 @@ defmodule ExRatatui.CellSession.Diff do
   @spec from_native(%{
           required(:width) => non_neg_integer(),
           required(:height) => non_neg_integer(),
-          required(:ops) => [tuple()]
+          required(:ops) => [tuple()],
+          optional(:regions) => [map()]
         }) :: t()
-  def from_native(%{width: width, height: height, ops: ops}) do
+  def from_native(%{width: width, height: height, ops: ops} = native) do
     %__MODULE__{
       width: width,
       height: height,
-      ops: Enum.map(ops, &Cell.from_tuple/1)
+      ops: Enum.map(ops, &Cell.from_tuple/1),
+      regions: native |> Map.get(:regions, []) |> Enum.map(&Region.from_native/1)
     }
   end
 end
