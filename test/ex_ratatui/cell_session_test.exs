@@ -660,6 +660,33 @@ defmodule ExRatatui.CellSessionTest do
       :ok = CellSession.close(session)
     end
 
+    test "Region.to_png/1 encodes the bitmap as a PNG of the region's pixel size" do
+      region = %Region{
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        pixel_width: 2,
+        pixel_height: 1,
+        format: :rgb8,
+        data: <<255, 0, 0, 0, 0, 255>>
+      }
+
+      png = Region.to_png(region)
+
+      # PNG signature, then the IHDR chunk carrying width and height.
+      assert <<137, 80, 78, 71, 13, 10, 26, 10, _len::32, "IHDR", 2::32, 1::32, _::binary>> = png
+
+      # Round-trips through the image decoder: a 2x1 red/blue picture.
+      {:ok, widget} = ExRatatui.Image.new(png)
+      assert ExRatatui.Image.dimensions(widget) == {2, 1}
+    end
+
+    test "Region.to_png/1 rejects a bitmap whose size does not match its dimensions" do
+      region = %Region{pixel_width: 2, pixel_height: 2, data: <<0, 0, 0>>}
+      assert_raise ArgumentError, fn -> Region.to_png(region) end
+    end
+
     test "a huge rect is capped on its longest side and reports the smaller bitmap" do
       session = CellSession.new(220, 170, font_size: {6, 8})
       rect = %Rect{x: 0, y: 0, width: 220, height: 170}
