@@ -5,6 +5,7 @@ defmodule ExRatatui.CellSessionTest do
   doctest ExRatatui.CellSession.Cell
   doctest ExRatatui.CellSession.Snapshot
   doctest ExRatatui.CellSession.Diff
+  doctest ExRatatui.CellSession.Region
 
   alias ExRatatui.Bridge
   alias ExRatatui.Layout.Rect
@@ -511,6 +512,168 @@ defmodule ExRatatui.CellSessionTest do
   # ----------------------------------------------------------------------
   # ExRatatui.CellSession (Elixir wrapper)
   # ----------------------------------------------------------------------
+
+  # ----------------------------------------------------------------------
+  # Pixel regions (sessions created with a :font_size)
+  # ----------------------------------------------------------------------
+
+  describe "pixel regions" do
+    alias ExRatatui.CellSession
+    alias ExRatatui.CellSession.{Diff, Region, Snapshot}
+    alias ExRatatui.ThreeD.{Light, Material, Mesh, Object, Scene}
+    alias ExRatatui.Widgets.{Block, Viewport3D}
+
+    defp cube_scene do
+      %Scene{
+        objects: [%Object{mesh: Mesh.cube(), material: %Material{color: {100, 150, 255}}}],
+        lights: [Light.ambient({255, 255, 255}, 0.2)]
+      }
+    end
+
+    defp viewport(mode, block \\ nil),
+      do: %Viewport3D{scene: cube_scene(), render_mode: mode, block: block}
+
+    defp in_rect?(cell, %Rect{} = rect) do
+      cell.col >= rect.x and cell.col < rect.x + rect.width and
+        cell.row >= rect.y and cell.row < rect.y + rect.height
+    end
+
+    test "new/3 rejects a font size that is not two positive integers" do
+      assert_raise FunctionClauseError, fn -> CellSession.new(10, 5, font_size: {0, 8}) end
+      assert_raise FunctionClauseError, fn -> CellSession.new(10, 5, font_size: {6, -1}) end
+      assert_raise FunctionClauseError, fn -> CellSession.new(10, 5, font_size: 6) end
+    end
+
+    test "a pixel-mode Viewport3D on a font-size session ships a region and blanks its cells" do
+      session = CellSession.new(20, 10, font_size: {6, 8})
+      rect = %Rect{x: 2, y: 1, width: 10, height: 5}
+
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+      %Diff{regions: [%Region{} = region], ops: ops} = CellSession.take_cells_diff(session)
+
+      assert {region.x, region.y, region.width, region.height} == {2, 1, 10, 5}
+      assert {region.pixel_width, region.pixel_height} == {60, 40}
+      assert region.format == :rgb8
+      assert byte_size(region.data) == 60 * 40 * 3
+
+      # The covered cells are plain blanks: the consumer paints them as
+      # background, then blits the region on top. (ratatui never forwards
+      # skip-flagged cells to the backend buffer, so a skip flag would
+      # leave stale content underneath instead.)
+      {covered, _outside} = Enum.split_with(ops, &in_rect?(&1, rect))
+      assert length(covered) == 50
+      assert Enum.all?(covered, &(&1.symbol == " " and &1.fg == :reset and &1.bg == :reset))
+      refute Enum.any?(covered, & &1.skip)
+
+      :ok = CellSession.close(session)
+    end
+
+    test "explicit terminal protocols become regions too; cell modes never do" do
+      session = CellSession.new(20, 10, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      for mode <- [:kitty, :sixel, :iterm2] do
+        :ok = CellSession.draw(session, [{viewport(mode), rect}])
+
+        assert %Snapshot{regions: [%Region{width: 20, height: 10}]} =
+                 CellSession.take_cells(session)
+      end
+
+      for mode <- [:braille, :half_block, :ascii] do
+        :ok = CellSession.draw(session, [{viewport(mode), rect}])
+        assert %Snapshot{regions: [], cells: cells} = CellSession.take_cells(session)
+        # Cell modes paint colour into the cells themselves.
+        assert Enum.any?(cells, &match?({:rgb, _, _, _}, &1.fg))
+      end
+
+      :ok = CellSession.close(session)
+    end
+
+    test "a block keeps its border in cells and the region covers the inner rect" do
+      session = CellSession.new(12, 6, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: 12, height: 6}
+      block = %Block{borders: [:all], title: "3d"}
+
+      :ok = CellSession.draw(session, [{viewport(:auto, block), rect}])
+      %Snapshot{regions: [region], cells: cells} = CellSession.take_cells(session)
+
+      assert {region.x, region.y, region.width, region.height} == {1, 1, 10, 4}
+      assert {region.pixel_width, region.pixel_height} == {60, 32}
+
+      corner = Enum.find(cells, &(&1.row == 0 and &1.col == 0))
+      assert corner.symbol == "┌"
+      inner = Enum.find(cells, &(&1.row == 1 and &1.col == 1))
+      assert inner.symbol == " "
+
+      :ok = CellSession.close(session)
+    end
+
+    test "a font-less session never ships regions and keeps the half-block fallback" do
+      session = CellSession.new(20, 10)
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+      %Diff{regions: [], ops: ops} = CellSession.take_cells_diff(session)
+
+      assert Enum.any?(ops, &(&1.symbol == "▀"))
+
+      :ok = CellSession.close(session)
+    end
+
+    test "regions are the complete list per frame: a widget that is not drawn is gone" do
+      session = CellSession.new(20, 10, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+      assert %Diff{regions: [_]} = CellSession.take_cells_diff(session)
+
+      :ok = CellSession.draw(session, [{%Paragraph{text: "text"}, rect}])
+      %Diff{regions: [], ops: ops} = CellSession.take_cells_diff(session)
+
+      # The covered cells flip back to real content in the same payload.
+      assert Enum.any?(ops, &(&1.symbol == "t"))
+
+      :ok = CellSession.close(session)
+    end
+
+    test "take_cells/1 carries the same regions as the diff and leaves the baseline alone" do
+      session = CellSession.new(20, 10, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: 20, height: 10}
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+
+      %Snapshot{regions: [region]} = CellSession.take_cells(session)
+      %Diff{regions: [^region], ops: ops} = CellSession.take_cells_diff(session)
+      assert length(ops) == 200
+
+      :ok = CellSession.close(session)
+    end
+
+    test "resize/3 keeps the font size" do
+      session = CellSession.new(20, 10, font_size: {6, 8})
+      :ok = CellSession.resize(session, 30, 12)
+      rect = %Rect{x: 0, y: 0, width: 30, height: 12}
+
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+      %Snapshot{regions: [region]} = CellSession.take_cells(session)
+      assert {region.pixel_width, region.pixel_height} == {180, 96}
+
+      :ok = CellSession.close(session)
+    end
+
+    test "a huge rect is capped on its longest side and reports the smaller bitmap" do
+      session = CellSession.new(220, 170, font_size: {6, 8})
+      rect = %Rect{x: 0, y: 0, width: 220, height: 170}
+
+      :ok = CellSession.draw(session, [{viewport(:auto), rect}])
+      %Snapshot{regions: [region]} = CellSession.take_cells(session)
+
+      assert max(region.pixel_width, region.pixel_height) == 1280
+      assert region.pixel_width < 220 * 6
+      assert byte_size(region.data) == region.pixel_width * region.pixel_height * 3
+
+      :ok = CellSession.close(session)
+    end
+  end
 
   describe "ExRatatui.CellSession (Elixir wrapper)" do
     alias ExRatatui.CellSession

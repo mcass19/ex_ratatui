@@ -69,6 +69,38 @@ defmodule ExRatatui.Test.ServerApps do
     end
   end
 
+  defmodule Cube do
+    @moduledoc """
+    Renders a pixel-mode `Viewport3D` filling the frame — the cell-session
+    transport test uses it to check pixel regions travel to the writer.
+    """
+
+    use ExRatatui.App
+
+    alias ExRatatui.Layout.Rect
+    alias ExRatatui.ThreeD.{Light, Material, Mesh, Object, Scene}
+    alias ExRatatui.Widgets.Viewport3D
+
+    @impl true
+    def mount(_opts), do: {:ok, %{}}
+
+    @impl true
+    def render(_state, frame) do
+      scene = %Scene{
+        objects: [%Object{mesh: Mesh.cube(), material: %Material{color: {100, 150, 255}}}],
+        lights: [Light.ambient({255, 255, 255}, 0.2)]
+      }
+
+      [
+        {%Viewport3D{scene: scene, render_mode: :auto},
+         %Rect{x: 0, y: 0, width: frame.width, height: frame.height}}
+      ]
+    end
+
+    @impl true
+    def handle_event(_event, state), do: {:noreply, state}
+  end
+
   defmodule StopOnAnyEvent do
     @moduledoc "Returns `{:stop, state}` from every `handle_event` call."
 

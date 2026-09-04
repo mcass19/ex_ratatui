@@ -23,11 +23,8 @@ use crate::decode::{
     TermMap,
 };
 use crate::image::{render_image_protocol, resolve_protocol, ProtocolKind, TransportCaps};
+use crate::pixel_region::{self, PixelRegion};
 use crate::widgets::block::{self, BlockData};
-
-/// Longest framebuffer side (pixels) for pixel-protocol rendering. Bounds the
-/// per-frame encode/transmit cost regardless of terminal size.
-const MAX_DIM: u32 = 1280;
 
 /// How a `Viewport3D` is blitted to the terminal: into character cells (the
 /// ratatui-3d render modes) or as pixel graphics via a terminal image protocol.
@@ -47,9 +44,14 @@ pub struct Viewport3DData {
 }
 
 pub fn render(buf: &mut Buffer, data: &Viewport3DData, area: Rect, caps: TransportCaps) {
-    match data.mode {
-        ViewportMode::Cell(render_mode) => render_cell(buf, data, area, render_mode),
-        ViewportMode::Pixel(requested) => match resolve_protocol(requested, caps) {
+    match (data.mode, caps) {
+        (ViewportMode::Cell(render_mode), _) => render_cell(buf, data, area, render_mode),
+        // A surface with real pixels: hand the framebuffer over as a region
+        // instead of encoding a terminal protocol.
+        (ViewportMode::Pixel(_), TransportCaps::PixelRegions { font_size }) => {
+            render_region(buf, data, area, font_size)
+        }
+        (ViewportMode::Pixel(requested), _) => match resolve_protocol(requested, caps) {
             // No graphics protocol available (CellSession / unsupported terminal):
             // fall back to braille, the nicest cell mode for 3D.
             ProtocolKind::Halfblocks | ProtocolKind::Auto => {
@@ -85,6 +87,45 @@ fn render_pixel(
     protocol: ProtocolKind,
     font_size: (u16, u16),
 ) {
+    let Some((inner, fb)) = render_framebuffer(buf, data, area, font_size) else {
+        return;
+    };
+
+    // `render_image_protocol` scales the framebuffer up to fill `inner` — a
+    // uniform upscale, so it fills the pane without distortion.
+    render_image_protocol(buf, inner, framebuffer_to_image(&fb), protocol, font_size);
+}
+
+/// Pixel-region rendering: same framebuffer as `render_pixel`, but the RGB
+/// bytes leave through `pixel_region` and the covered cells are blanked so
+/// the consumer blits the bitmap over a clean rect.
+fn render_region(buf: &mut Buffer, data: &Viewport3DData, area: Rect, font_size: (u16, u16)) {
+    let Some((inner, fb)) = render_framebuffer(buf, data, area, font_size) else {
+        return;
+    };
+
+    pixel_region::blank_area(buf, inner);
+    pixel_region::push(PixelRegion {
+        x: inner.x,
+        y: inner.y,
+        width: inner.width,
+        height: inner.height,
+        pixel_width: fb.width,
+        pixel_height: fb.height,
+        data: framebuffer_to_rgb8(&fb),
+    });
+}
+
+/// Shared prologue of the pixel paths: draws the block (if any) into cells,
+/// then rasterizes the scene into a framebuffer sized for the block's inner
+/// area (capped to `pixel_region::MAX_DIM`, aspect preserved). `None` when
+/// the inner area is empty.
+fn render_framebuffer(
+    buf: &mut Buffer,
+    data: &Viewport3DData,
+    area: Rect,
+    font_size: (u16, u16),
+) -> Option<(Rect, Framebuffer)> {
     let inner = match data.block {
         Some(ref block_data) => {
             let block = block_data.to_block();
@@ -96,16 +137,21 @@ fn render_pixel(
     };
 
     if inner.width == 0 || inner.height == 0 {
-        return;
+        return None;
     }
 
-    // The framebuffer is rendered at the inner area's aspect ratio (capped to
-    // MAX_DIM for encode cost), then `render_image_protocol` scales it up to fill
-    // `inner` — a uniform upscale, so it fills the pane without distortion.
-    let (px_w, px_h) = pixel_dims(inner, font_size);
+    let (px_w, px_h) = pixel_region::rect_pixel_dims(inner, font_size);
     let mut fb = Framebuffer::new(px_w, px_h);
     run_pipeline(&data.scene, &data.camera, data.pipeline, &mut fb);
-    render_image_protocol(buf, inner, framebuffer_to_image(&fb), protocol, font_size);
+    Some((inner, fb))
+}
+
+fn framebuffer_to_rgb8(fb: &Framebuffer) -> Vec<u8> {
+    let mut raw = Vec::with_capacity(fb.color.len() * 3);
+    for px in &fb.color {
+        raw.extend_from_slice(&[px.0, px.1, px.2]);
+    }
+    raw
 }
 
 fn run_pipeline(scene: &Scene, camera: &Camera, pipeline: Pipeline, fb: &mut Framebuffer) {
@@ -115,31 +161,8 @@ fn run_pipeline(scene: &Scene, camera: &Camera, pipeline: Pipeline, fb: &mut Fra
     }
 }
 
-/// Target framebuffer size: the inner area in cells times the cell pixel size,
-/// with the longest side clamped to `MAX_DIM` (aspect preserved).
-fn pixel_dims(inner: Rect, (fw, fh): (u16, u16)) -> (u32, u32) {
-    let w = (inner.width as u32 * fw as u32).max(1);
-    let h = (inner.height as u32 * fh as u32).max(1);
-    let longest = w.max(h);
-
-    if longest <= MAX_DIM {
-        (w, h)
-    } else {
-        let scale = MAX_DIM as f32 / longest as f32;
-        (
-            ((w as f32 * scale) as u32).max(1),
-            ((h as f32 * scale) as u32).max(1),
-        )
-    }
-}
-
 fn framebuffer_to_image(fb: &Framebuffer) -> DynamicImage {
-    let mut raw = Vec::with_capacity(fb.color.len() * 3);
-    for px in &fb.color {
-        raw.extend_from_slice(&[px.0, px.1, px.2]);
-    }
-
-    let img = image::RgbImage::from_raw(fb.width, fb.height, raw)
+    let img = image::RgbImage::from_raw(fb.width, fb.height, framebuffer_to_rgb8(fb))
         .expect("framebuffer color length is width * height");
     DynamicImage::ImageRgb8(img)
 }
@@ -790,20 +813,6 @@ mod tests {
     }
 
     #[test]
-    fn pixel_dims_uses_native_resolution_when_small() {
-        // 30x15 cells at 8x16 px = 240x240, under MAX_DIM.
-        assert_eq!(pixel_dims(Rect::new(0, 0, 30, 15), (8, 16)), (240, 240));
-    }
-
-    #[test]
-    fn pixel_dims_clamps_longest_side_to_max() {
-        // 400 cells * 8 px = 3200 wide, clamped to MAX_DIM (1280).
-        let (w, h) = pixel_dims(Rect::new(0, 0, 400, 50), (8, 16));
-        assert_eq!(w.max(h), MAX_DIM);
-        assert!(w >= 1 && h >= 1);
-    }
-
-    #[test]
     fn framebuffer_to_image_maps_pixels() {
         let mut fb = Framebuffer::new(2, 1);
         fb.color[0] = Rgb(255, 0, 0);
@@ -823,6 +832,100 @@ mod tests {
             has_colored_cell(&terminal),
             "pixel mode over CellOnly should braille-render colored cells"
         );
+    }
+
+    #[test]
+    fn pixel_mode_ships_a_region_on_a_pixel_region_session() {
+        let mut viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        viewport.mode = ViewportMode::Pixel(ProtocolKind::Auto);
+        let caps = TransportCaps::PixelRegions { font_size: (6, 8) };
+
+        pixel_region::begin_collecting();
+        let terminal = render_with_caps(&viewport, 30, 15, caps);
+        let regions = pixel_region::finish_collecting();
+
+        assert_eq!(regions.len(), 1);
+        let region = &regions[0];
+        assert_eq!(
+            (region.x, region.y, region.width, region.height),
+            (0, 0, 30, 15)
+        );
+        assert_eq!((region.pixel_width, region.pixel_height), (180, 120));
+        assert_eq!(region.data.len(), 180 * 120 * 3);
+
+        let buf = terminal.backend().buffer();
+        assert_eq!(buf[(0, 0)].symbol(), " ");
+        assert_eq!(buf[(29, 14)].symbol(), " ");
+        assert!(
+            !has_colored_cell(&terminal),
+            "region cells must be blank, not braille-rendered"
+        );
+    }
+
+    #[test]
+    fn region_blanks_whatever_was_drawn_underneath() {
+        let mut viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        viewport.mode = ViewportMode::Pixel(ProtocolKind::Auto);
+        let caps = TransportCaps::PixelRegions { font_size: (6, 8) };
+
+        let backend = TestBackend::new(10, 3);
+        let mut terminal = Terminal::new(backend).unwrap();
+        pixel_region::begin_collecting();
+        terminal
+            .draw(|frame| {
+                let buf = frame.buffer_mut();
+                for x in 0..10 {
+                    buf[(x, 1)].set_symbol("#");
+                }
+                render(buf, &viewport, Rect::new(2, 0, 4, 3), caps);
+            })
+            .unwrap();
+        pixel_region::finish_collecting();
+
+        let buf = terminal.backend().buffer();
+        assert_eq!(buf[(1, 1)].symbol(), "#");
+        assert_eq!(buf[(2, 1)].symbol(), " ");
+        assert_eq!(buf[(5, 1)].symbol(), " ");
+        assert_eq!(buf[(6, 1)].symbol(), "#");
+    }
+
+    #[test]
+    fn region_leaves_block_border_cells_intact() {
+        let mut viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        viewport.mode = ViewportMode::Pixel(ProtocolKind::Kitty);
+        viewport.block = Some(block::BlockData {
+            borders: ratatui::widgets::Borders::ALL,
+            ..Default::default()
+        });
+        let caps = TransportCaps::PixelRegions { font_size: (6, 8) };
+
+        pixel_region::begin_collecting();
+        let terminal = render_with_caps(&viewport, 12, 6, caps);
+        let regions = pixel_region::finish_collecting();
+
+        let region = &regions[0];
+        assert_eq!(
+            (region.x, region.y, region.width, region.height),
+            (1, 1, 10, 4)
+        );
+        assert_eq!((region.pixel_width, region.pixel_height), (60, 32));
+
+        let buf = terminal.backend().buffer();
+        assert_ne!(buf[(0, 0)].symbol(), " ");
+        assert_eq!(buf[(1, 1)].symbol(), " ");
+    }
+
+    #[test]
+    fn cell_modes_never_ship_regions_on_a_pixel_region_session() {
+        let viewport = data(cube_scene(), RenderMode::Braille, Pipeline::Rasterize);
+        let caps = TransportCaps::PixelRegions { font_size: (6, 8) };
+
+        pixel_region::begin_collecting();
+        let terminal = render_with_caps(&viewport, 30, 15, caps);
+        let regions = pixel_region::finish_collecting();
+
+        assert!(regions.is_empty());
+        assert!(has_colored_cell(&terminal));
     }
 
     #[test]

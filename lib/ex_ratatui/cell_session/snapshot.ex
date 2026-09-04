@@ -25,31 +25,37 @@ defmodule ExRatatui.CellSession.Snapshot do
       %ExRatatui.CellSession.Snapshot{width: 0, height: 0, cells: []}
   """
 
-  alias ExRatatui.CellSession.Cell
+  alias ExRatatui.CellSession.{Cell, Region}
 
-  defstruct width: 0, height: 0, cells: []
+  defstruct width: 0, height: 0, cells: [], regions: []
 
   @type t :: %__MODULE__{
           width: non_neg_integer(),
           height: non_neg_integer(),
-          cells: [Cell.t()]
+          cells: [Cell.t()],
+          regions: [Region.t()]
         }
 
   @doc """
-  Builds a `t:t/0` from the raw `%{width, height, cells}` map the NIF
-  returns. Each tuple in `cells` is converted via
-  `ExRatatui.CellSession.Cell.from_tuple/1`.
+  Builds a `t:t/0` from the raw `%{width, height, cells, regions}` map the
+  NIF returns. Each tuple in `cells` is converted via
+  `ExRatatui.CellSession.Cell.from_tuple/1`, each map in `regions` via
+  `ExRatatui.CellSession.Region.from_native/1`. `regions` is the complete
+  list of pixel regions on screen (always empty for a session created
+  without a `:font_size`).
   """
   @spec from_native(%{
           required(:width) => non_neg_integer(),
           required(:height) => non_neg_integer(),
-          required(:cells) => [tuple()]
+          required(:cells) => [tuple()],
+          optional(:regions) => [map()]
         }) :: t()
-  def from_native(%{width: width, height: height, cells: cells}) do
+  def from_native(%{width: width, height: height, cells: cells} = native) do
     %__MODULE__{
       width: width,
       height: height,
-      cells: Enum.map(cells, &Cell.from_tuple/1)
+      cells: Enum.map(cells, &Cell.from_tuple/1),
+      regions: native |> Map.get(:regions, []) |> Enum.map(&Region.from_native/1)
     }
   end
 end
