@@ -146,6 +146,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/transports/custom_transports.md) | Plug in a custom transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
 | [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers — plus RGB pixel regions for images and 3D on surfaces that own pixels |
+| [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md) | What a device-side adapter has to do to put a TUI on an e-ink panel or an LCD: font, cell map, rasteriser, pixel regions, framebuffer write — with the Goatmire badge as the worked example |
 | [Architecture](guides/internals/architecture.md) | The NIF bridge and the per-transport process trees |
 | [Testing](guides/internals/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
 | [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |

@@ -120,7 +120,7 @@ The contract is deliberately stateless. `:regions` is the **complete** list of r
 
 Sessions created without `:font_size` never carry regions, and the cell-mode render modes (`:braille`, `:half_block`, `:ascii`, `:halfblocks`) stay cell modes everywhere, so an app can still pick the cell look on purpose. Re-shipping unchanged bitmaps each frame is a conscious trade for a simple consumer; a transport that cares can compare `data` with the previous frame before pushing.
 
-See [`headless_regions.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/cell_session/headless_regions.exs) for a script that renders a `Viewport3D` and an `Image` side by side through a font-size session and writes each region out as a PPM image.
+See [`headless_regions.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/cell_session/headless_regions.exs) for a script that renders a `Viewport3D` and an `Image` side by side through a font-size session and writes each region out as a PPM image, and [Rendering to a Framebuffer](framebuffer_surfaces.md) for what a device-side adapter builds on top of this.
 
 ## Tight rects keep diffs small
 
