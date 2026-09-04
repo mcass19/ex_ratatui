@@ -22,8 +22,10 @@ defmodule ExRatatui.Widgets.Viewport3D do
 
   Pixel-graphics modes render the scene as an image at native terminal resolution
   (crisp, non-blocky) on capable terminals, and fall back to `:braille` where no
-  graphics protocol is available (CellSession/Livebook, SSH/distributed without
-  passthrough, unsupported terminals):
+  graphics protocol is available (plain CellSession/Livebook, SSH/distributed
+  without passthrough, unsupported terminals). On an `ExRatatui.CellSession`
+  created with a `:font_size` they instead ship the render as an
+  `ExRatatui.CellSession.Region` bitmap next to the cells:
 
     * `:auto` - the best protocol the terminal supports, else braille (default)
     * `:kitty` - Kitty graphics protocol (Ghostty, WezTerm, Kitty)
