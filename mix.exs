@@ -150,6 +150,7 @@ defmodule ExRatatui.MixProject do
         ],
         "guides/transports/custom_transports.md": [title: "Custom Transports"],
         "guides/transports/cell_session.md": [title: "Rendering to Non-Terminal Surfaces"],
+        "guides/transports/framebuffer_surfaces.md": [title: "Rendering to a Framebuffer"],
         "guides/internals/architecture.md": [title: "Architecture"],
         "guides/internals/testing.md": [title: "Testing"],
         "guides/internals/debugging.md": [title: "Debugging"],
