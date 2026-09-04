@@ -1,6 +1,6 @@
 [package]
 name = "ex_ratatui"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["mcass19"]
 edition = "2021"
 

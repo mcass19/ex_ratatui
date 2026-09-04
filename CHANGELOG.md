@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-09-04
+
 ### Fixed
 
 - **Drawing no longer panics when a widget area exceeds the buffer.** The terminal autoresizes inside `draw`, so a frame planned before a window or pty shrink can carry areas past the new buffer; ratatui's widgets clip themselves, but `WidgetList` blits rows by raw buffer index and panicked inside the NIF (`index outside of buffer`). Every widget area is now intersected with the target buffer at the one rendering entry point, so `draw/2`, `Session`, `CellSession` and nested content (`Popup`, `WidgetList` items) are all covered.
@@ -568,7 +570,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mcass19/ex_ratatui/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/mcass19/ex_ratatui/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/mcass19/ex_ratatui/compare/v0.11.1...v0.11.2
