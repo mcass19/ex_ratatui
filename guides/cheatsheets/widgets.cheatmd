@@ -652,6 +652,17 @@ ExRatatui.Distributed.attach(:"app@host", MyApp.TUI,
 )
 ```
 
+On a surface that owns pixels (e-ink, a canvas), create the `CellSession` with its cell size and read the bitmaps from the diff instead of half blocks:
+
+```elixir
+session = ExRatatui.CellSession.new(66, 37, font_size: {6, 8})
+# ... draw ...
+%ExRatatui.CellSession.Diff{regions: regions} = ExRatatui.CellSession.take_cells_diff(session)
+# regions: [%ExRatatui.CellSession.Region{x:, y:, width:, height:, pixel_width:, pixel_height:, format: :rgb8, data:}]
+```
+
+Same for `Viewport3D` in a pixel render mode. The list is the complete set on screen each frame; paint the cells, then blit each region over its rect.
+
 See [Images](../core/images.md) for the full transport / protocol resolution table.
 
 ## 3D (Viewport3D)

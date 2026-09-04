@@ -2,7 +2,7 @@
 
 `ExRatatui.Session` is the right primitive when whatever consumes the TUI speaks ANSI — a real terminal, an SSH channel, a TCP socket on the other end of a raw-mode client. It encodes the rendered frame as escape sequences and hands them to the transport.
 
-`ExRatatui.CellSession` is the right primitive when the consumer is **not** a terminal: a Phoenix LiveView painting `<span>`s into the DOM, an embedded device rasterising glyphs to a 1bpp framebuffer, a screenshot tool dumping a frame to PNG/SVG, any future renderer for displays that don't accept ANSI. These consumers want the **rendered cell buffer** — `(symbol, fg, bg, modifiers, skip)` per cell — not bytes. `CellSession` exposes that buffer directly, skipping the ANSI encode/decode round-trip and the client-side terminal emulator that ANSI implies.
+`ExRatatui.CellSession` is the right primitive when the consumer is **not** a terminal: a Phoenix LiveView painting `<span>`s into the DOM, an embedded device rasterising glyphs to a 1bpp framebuffer, a screenshot tool dumping a frame to PNG/SVG, any future renderer for displays that don't accept ANSI. These consumers want the **rendered cell buffer** — `(symbol, fg, bg, modifiers, skip)` per cell — not bytes. `CellSession` exposes that buffer directly, skipping the ANSI encode/decode round-trip and the client-side terminal emulator that ANSI implies. Consumers that own real pixels can additionally receive bitmaps for the pixel widgets (see [Pixel regions](#pixel-regions-for-surfaces-with-real-pixels)).
 
 ## Session vs CellSession at a glance
 
@@ -97,6 +97,29 @@ diff.ops          #=> []
 
 The op shape is identical to a snapshot's `Cell`. An op IS a cell at a position saying "set this position to this content." Clearing a cell is just setting it to a default-styled space.
 
+## Pixel regions for surfaces with real pixels
+
+A cell grid is the right contract for a terminal-shaped surface, but some consumers own pixels: an e-ink panel, a browser canvas, an image export. On a plain `CellSession` the pixel widgets (`ExRatatui.Widgets.Viewport3D`, `ExRatatui.Widgets.Image`) fall back to half-block cells, which loses resolution and, on a 1-bit display, colour. A session that states its cell size in pixels gets the bitmaps instead:
+
+```elixir
+session = CellSession.new(66, 37, font_size: {6, 8})
+```
+
+On such a session a `Viewport3D` in a pixel render mode (`:auto`, `:kitty`, `:sixel`, `:iterm2`) and an `Image` with any protocol but `:halfblocks` rasterise to RGB and ship the result out of band. Snapshots and diffs carry them in `:regions`, one `ExRatatui.CellSession.Region` per widget:
+
+```elixir
+%CellSession.Region{
+  x: 2, y: 3, width: 38, height: 33,      # the covered rect, in cells
+  pixel_width: 228, pixel_height: 264,    # bitmap size in pixels
+  format: :rgb8,                          # row-major, three bytes per pixel
+  data: <<...>>
+}
+```
+
+The contract is deliberately stateless. `:regions` is the **complete** list of regions on screen for that frame, never a delta; a region that is not listed is gone. Paint the cell ops first, then blit every region over its rect. The covered cells arrive as plain blanks, so the order is "background, then bitmap". The bitmap is normally `width * font_width` by `height * font_height`; the longest side is capped at 1280 px, so a very large rect gets a smaller bitmap to scale up uniformly. `Image` keeps its `:resize` semantics (`:fit` never upscales, `:scale` fills, `:crop` clips) and its `:background` fills the rest of the rect; without a background the region only covers the cells the picture touches.
+
+Sessions created without `:font_size` never carry regions, and the cell-mode render modes (`:braille`, `:half_block`, `:ascii`, `:halfblocks`) stay cell modes everywhere, so an app can still pick the cell look on purpose. Re-shipping unchanged bitmaps each frame is a conscious trade for a simple consumer; a transport that cares can compare `data` with the previous frame before pushing.
+
 ## Tight rects keep diffs small
 
 `Paragraph` (and any styled widget) applies its `:style` to its **entire rect**, not just the painted text. A wide paragraph rect turns every cell in the rect into a styled cell, and the next diff correctly reports all of them as changed:
@@ -161,7 +184,7 @@ Then start the runtime:
   )
 ```
 
-On every render the runtime server calls `CellSession.draw/2`, then `CellSession.take_cells_diff/1`, then hands the resulting `%Diff{}` to `cell_writer_fn`. On every state transition where the App returned `intents: [...]`, the runtime walks the list and calls `intent_writer_fn` once per intent, in emission order. Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so a TUI returning `{:stop, state, intents: [{:redirect, "/login"}]}` reliably reaches the consumer before the linked-server EXIT propagates.
+On every render the runtime server calls `CellSession.draw/2`, then `CellSession.take_cells_diff/1`, then hands the resulting `%Diff{}` to `cell_writer_fn` (with `:regions` filled in when the session was created with a `:font_size`). On every state transition where the App returned `intents: [...]`, the runtime walks the list and calls `intent_writer_fn` once per intent, in emission order. Intents from a `{:stop, state, intents: ...}` transition fire **before** the server exits, so a TUI returning `{:stop, state, intents: [{:redirect, "/login"}]}` reliably reaches the consumer before the linked-server EXIT propagates.
 
 Apps stay portable across transports: a TUI that emits `{:redirect, path}` from a callback runs unchanged over both a 4-tuple `:cell_session` (intent dispatched) and a `:local` tty (intent silently dropped — there's nothing to navigate).
 
