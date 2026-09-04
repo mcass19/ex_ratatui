@@ -62,6 +62,28 @@ defmodule ExRatatui.CellSession.Region do
         }
 
   @doc """
+  Encodes the region's bitmap as a PNG binary.
+
+  For consumers that ship regions over a text channel (a LiveView push,
+  a JSON API), where raw RGB would be several times heavier. The PNG has
+  the region's `pixel_width` × `pixel_height`.
+
+  Raises `ArgumentError` when `data` does not hold exactly
+  `pixel_width * pixel_height * 3` bytes.
+  """
+  @spec to_png(t()) :: binary()
+  def to_png(%__MODULE__{pixel_width: w, pixel_height: h, data: data}) do
+    case ExRatatui.Native.region_encode_png(w, h, data) do
+      png when is_binary(png) ->
+        png
+
+      {:error, reason} ->
+        raise ArgumentError,
+              "cannot encode a #{w}x#{h} region from #{byte_size(data)} bytes: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
   Builds a `t:t/0` from the raw map the NIF returns for one region.
   """
   @spec from_native(map()) :: t()

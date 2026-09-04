@@ -24,9 +24,10 @@
 
 use std::cell::RefCell;
 
+use image::{DynamicImage, ImageFormat, RgbImage};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use rustler::{Binary, Encoder, Env, OwnedBinary, Term};
+use rustler::{Binary, Encoder, Env, Error, OwnedBinary, Term};
 
 mod atoms {
     rustler::atoms! {
@@ -39,7 +40,42 @@ mod atoms {
         format,
         data,
         rgb8,
+        invalid_dimensions,
+        encode_failed,
     }
+}
+
+/// `region_encode_png/3`: encodes a region's RGB8 bytes as a PNG, for
+/// consumers that ship bitmaps over a text channel (a LiveView push, a
+/// JSON API) where raw RGB would be several times heavier.
+#[rustler::nif(schedule = "DirtyCpu")]
+fn region_encode_png<'a>(
+    env: Env<'a>,
+    width: u32,
+    height: u32,
+    data: Binary<'a>,
+) -> Result<Term<'a>, Error> {
+    let png = encode_png(width, height, data.as_slice()).map_err(|e| match e {
+        PngError::InvalidDimensions => Error::Term(Box::new(atoms::invalid_dimensions())),
+        PngError::Encode(message) => Error::Term(Box::new((atoms::encode_failed(), message))),
+    })?;
+    Ok(bytes_to_binary(env, &png))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PngError {
+    InvalidDimensions,
+    Encode(String),
+}
+
+fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>, PngError> {
+    let image =
+        RgbImage::from_raw(width, height, rgb.to_vec()).ok_or(PngError::InvalidDimensions)?;
+    let mut out = Vec::new();
+    DynamicImage::ImageRgb8(image)
+        .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
+        .map_err(|e| PngError::Encode(e.to_string()))?;
+    Ok(out)
 }
 
 /// One bitmap covering a rect of cells. `data` is row-major RGB8 with no
@@ -201,6 +237,23 @@ mod tests {
         let (w, h) = rect_pixel_dims(Rect::new(0, 0, 400, 50), (8, 16));
         assert_eq!(w.max(h), MAX_DIM);
         assert!(w >= 1 && h >= 1);
+    }
+
+    #[test]
+    fn encode_png_round_trips_through_the_image_decoder() {
+        let png = encode_png(2, 1, &[255, 0, 0, 0, 0, 255]).unwrap();
+        let decoded = image::load_from_memory(&png).unwrap().to_rgb8();
+        assert_eq!(decoded.dimensions(), (2, 1));
+        assert_eq!(decoded.get_pixel(0, 0).0, [255, 0, 0]);
+        assert_eq!(decoded.get_pixel(1, 0).0, [0, 0, 255]);
+    }
+
+    #[test]
+    fn encode_png_rejects_mismatched_dimensions() {
+        assert_eq!(
+            encode_png(2, 2, &[0, 0, 0]),
+            Err(PngError::InvalidDimensions)
+        );
     }
 
     #[test]
