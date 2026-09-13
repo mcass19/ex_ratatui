@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `ExRatatui.CellSession.new/3` accepts `font_size: {width, height}`, the consumer's cell size in pixels. On such a session `Viewport3D` in a pixel render mode (`:auto`, `:kitty`, `:sixel`, `:iterm2`) and `Image` with any protocol but `:halfblocks` render to a real bitmap instead of half blocks: the frame's `%Snapshot{}` and `%Diff{}` gain a `regions` list of `ExRatatui.CellSession.Region` structs (cell rect, pixel size, `:rgb8` bytes), the complete set on screen each frame, and the covered cells arrive blank. `Image` keeps its `:resize` semantics (`:fit` never upscales, `:scale` fills, `:crop` clips) and `:background` fills the rest of the rect. Sessions created without a font size are unchanged. Built for pixel surfaces such as e-ink panels and browser canvases.
 - `ExRatatui.CellSession.Region.to_png/1` encodes a region's bitmap as PNG, for consumers that ship regions over a text channel such as a LiveView push.
-- New guide, [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md): what a device-side adapter builds on a `CellSession` to put a TUI on an e-ink panel or an LCD, with the Goatmire badge as the worked example.
+- New guide, [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md): putting a TUI on a pixel display, such as an e-ink panel or a Linux framebuffer, with [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui), the companion library built on pixel regions.
 
 ## [0.13.1] - 2026-09-04
 
