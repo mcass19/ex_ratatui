@@ -93,6 +93,7 @@ end
 - [SSH transport](ssh_transport.md)
 - [Distributed transport](distributed_transport.md)
 - [Cell sessions (LiveView, headless)](cell_session.md)
+- [Rendering to a framebuffer](framebuffer_surfaces.md) — e-ink panels and other pixel displays with [raster_ex_ratatui](https://hexdocs.pm/raster_ex_ratatui)
 - [Custom transports](custom_transports.md) — implement a fifth one
 - [Paste and clipboard](../core/paste_and_clipboard.md) — bracketed paste details + the OSC 52 snippet
 - [Images](../core/images.md) — the protocol matrix in depth

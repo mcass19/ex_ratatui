@@ -126,7 +126,7 @@ New here? The [Getting Started](guides/introduction/getting_started.md) guide bu
 ExRatatui offers two ways to structure a supervised app and several ways to serve it — every combination works, and switching transport doesn't change the app module.
 
 - **Runtimes:** the [Callback Runtime](guides/runtimes/callback_runtime.md) (LiveView-style `mount`/`render`/`handle_event`, the default) and the [Reducer Runtime](guides/runtimes/reducer_runtime.md) (Elm-style single `update/2` with first-class commands and subscriptions). The callback guide has a [side-by-side comparison](guides/runtimes/callback_runtime.md#callback-or-reducer).
-- **Transports:** local terminal (the default), [SSH](guides/transports/ssh_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md). The [Transports guide](guides/transports/transports.md) has the canonical feature matrix.
+- **Transports:** local terminal (the default), [SSH](guides/transports/ssh_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md), including [pixel displays](guides/transports/framebuffer_surfaces.md) through [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui). The [Transports guide](guides/transports/transports.md) has the canonical feature matrix.
 
 ## Guides
 
@@ -146,7 +146,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/transports/custom_transports.md) | Plug in a custom transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
 | [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers — plus RGB pixel regions for images and 3D on surfaces that own pixels |
-| [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md) | What a device-side adapter has to do to put a TUI on an e-ink panel or an LCD: font, cell map, rasteriser, pixel regions, framebuffer write — with the Goatmire badge as the worked example |
+| [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md) | Put a TUI on a pixel display, such as an e-ink panel or a Linux framebuffer, with [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui) |
 | [Architecture](guides/internals/architecture.md) | The NIF bridge and the per-transport process trees |
 | [Testing](guides/internals/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
 | [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
@@ -165,6 +165,7 @@ The [Architecture guide](guides/internals/architecture.md) has the full picture 
 
 - [kino_ex_ratatui](https://github.com/mcass19/kino_ex_ratatui) — Run TUIs inside [Livebook](https://livebook.dev) notebooks.
 - [phoenix_ex_ratatui](https://github.com/mcass19/phoenix_ex_ratatui) — Run TUIs in the browser within [Phoenix LiveView](https://phoenix-live-view.hexdocs.pm/Phoenix.LiveView.html).
+- [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui) — Run TUIs on pixel displays such as e-ink panels, with helpers for Linux framebuffers.
 
 ## Built with ExRatatui
 

@@ -91,7 +91,7 @@ All widgets are structs under `ExRatatui.Widgets.*` (a few have a companion data
 **App-level helpers (not widgets)**
 - `ExRatatui.Focus` — focus ring for multi-panel apps. `handle_key/2` consumes Tab/Shift+Tab and returns `{focus, key_or_nil}` (`nil` = consumed); register rects to get click-to-focus via `handle_mouse/2`; style with `focused?/2`. Pure data, no process — do not hand-roll focus tracking.
 - `ExRatatui.Theme` — semantic color palette (eleven slots) with `default/0` / `light/0` constructors and `border_style/2` / `text_style/2` / `selection_style/1` helpers. Pure data threaded through render code — no globals, no automatic widget injection.
-- `ExRatatui.CellSession` — render to a cell buffer instead of ANSI bytes (Phoenix LiveView, framebuffers, screenshots). Reach for it before parsing ANSI out of a `Session`. When the consumer owns real pixels, create it with `font_size: {w, h}`: `Viewport3D` and `Image` in pixel modes then ship RGB bitmaps in `Diff.regions` / `Snapshot.regions` (`ExRatatui.CellSession.Region`, the complete list per frame, covered cells blank) instead of half blocks.
+- `ExRatatui.CellSession` — render to a cell buffer instead of ANSI bytes (Phoenix LiveView, framebuffers, screenshots). Reach for it before parsing ANSI out of a `Session`. When the consumer owns real pixels, create it with `font_size: {w, h}`: `Viewport3D` and `Image` in pixel modes then ship RGB bitmaps in `Diff.regions` / `Snapshot.regions` (`ExRatatui.CellSession.Region`, the complete list per frame, covered cells blank) instead of half blocks. To put an app on a pixel display, such as an e-ink panel or a Linux framebuffer, use [raster_ex_ratatui](https://hexdocs.pm/raster_ex_ratatui) rather than rasterising cells by hand.
 
 Compose custom composite widgets in pure Elixir via the `ExRatatui.Widget` protocol — no Rust required. See the Custom Widgets guide.
 
@@ -133,6 +133,7 @@ Full walkthroughs and the complete gotcha set live in the guides (hexdocs):
 - Running over Erlang distribution — https://hexdocs.pm/ex_ratatui/distributed_transport.html
 - Custom transports — https://hexdocs.pm/ex_ratatui/custom_transports.html
 - Rendering to non-terminal surfaces (CellSession) — https://hexdocs.pm/ex_ratatui/cell_session.html
+- Rendering to a framebuffer — https://hexdocs.pm/ex_ratatui/framebuffer_surfaces.html
 - Images — https://hexdocs.pm/ex_ratatui/images.html
 - Paste and clipboard — https://hexdocs.pm/ex_ratatui/paste_and_clipboard.html
 - Widgets cheatsheet — https://hexdocs.pm/ex_ratatui/widgets.html
