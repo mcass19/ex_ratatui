@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-14
+
 ### Added
 
 - `ExRatatui.CellSession.new/3` accepts `font_size: {width, height}`, the consumer's cell size in pixels. On such a session `Viewport3D` in a pixel render mode (`:auto`, `:kitty`, `:sixel`, `:iterm2`) and `Image` with any protocol but `:halfblocks` render to a real bitmap instead of half blocks: the frame's `%Snapshot{}` and `%Diff{}` gain a `regions` list of `ExRatatui.CellSession.Region` structs (cell rect, pixel size, `:rgb8` bytes), the complete set on screen each frame, and the covered cells arrive blank. `Image` keeps its `:resize` semantics (`:fit` never upscales, `:scale` fills, `:crop` clips) and `:background` fills the rest of the rect. Sessions created without a font size are unchanged. Built for pixel surfaces such as e-ink panels and browser canvases.
@@ -576,7 +578,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/mcass19/ex_ratatui/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mcass19/ex_ratatui/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/mcass19/ex_ratatui/compare/v0.11.2...v0.12.0
