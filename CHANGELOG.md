@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-18
+
 ### Fixed
 
 - **The precompiled `aarch64-unknown-linux-gnu` and `riscv64gc-unknown-linux-gnu` NIFs load on systems older than glibc 2.39 again.** The 0.14.0 artifacts failed with ``version `GLIBC_2.39' not found`` on, for example, Nerves Raspberry Pi 4 and 5 systems before 2.1 (glibc 2.38). Nothing in the code needs 2.39: Rust's standard library keeps weak references to whatever the link-time libc offers (`pidfd_spawnp` and `pidfd_getpid` arrive with 2.39), and the dynamic loader refuses the whole library over one too-new versioned reference, weak or not. The release workflow built both artifacts with `cross` from source, whose images moved to Ubuntu 24.04. They now build with the `cross` 0.2.5 release (Ubuntu 16.04 and 18.04 images), which brings the aarch64 artifact down to glibc 2.18, and every gnu job carries a glibc floor that a new release gate, `check_glibc_floor.sh`, enforces before anything is uploaded: 2.28 for aarch64, armv6/hf, and riscv64, and 2.35 for x86_64, which links against the runner's own libc. The armv6/hf (glibc 2.15) and x86_64 (2.34) artifacts were not affected.
@@ -582,7 +584,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.14.1...HEAD
+[0.14.1]: https://github.com/mcass19/ex_ratatui/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mcass19/ex_ratatui/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mcass19/ex_ratatui/compare/v0.12.0...v0.13.0
