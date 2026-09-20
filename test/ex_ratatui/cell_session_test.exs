@@ -687,6 +687,52 @@ defmodule ExRatatui.CellSessionTest do
       assert_raise ArgumentError, fn -> Region.to_png(region) end
     end
 
+    test "Region.rotate/2 turns the bitmap and swaps its pixel dimensions" do
+      # A 3x2 of six distinct pixels:  1 2 3
+      #                                4 5 6
+      region = %Region{
+        pixel_width: 3,
+        pixel_height: 2,
+        data: <<1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6>>
+      }
+
+      rotated = Region.rotate(region, 90)
+
+      # A quarter turn clockwise puts the left column on top:  4 1
+      #                                                        5 2
+      #                                                        6 3
+      assert rotated.data == <<4, 4, 4, 1, 1, 1, 5, 5, 5, 2, 2, 2, 6, 6, 6, 3, 3, 3>>
+      assert {rotated.pixel_width, rotated.pixel_height} == {2, 3}
+      assert Region.rotate(rotated, 270) == region
+    end
+
+    test "Region.rotate/2 turns the bitmap and leaves the cell rect alone" do
+      region = %Region{
+        x: 4,
+        y: 2,
+        width: 6,
+        height: 3,
+        pixel_width: 2,
+        pixel_height: 1,
+        data: <<255, 0, 0, 0, 0, 255>>
+      }
+
+      rotated = Region.rotate(region, 90)
+
+      assert {rotated.x, rotated.y, rotated.width, rotated.height} == {4, 2, 6, 3}
+      assert {rotated.pixel_width, rotated.pixel_height} == {1, 2}
+    end
+
+    test "Region.rotate/2 rejects a bitmap whose size does not match its dimensions" do
+      region = %Region{pixel_width: 2, pixel_height: 2, data: <<0, 0, 0>>}
+      assert_raise ArgumentError, fn -> Region.rotate(region, 90) end
+    end
+
+    test "Region.rotate/2 rejects an unsupported angle" do
+      region = %Region{pixel_width: 1, pixel_height: 1, data: <<0, 0, 0>>}
+      assert_raise ArgumentError, fn -> Region.rotate(region, 45) end
+    end
+
     test "a huge rect is capped on its longest side and reports the smaller bitmap" do
       session = CellSession.new(220, 170, font_size: {6, 8})
       rect = %Rect{x: 0, y: 0, width: 220, height: 170}
