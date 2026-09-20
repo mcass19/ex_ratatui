@@ -84,6 +84,45 @@ defmodule ExRatatui.CellSession.Region do
   end
 
   @doc """
+  Rotates the region's bitmap clockwise by `angle` degrees.
+
+  Returns the region with `:data`, `:pixel_width` and `:pixel_height`
+  updated; at 90 and 270 the two dimensions are swapped. For a surface
+  whose panel is mounted on its side, this turns the bitmap once so the
+  rest of the paint stays a flat row-by-row copy.
+
+  **The cell rect is left alone.** `:x`, `:y`, `:width` and `:height` are
+  the app's cell coordinates, and turning them needs the size of the grid
+  they sit in, which a region does not carry. A consumer that rotates its
+  whole screen already knows that size and computes the turned rect
+  itself — raster_ex_ratatui does exactly that, in its physical_rect/2.
+
+  Raises `ArgumentError` on a bitmap whose byte count is not
+  `pixel_width * pixel_height * 3`, or on an unsupported angle. See
+  `ExRatatui.Pixels.rotate_rgb8/4` for the corner mapping.
+
+  ## Examples
+
+      iex> region = %ExRatatui.CellSession.Region{
+      ...>   x: 4, y: 2, width: 2, height: 1,
+      ...>   pixel_width: 2, pixel_height: 1,
+      ...>   data: <<255, 0, 0, 0, 0, 255>>
+      ...> }
+      iex> ExRatatui.CellSession.Region.rotate(region, 90)
+      %ExRatatui.CellSession.Region{
+        x: 4, y: 2, width: 2, height: 1,
+        pixel_width: 1, pixel_height: 2, format: :rgb8,
+        data: <<255, 0, 0, 0, 0, 255>>
+      }
+  """
+  @spec rotate(t(), ExRatatui.Pixels.angle()) :: t()
+  def rotate(%__MODULE__{pixel_width: w, pixel_height: h, data: data} = region, angle) do
+    {rotated, rotated_w, rotated_h} = ExRatatui.Pixels.rotate_rgb8(data, w, h, angle)
+
+    %{region | data: rotated, pixel_width: rotated_w, pixel_height: rotated_h}
+  end
+
+  @doc """
   Builds a `t:t/0` from the raw map the NIF returns for one region.
   """
   @spec from_native(map()) :: t()
