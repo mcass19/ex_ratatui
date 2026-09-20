@@ -41,6 +41,8 @@ mod atoms {
         data,
         rgb8,
         invalid_dimensions,
+        invalid_angle,
+        alloc_failed,
         encode_failed,
     }
 }
@@ -76,6 +78,130 @@ fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>, PngError> 
         .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
         .map_err(|e| PngError::Encode(e.to_string()))?;
     Ok(out)
+}
+
+/// `rotate_rgb8/4`: rotates a region's bitmap clockwise, so a consumer
+/// painting a panel mounted on its side keeps its flat row-by-row path
+/// instead of gathering every destination row from a source column.
+///
+/// Returns `{rotated_data, width, height}` with the dimensions swapped at
+/// 90 and 270.
+#[rustler::nif(schedule = "DirtyCpu")]
+fn rotate_rgb8<'a>(
+    env: Env<'a>,
+    width: u32,
+    height: u32,
+    angle: u32,
+    data: Binary<'a>,
+) -> Result<(Term<'a>, u32, u32), Error> {
+    let (out_width, out_height) =
+        rotated_dims(width, height, angle, data.len()).map_err(rotate_error_term)?;
+
+    let mut owned =
+        OwnedBinary::new(data.len()).ok_or_else(|| Error::Term(Box::new(atoms::alloc_failed())))?;
+
+    rotate_rgb8_into(data.as_slice(), owned.as_mut_slice(), width, height, angle)
+        .map_err(rotate_error_term)?;
+
+    Ok((
+        Binary::from_owned(owned, env).encode(env),
+        out_width,
+        out_height,
+    ))
+}
+
+fn rotate_error_term(error: RotateError) -> Error {
+    match error {
+        RotateError::InvalidDimensions => Error::Term(Box::new(atoms::invalid_dimensions())),
+        RotateError::InvalidAngle => Error::Term(Box::new(atoms::invalid_angle())),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum RotateError {
+    InvalidDimensions,
+    InvalidAngle,
+}
+
+/// Bytes per pixel in the RGB8 bitmaps a region carries.
+const BPP: usize = 3;
+
+/// Validates a rotation request and returns the destination dimensions.
+fn rotated_dims(
+    width: u32,
+    height: u32,
+    angle: u32,
+    len: usize,
+) -> Result<(u32, u32), RotateError> {
+    if !matches!(angle, 90 | 180 | 270) {
+        return Err(RotateError::InvalidAngle);
+    }
+
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|pixels| pixels.checked_mul(BPP))
+        .ok_or(RotateError::InvalidDimensions)?;
+
+    if len != expected {
+        return Err(RotateError::InvalidDimensions);
+    }
+
+    if angle == 180 {
+        Ok((width, height))
+    } else {
+        Ok((height, width))
+    }
+}
+
+/// Writes the clockwise rotation of `src` into `dst`, both row-major RGB8.
+///
+/// The pixel landing at destination `(px, py)` comes from source
+/// `(py, h - 1 - px)` at 90, `(w - 1 - px, h - 1 - py)` at 180 and
+/// `(w - 1 - py, px)` at 270 — the corner mapping the consumer side uses.
+/// Destination rows are walked in order, so the writes are sequential and
+/// only the reads are strided.
+fn rotate_rgb8_into(
+    src: &[u8],
+    dst: &mut [u8],
+    width: u32,
+    height: u32,
+    angle: u32,
+) -> Result<(u32, u32), RotateError> {
+    let (out_width, out_height) = rotated_dims(width, height, angle, src.len())?;
+
+    if dst.len() != src.len() {
+        return Err(RotateError::InvalidDimensions);
+    }
+
+    // A zero-sized bitmap has nothing to copy, and the corner arithmetic
+    // below would underflow on the empty axis.
+    if src.is_empty() {
+        return Ok((out_width, out_height));
+    }
+
+    let (w, h) = (width as usize, height as usize);
+    let row_stride = w * BPP;
+    let mut out = 0;
+
+    for py in 0..(out_height as usize) {
+        // Where this destination row starts in the source, and how far one
+        // destination pixel moves within it.
+        let (mut at, step): (usize, isize) = match angle {
+            90 => (((h - 1) * w + py) * BPP, -(row_stride as isize)),
+            180 => (((h - 1 - py) * w + w - 1) * BPP, -(BPP as isize)),
+            _ => ((w - 1 - py) * BPP, row_stride as isize),
+        };
+
+        for _ in 0..(out_width as usize) {
+            dst[out..out + BPP].copy_from_slice(&src[at..at + BPP]);
+            out += BPP;
+            // The final step of a row can run off either end; it is never
+            // read again.
+            at = at.wrapping_add_signed(step);
+        }
+    }
+
+    Ok((out_width, out_height))
 }
 
 /// One bitmap covering a rect of cells. `data` is row-major RGB8 with no
@@ -209,6 +335,155 @@ fn bytes_to_binary<'a>(env: Env<'a>, bytes: &[u8]) -> Term<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A `width * height` bitmap where every pixel is distinct, so a
+    /// rotation that is off by a transpose cannot pass.
+    fn bitmap(width: usize, height: usize) -> Vec<u8> {
+        (0..(width * height))
+            .flat_map(|i| {
+                let base = (i as u8) * 10 + 1;
+                [base, base + 1, base + 2]
+            })
+            .collect()
+    }
+
+    /// The obvious, slow rotation, straight from the corner mapping. The
+    /// consumer side keeps the same reference (raster's
+    /// `RasterExRatatui.Test.Rotation.rotate_frame/5`), and the fast path
+    /// has to agree with it byte for byte.
+    fn reference_rotate(src: &[u8], width: usize, height: usize, angle: u32) -> Vec<u8> {
+        let (out_width, out_height) = if angle == 180 {
+            (width, height)
+        } else {
+            (height, width)
+        };
+        let mut out = Vec::with_capacity(src.len());
+
+        for py in 0..out_height {
+            for px in 0..out_width {
+                let (x, y) = match angle {
+                    90 => (py, height - 1 - px),
+                    180 => (width - 1 - px, height - 1 - py),
+                    _ => (width - 1 - py, px),
+                };
+                let at = (y * width + x) * BPP;
+                out.extend_from_slice(&src[at..at + BPP]);
+            }
+        }
+
+        out
+    }
+
+    fn rotate(
+        src: &[u8],
+        width: u32,
+        height: u32,
+        angle: u32,
+    ) -> Result<(Vec<u8>, u32, u32), RotateError> {
+        let mut dst = vec![0; src.len()];
+        let (out_width, out_height) = rotate_rgb8_into(src, &mut dst, width, height, angle)?;
+        Ok((dst, out_width, out_height))
+    }
+
+    #[test]
+    fn rotate_matches_the_reference_on_a_non_square_bitmap() {
+        let src = bitmap(3, 2);
+
+        for angle in [90, 180, 270] {
+            let (rotated, out_width, out_height) = rotate(&src, 3, 2, angle).unwrap();
+            let expected_dims = if angle == 180 { (3, 2) } else { (2, 3) };
+
+            assert_eq!((out_width, out_height), expected_dims, "dims at {angle}");
+            assert_eq!(rotated, reference_rotate(&src, 3, 2, angle), "at {angle}");
+        }
+    }
+
+    #[test]
+    fn four_quarter_turns_are_the_identity() {
+        let src = bitmap(3, 2);
+        let mut current = (src.clone(), 3, 2);
+
+        for _ in 0..4 {
+            let (data, w, h) = current;
+            let (rotated, out_w, out_h) = rotate(&data, w, h, 90).unwrap();
+            current = (rotated, out_w, out_h);
+        }
+
+        assert_eq!(current, (src, 3, 2));
+    }
+
+    #[test]
+    fn opposite_turns_cancel_out() {
+        let src = bitmap(3, 2);
+
+        let (once, w, h) = rotate(&src, 3, 2, 180).unwrap();
+        assert_eq!(rotate(&once, w, h, 180).unwrap(), (src.clone(), 3, 2));
+
+        let (quarter, w, h) = rotate(&src, 3, 2, 90).unwrap();
+        assert_eq!(rotate(&quarter, w, h, 270).unwrap(), (src, 3, 2));
+    }
+
+    #[test]
+    fn rotate_handles_single_row_and_single_column_bitmaps() {
+        for (width, height) in [(4, 1), (1, 4)] {
+            let src = bitmap(width, height);
+
+            for angle in [90, 180, 270] {
+                let (rotated, _, _) = rotate(&src, width as u32, height as u32, angle).unwrap();
+                assert_eq!(
+                    rotated,
+                    reference_rotate(&src, width, height, angle),
+                    "{width}x{height} at {angle}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rotate_returns_swapped_dimensions_for_an_empty_bitmap() {
+        assert_eq!(rotate(&[], 0, 4, 90).unwrap(), (vec![], 4, 0));
+        assert_eq!(rotate(&[], 3, 0, 180).unwrap(), (vec![], 3, 0));
+    }
+
+    #[test]
+    fn rotate_rejects_a_byte_count_that_is_not_three_per_pixel() {
+        assert_eq!(
+            rotate(&[0; 11], 2, 2, 90),
+            Err(RotateError::InvalidDimensions)
+        );
+        assert_eq!(
+            rotate(&[0; 12], 2, 2, 90).map(|(_, w, h)| (w, h)),
+            Ok((2, 2))
+        );
+    }
+
+    #[test]
+    fn rotate_rejects_a_destination_of_the_wrong_size() {
+        let mut dst = vec![0; 3];
+        assert_eq!(
+            rotate_rgb8_into(&[0; 12], &mut dst, 2, 2, 90),
+            Err(RotateError::InvalidDimensions)
+        );
+    }
+
+    #[test]
+    fn rotate_rejects_unsupported_angles() {
+        for angle in [0, 45, 360] {
+            assert_eq!(
+                rotate(&[0; 12], 2, 2, angle),
+                Err(RotateError::InvalidAngle),
+                "at {angle}"
+            );
+        }
+    }
+
+    #[test]
+    fn rotate_rejects_dimensions_that_overflow_a_byte_count() {
+        assert_eq!(
+            rotated_dims(u32::MAX, u32::MAX, 90, 0),
+            Err(RotateError::InvalidDimensions)
+        );
+    }
 
     fn region(x: u16) -> PixelRegion {
         PixelRegion {
