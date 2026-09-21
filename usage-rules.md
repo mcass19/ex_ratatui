@@ -80,7 +80,7 @@ All widgets are structs under `ExRatatui.Widgets.*` (a few have a companion data
 
 **Input (stateful — NIF-backed)**
 - `TextInput` — single-line editor; drive via `ExRatatui.text_input_*` helpers
-- `Textarea` — multi-line editor; drive via `ExRatatui.textarea_*` helpers
+- `Textarea` — multi-line editor; drive via `ExRatatui.textarea_*` helpers and set `wrap_mode: :word_or_glyph` when long logical lines should soft-wrap to the widget width (`:none` is the default)
 
 **Rich / special**
 - `Markdown` — rendered Markdown

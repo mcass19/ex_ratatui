@@ -78,6 +78,30 @@ defmodule ExRatatui.Widgets.TextareaTest do
       assert input.line_number_style == nil
       assert input.style == %Style{}
       assert input.cursor_style == %Style{}
+      assert input.wrap_mode == :none
+    end
+
+    test "soft wraps text at word boundaries with a glyph fallback", %{terminal: terminal} do
+      state = ExRatatui.textarea_new()
+      ExRatatui.textarea_set_value(state, "alpha beta extraordinarily")
+
+      input = %Textarea{state: state, wrap_mode: :word_or_glyph}
+      rect = %Rect{x: 0, y: 0, width: 8, height: 4}
+
+      assert :ok = ExRatatui.draw(terminal, [{input, rect}])
+
+      assert ExRatatui.get_buffer_content(terminal)
+             |> String.split("\n")
+             |> Enum.take(4) == ["alpha", "beta", "extraord", "inarily"]
+    end
+
+    test "rejects an unsupported wrap mode", %{terminal: terminal} do
+      input = %Textarea{state: ExRatatui.textarea_new(), wrap_mode: :columns}
+      rect = %Rect{x: 0, y: 0, width: 8, height: 2}
+
+      assert_raise ArgumentError,
+                   "textarea.wrap_mode must be :none, :word, :glyph, or :word_or_glyph, got: :columns",
+                   fn -> ExRatatui.draw(terminal, [{input, rect}]) end
     end
   end
 

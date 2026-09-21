@@ -34,6 +34,7 @@ use crate::widgets::tabs::{self, TabsData};
 use crate::widgets::throbber::{self, ThrobberData};
 use crate::widgets::viewport3d::{self, Viewport3DData};
 use crate::widgets::widget_list::{self, WidgetListData, WidgetListItem};
+use ratatui_textarea::WrapMode;
 
 pub enum WidgetData {
     Paragraph(ParagraphData),
@@ -1226,6 +1227,17 @@ fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
             None => None,
         };
 
+    let wrap_mode = match decode_optional::<String>(map, "wrap_mode", "textarea")? {
+        Some(mode) => match mode.as_str() {
+            "none" => WrapMode::None,
+            "word" => WrapMode::Word,
+            "glyph" => WrapMode::Glyph,
+            "word_or_glyph" => WrapMode::WordOrGlyph,
+            _ => return Err(invalid_field("textarea", "wrap_mode", "unsupported mode")),
+        },
+        None => WrapMode::None,
+    };
+
     let block = decode_optional_block(map)?;
 
     Ok(TextareaRenderData {
@@ -1236,6 +1248,7 @@ fn decode_textarea(map: &TermMap<'_>) -> Result<TextareaRenderData, Error> {
         placeholder,
         placeholder_style,
         line_number_style,
+        wrap_mode,
         block,
     })
 }

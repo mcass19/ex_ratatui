@@ -5,7 +5,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Widget;
-use ratatui_textarea::TextArea;
+use ratatui_textarea::{TextArea, WrapMode};
 
 use rustler::{Atom, Error, Resource, ResourceArc};
 
@@ -195,6 +195,7 @@ pub struct TextareaRenderData {
     pub placeholder: Option<String>,
     pub placeholder_style: Style,
     pub line_number_style: Option<Style>,
+    pub wrap_mode: WrapMode,
     pub block: Option<BlockData>,
 }
 
@@ -216,6 +217,7 @@ pub fn render(buf: &mut Buffer, data: &TextareaRenderData, area: Rect) {
     let placeholder: Option<String> = data.placeholder.clone();
     let placeholder_style = data.placeholder_style;
     let line_number_style = data.line_number_style;
+    let wrap_mode = data.wrap_mode;
 
     let mut textarea = match data.resource.state.lock() {
         Ok(textarea) => textarea,
@@ -225,6 +227,7 @@ pub fn render(buf: &mut Buffer, data: &TextareaRenderData, area: Rect) {
     textarea.set_style(style);
     textarea.set_cursor_style(cursor_style);
     textarea.set_cursor_line_style(cursor_line_style);
+    textarea.set_wrap_mode(wrap_mode);
     textarea.remove_block();
 
     if let Some(ph) = placeholder {

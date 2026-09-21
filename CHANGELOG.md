@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `ExRatatui.Widgets.Textarea` accepts `wrap_mode: :none | :word | :glyph | :word_or_glyph`; wrapped rendering and cursor navigation are delegated to `ratatui-textarea`.
+
 ## [0.15.0] - 2026-09-21
 
 ### Added

@@ -419,6 +419,7 @@ state = ExRatatui.textarea_new()
   placeholder: "Enter message...",
   cursor_line_style: %Style{bg: {:rgb, 40, 40, 40}},
   line_number_style: %Style{fg: :dark_gray},  # nil hides line numbers
+  wrap_mode: :word_or_glyph,                  # default: :none
   block: %Block{borders: [:all]}
 }
 
@@ -427,6 +428,8 @@ value = ExRatatui.textarea_get_value(state)
 ```
 
 Enter always inserts a newline. For "Enter = submit", intercept the key in `handle_event` before forwarding to the textarea.
+
+Wrap modes are `:none`, `:word`, `:glyph`, and `:word_or_glyph`. The last mode wraps on word boundaries and falls back to graphemes for words wider than the viewport.
 
 ### Checkbox
 
