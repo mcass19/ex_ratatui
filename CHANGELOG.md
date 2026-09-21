@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-21
+
 ### Added
 
 - **`ExRatatui.Pixels.rotate_rgb8/4` and `ExRatatui.CellSession.Region.rotate/2` — clockwise rotation of a region's bitmap, in Rust.** A consumer painting a panel that is mounted on its side has to turn every frame, and a region is the expensive part of that: the bitmap arrives in the app's orientation, so each destination row has to be gathered from a source column, which on a Raspberry Pi 4 driving a 696x480 region costs about twice what the same panel costs the right way up. Rotating the bitmap natively — one pass, walking destination rows so the writes stay sequential — lets the consumer hand the turned bytes to the same flat row-by-row path it already uses for an upright panel. `rotate_rgb8/4` takes the raw bytes and their dimensions, `Region.rotate/2` is the sugar for a region in hand; both return the dimensions swapped at 90 and 270, treat `0` as the identity, and raise `ArgumentError` on a byte count that is not `width * height * 3` or on an unsupported angle. `Region.rotate/2` turns the bitmap and **not** the cell rect: `x`, `y`, `width` and `height` are the app's cell coordinates, and turning those needs the size of the grid they sit in, which a region does not carry. Packing the rotated pixels into the panel's format stays on the consumer side.
@@ -588,7 +590,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/mcass19/ex_ratatui/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/mcass19/ex_ratatui/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mcass19/ex_ratatui/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/mcass19/ex_ratatui/compare/v0.13.0...v0.13.1
