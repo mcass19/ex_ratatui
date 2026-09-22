@@ -432,6 +432,8 @@ defmodule ExRatatui.Bridge do
   end
 
   defp encode_widget(%Textarea{} = textarea) do
+    wrap_mode = validate_textarea_wrap_mode!(textarea.wrap_mode)
+
     %{
       "type" => "textarea",
       "state" => textarea.state,
@@ -440,7 +442,8 @@ defmodule ExRatatui.Bridge do
       "cursor_line_style" =>
         encode_style(textarea.cursor_line_style, "textarea.cursor_line_style"),
       "placeholder_style" =>
-        encode_style(textarea.placeholder_style, "textarea.placeholder_style")
+        encode_style(textarea.placeholder_style, "textarea.placeholder_style"),
+      "wrap_mode" => Atom.to_string(wrap_mode)
     }
     |> maybe_put("placeholder", textarea.placeholder)
     |> maybe_put_style(
@@ -521,6 +524,15 @@ defmodule ExRatatui.Bridge do
 
   defp encode_widget(widget) do
     raise ArgumentError, "unsupported widget struct: #{inspect(widget)}"
+  end
+
+  defp validate_textarea_wrap_mode!(mode)
+       when mode in [:none, :word, :glyph, :word_or_glyph],
+       do: mode
+
+  defp validate_textarea_wrap_mode!(mode) do
+    raise ArgumentError,
+          "textarea.wrap_mode must be :none, :word, :glyph, or :word_or_glyph, got: #{inspect(mode)}"
   end
 
   # Column count for Table's :selected_column validation: the widest

@@ -5,6 +5,9 @@ defmodule ExRatatui.Widgets.Textarea do
   Uses the `ratatui-textarea` Rust crate. State lives in Rust via ResourceArc —
   create it with `ExRatatui.textarea_new/0` and pass the reference as `:state`.
 
+  Set `:wrap_mode` to `:word`, `:glyph`, or `:word_or_glyph` to soft-wrap
+  long logical lines within the widget width. The default is `:none`.
+
   The state reference is an opaque handle to Rust-side memory: don't
   serialize, persist, compare, or send it to another node. The
   distributed transport snapshots stateful widgets into plain terms
@@ -47,6 +50,7 @@ defmodule ExRatatui.Widgets.Textarea do
         placeholder: nil,
         placeholder_style: %ExRatatui.Style{},
         line_number_style: nil,
+        wrap_mode: :none,
         block: nil
       }
 
@@ -65,6 +69,7 @@ defmodule ExRatatui.Widgets.Textarea do
         placeholder: "Type a message...",
         placeholder_style: %ExRatatui.Style{fg: :dark_gray},
         line_number_style: nil,
+        wrap_mode: :none,
         block: %ExRatatui.Widgets.Block{title: "Message", borders: [:all]}
       }
   """
@@ -79,6 +84,7 @@ defmodule ExRatatui.Widgets.Textarea do
           placeholder: String.t() | nil,
           placeholder_style: Style.t(),
           line_number_style: Style.t() | nil,
+          wrap_mode: :none | :word | :glyph | :word_or_glyph,
           block: ExRatatui.Widgets.Block.t() | nil
         }
 
@@ -89,5 +95,6 @@ defmodule ExRatatui.Widgets.Textarea do
             placeholder: nil,
             placeholder_style: %Style{},
             line_number_style: nil,
+            wrap_mode: :none,
             block: nil
 end

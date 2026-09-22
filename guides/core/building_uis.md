@@ -188,6 +188,8 @@ ExRatatui.text_input_get_value(state)
 
 Recreating the state in `render/2` silently drops the cursor position and typed text on every frame — the most common stateful-widget mistake.
 
+`Textarea` defaults to `wrap_mode: :none`. Set `:word`, `:glyph`, or `:word_or_glyph` to soft-wrap long logical lines to the widget width; `:word_or_glyph` preserves word boundaries and falls back to grapheme wrapping for a word wider than the viewport.
+
 ### Overlays: Popup and Clear
 
 `Popup` centers any widget over the parent area, clearing the background underneath — dialogs, confirmations, command palettes:
