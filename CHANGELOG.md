@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **`[:ex_ratatui, :runtime, :mailbox]` telemetry event and warning when a runtime falls behind.** An app whose callbacks can't keep up with what is sent to it (a slow `handle_info/2`, a firehose subscription) used to lag silently, with input and renders waiting behind the backlog. The runtime now checks its message queue after each message it handles; when the queue grows past the new `:mailbox_warn_threshold` start option (default `10_000`, `false` disables), it emits the event with `:message_queue_len` and logs a `Logger.warning`, at most once every 30 seconds. The event fires once per crossing and re-arms after the queue drains below half the threshold. It is included in `ExRatatui.Telemetry.attach_default_logger/1`.
+- The SSH transport docs (`ExRatatui.SSH` and the [SSH guide](guides/transports/ssh_transport.md#known-issue-otp-29-0-6-and-29-1)) cover a regression in OTP 29.0.6 and 29.1: their `ssh` application refuses a subsystem request after `pty-req` or `env`, so `ssh -t host -s Elixir.MyApp.TUI` fails with "PTY allocation request failed" against a daemon on those releases. OTP 29.1.1 fixes it; the docs include a client-side workaround for daemons that can't upgrade yet.
 
 ### Changed
 

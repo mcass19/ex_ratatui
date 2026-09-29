@@ -120,6 +120,18 @@ ssh -t nerves.local -s Elixir.MyApp.TUI
 ssh nerves.local -s Elixir.MyApp.TUI
 ```
 
+### Known issue: OTP 29.0.6 and 29.1
+
+The `ssh` application in OTP 29.0.6 and 29.1 (`ssh` 6.0.5) refuses a subsystem request that follows a `pty-req` or `env` request on the same channel ([erlang/otp#11586](https://github.com/erlang/otp/issues/11586)). With the daemon — the Nerves device, or whichever node runs the TUI — on one of those releases, `ssh -t host -s Elixir.MyApp.TUI` fails with "PTY allocation request failed". Plain `ssh host -s ...` fails the same way when the client config sends environment variables (`SendEnv LANG LC_*` is a common default in the system-wide `ssh_config`). Shell mode is not affected.
+
+OTP 29.1.1 (`ssh` 6.0.6, OTP-20371) fixes it, and upgrading the daemon's OTP is the real fix. Until then, skip both requests and put the local terminal in raw mode by hand:
+
+```sh
+stty raw -echo; ssh -F ~/.ssh/config nerves.local -s Elixir.MyApp.TUI; stty sane
+```
+
+`-F` replaces the system-wide config, which is where the `SendEnv` lines live; `-F /dev/null` works when there is no user config. `-o SendEnv=` looks like the obvious alternative but OpenSSH rejects it, and `-o SendEnv=-*` doesn't clear what the system config already set. Without a PTY the client never sends `window-change`, so the TUI keeps the size it discovered at startup; reconnect after resizing the window.
+
 See the [`nerves_ex_ratatui_example`](https://github.com/mcass19/nerves_ex_ratatui_example) project for an end-to-end Nerves firmware that wires three TUIs (callback and reducer runtime) into a `nerves_ssh` daemon and runs them on a Raspberry Pi.
 
 ## Options reference
@@ -283,6 +295,9 @@ The integration tests run as part of the default `mix test` — no special flags
 
 **"Connection closed by remote host" right after banner**
 : The client asked for a shell but didn't allocate a PTY. Add `-t` (`ssh -t host`) or switch to subsystem mode (`ssh -s host Elixir.MyApp.TUI`).
+
+**"PTY allocation request failed" in subsystem mode**
+: The daemon runs OTP 29.0.6 or 29.1, whose `ssh` rejects a subsystem after `pty-req` or `env`. Upgrade the daemon to OTP 29.1.1, or use the workaround in [Known issue: OTP 29.0.6 and 29.1](#known-issue-otp-29-0-6-and-29-1).
 
 **Client sees garbled box-drawing characters**
 : The SSH client isn't interpreting UTF-8 or isn't in a terminal that knows about Unicode line-drawing glyphs. Set `LANG=en_US.UTF-8` on both sides.
