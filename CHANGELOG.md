@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nerves firmware no longer picks up the host's NIF.** The package shipped a `priv/` directory (the Burrito generator's templates), and Mix symlinks a dependency's `priv/` into every build instead of giving each target its own. The precompiled NIF for each target therefore landed in one shared `deps/ex_ratatui/priv/native/`, so after a host compile a Nerves release carried the host's `.so` next to the target's and `mix firmware` failed at the scrub step with `Unexpected executable format`. The templates now live in `templates/burrito` and are embedded into `mix ex_ratatui.gen.burrito` at compile time, the package ships no `priv/`, and each build gets its own `priv/native/` with only its own NIF.
+
 ## [0.16.0] - 2026-09-22
 
 ### Added

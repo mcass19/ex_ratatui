@@ -12,7 +12,7 @@ The consumer-facing API guide lives in [usage-rules.md](usage-rules.md) (shipped
   - **Transports**: `:local` (with `ExRatatui.LocalInput` guarding against the BEAM `prim_tty` reader race), SSH (`ExRatatui.SSH.Daemon`), Erlang distribution (`ExRatatui.Distributed`), plus `ExRatatui.CellSession` for rendering to non-terminal surfaces
 - **`native/ex_ratatui/`** — the Rust crate (ratatui + crossterm) behind the NIF. Release profile is size-tuned (strip, fat LTO, codegen-units 1), so from-source release builds are slow by design
 - **Precompiled NIFs** ship via `rustler_precompiled`; the checksum file lives at the repo root
-- **`guides/`** — ExDoc guides; **`examples/`** — runnable example scripts; **`priv/templates/burrito`** — packaging template
+- **`guides/`** — ExDoc guides; **`examples/`** — runnable example scripts; **`templates/burrito`** — packaging template
 
 ## Build
 
