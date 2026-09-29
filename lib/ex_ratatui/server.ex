@@ -1078,6 +1078,7 @@ defmodule ExRatatui.Server do
   defp apply_transition({:stop, user_state, runtime_opts}, state) do
     next_state =
       state
+      |> flush_pending_render()
       |> Map.put(:user_state, user_state)
       |> maybe_set_trace(runtime_opts)
       |> reconcile_subscriptions()
@@ -1086,6 +1087,14 @@ defmodule ExRatatui.Server do
 
     {:stop, next_state}
   end
+
+  # A stopping transition never renders, and the runtime exits before any
+  # queued `@render_message` is reached. Draw a coalesced frame still owed to
+  # earlier transitions first, with their state rather than the stopping
+  # one's, so the last frame on screen is the one an uncoalesced runtime
+  # would have left there.
+  defp flush_pending_render(%__MODULE__{render_pending?: true} = state), do: do_render(state)
+  defp flush_pending_render(state), do: state
 
   defp do_render_if(state, %{render?: false}), do: state
   defp do_render_if(state, _runtime_opts), do: do_render(state)

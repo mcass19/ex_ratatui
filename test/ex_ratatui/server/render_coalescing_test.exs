@@ -34,6 +34,8 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
       case msg do
         :bump -> {:noreply, %{state | count: state.count + 1}}
         :quiet -> {:noreply, %{state | count: state.count + 1}, render?: false}
+        # The stopping state is never drawn; 100 makes it easy to tell apart.
+        :stop -> {:stop, %{state | count: state.count + 100}}
       end
     end
   end
@@ -132,6 +134,28 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
     assert :ok = Runtime.inject_event(pid, %Key{code: "q", modifiers: [], kind: "press"})
     assert render_count(pid) == 2
     GenServer.stop(pid)
+  end
+
+  test "a stop draws the frame still owed to earlier transitions" do
+    pid = start()
+    ref = Process.monitor(pid)
+
+    :ok = :sys.suspend(pid)
+    Enum.each([:bump, :bump, :stop], &send(pid, &1))
+    :ok = :sys.resume(pid)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    assert drain_renders() == [2]
+  end
+
+  test "a stop with no render pending draws nothing" do
+    pid = start()
+    ref = Process.monitor(pid)
+
+    send(pid, :stop)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+    assert drain_renders() == []
   end
 
   test "a stray marker without a pending render does nothing" do
