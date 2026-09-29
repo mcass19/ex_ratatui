@@ -66,7 +66,7 @@ defmodule ExRatatui.Server.MailboxPressureTest do
       assert meta.threshold == 10
       assert meta.transport == :local
       refute_received {:mailbox, _, _}
-      refute :sys.get_state(pid).mailbox_alarm?
+      refute :sys.get_state(pid).mailbox.alarm?
 
       flood(pid, 30)
       assert_received {:mailbox, %{message_queue_len: _}, _}
@@ -89,11 +89,11 @@ defmodule ExRatatui.Server.MailboxPressureTest do
     log =
       capture_log(fn ->
         flood(pid, 30)
-        warned_at = :sys.get_state(pid).mailbox_warned_at
+        warned_at = :sys.get_state(pid).mailbox.warned_at
         assert is_integer(warned_at)
 
         flood(pid, 30)
-        assert :sys.get_state(pid).mailbox_warned_at == warned_at
+        assert :sys.get_state(pid).mailbox.warned_at == warned_at
       end)
 
     assert_received {:mailbox, _, _}
@@ -118,7 +118,7 @@ defmodule ExRatatui.Server.MailboxPressureTest do
 
   test "defaults to a threshold of 10_000" do
     pid = start([])
-    assert :sys.get_state(pid).mailbox_warn_threshold == 10_000
+    assert :sys.get_state(pid).mailbox.warn_threshold == 10_000
     GenServer.stop(pid)
   end
 

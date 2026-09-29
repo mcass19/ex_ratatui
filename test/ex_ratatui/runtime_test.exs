@@ -213,6 +213,9 @@ defmodule ExRatatui.RuntimeTest do
 
     assert_receive {:rendered, :trace_api, %Frame{width: 40, height: 10}}, 1000
     assert_receive :boot_handled, 1000
+    # :boot's render can be coalesced behind a call that is already queued,
+    # so wait for it before comparing two trace reads.
+    assert_receive {:rendered, :trace_api, _frame}, 1000
 
     snapshot = Runtime.snapshot(pid)
     assert snapshot.trace_enabled?
