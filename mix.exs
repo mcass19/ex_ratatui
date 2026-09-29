@@ -41,6 +41,8 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Test.ServerApps.FailingMount,
           ExRatatui.Test.ServerApps.StopOnAnyEvent,
           ExRatatui.Test.ServerApps.Intents,
+          ExRatatui.Test.ServerApps.GatedWorker,
+          ExRatatui.Test.Mailbox,
           ExRatatui.Test.SshHelper
         ]
       ],

@@ -15,6 +15,6 @@ Application.put_env(:ex_ratatui, :detach_local_input, false)
 
 # Priority signals (`:erlang.link/2`, `[:priority]` monitors) arrived in
 # OTP 28; the Server falls back to FIFO close on older releases.
-otp_excludes = if System.otp_release() < "28", do: [:otp28], else: []
+otp_excludes = if String.to_integer(System.otp_release()) < 28, do: [:otp28], else: []
 
 ExUnit.start(exclude: [:distributed, :slow] ++ otp_excludes)

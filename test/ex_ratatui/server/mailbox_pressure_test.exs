@@ -9,7 +9,7 @@ defmodule ExRatatui.Server.MailboxPressureTest do
     use ExRatatui.App
 
     @impl true
-    def mount(_opts), do: {:ok, %{}}
+    def mount(opts), do: {:ok, %{test_pid: opts[:test_pid]}}
 
     @impl true
     def render(_state, _frame), do: []
@@ -19,6 +19,16 @@ defmodule ExRatatui.Server.MailboxPressureTest do
 
     @impl true
     def handle_info(:work, state), do: {:noreply, state, render?: false}
+
+    # Blocks until the test sends `:go`, so the test can grow the queue
+    # while the server is mid-drain.
+    def handle_info(:pause, state) do
+      send(state.test_pid, :paused)
+
+      receive do
+        :go -> {:noreply, state, render?: false}
+      end
+    end
   end
 
   @doc false
@@ -42,7 +52,7 @@ defmodule ExRatatui.Server.MailboxPressureTest do
 
   defp start(opts) do
     {:ok, pid} =
-      Server.start_link([mod: QuietApp, name: nil, test_mode: {20, 5}] ++ opts)
+      Server.start_link([mod: QuietApp, name: nil, test_pid: self(), test_mode: {20, 5}] ++ opts)
 
     pid
   end
@@ -73,6 +83,28 @@ defmodule ExRatatui.Server.MailboxPressureTest do
       refute_received {:mailbox, _, _}
     end)
 
+    GenServer.stop(pid)
+  end
+
+  test "doesn't re-fire until the queue drops below half the threshold" do
+    pid = start(mailbox_warn_threshold: 10)
+
+    capture_log(fn ->
+      # Fires on the way in; the queue then drains to 8 (above half the
+      # threshold) when :pause blocks, grows back past 10, and drains out.
+      :ok = :sys.suspend(pid)
+      Enum.each(List.duplicate(:work, 12) ++ [:pause] ++ List.duplicate(:work, 7), &send(pid, &1))
+      :ok = :sys.resume(pid)
+
+      assert_receive :paused, 1000
+      for _ <- 1..5, do: send(pid, :work)
+      send(pid, :go)
+      _ = :sys.get_state(pid)
+    end)
+
+    assert_received {:mailbox, _, _}
+    refute_received {:mailbox, _, _}
+    refute :sys.get_state(pid).mailbox.alarm?
     GenServer.stop(pid)
   end
 
@@ -109,6 +141,29 @@ defmodule ExRatatui.Server.MailboxPressureTest do
     GenServer.stop(pid)
   end
 
+  test "logs again once the interval has passed" do
+    pid = start(mailbox_warn_threshold: 10)
+
+    log =
+      capture_log(fn ->
+        flood(pid, 30)
+        # Pretend the last warning was 31 s ago.
+        :sys.replace_state(pid, fn state ->
+          update_in(state.mailbox.warned_at, &(&1 - 31_000))
+        end)
+
+        flood(pid, 30)
+      end)
+
+    warnings =
+      log
+      |> String.split("\n")
+      |> Enum.filter(&(&1 =~ "ExRatatui runtime for #{inspect(QuietApp)} has"))
+
+    assert length(warnings) == 2
+    GenServer.stop(pid)
+  end
+
   test "false disables the check" do
     pid = start(mailbox_warn_threshold: false)
     flood(pid, 30)
@@ -132,7 +187,7 @@ defmodule ExRatatui.Server.MailboxPressureTest do
   test "rejects an invalid threshold" do
     Process.flag(:trap_exit, true)
 
-    for bad <- [0, -1, :lots, 1.5] do
+    for bad <- [0, -1, :lots, 1.5, true, nil] do
       assert {:error, {%ArgumentError{message: message}, _}} =
                Server.start_link(
                  mod: QuietApp,
