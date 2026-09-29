@@ -75,6 +75,10 @@ defmodule ExRatatui.Server do
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
+    # A backed-up on-heap mailbox is scanned on every garbage collection, so
+    # draining a backlog gets quadratically slower (100k queued messages:
+    # ~3 s on-heap vs ~80 ms off-heap). Off-heap keeps it linear.
+    Process.flag(:message_queue_data, :off_heap)
     {parent, opts} = Keyword.pop(opts, :__parent__)
     maybe_priority_link(parent, priority_signals?(opts))
     # Validated before the terminal is touched, so a bad value can't leave

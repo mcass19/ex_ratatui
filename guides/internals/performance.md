@@ -172,7 +172,7 @@ end
 
 ## Mailbox pressure
 
-Everything reaches the runtime as a message: input, subscription ticks, async results, PubSub broadcasts. When those arrive faster than the callbacks handle them, the queue grows, and every keypress waits behind the backlog. The usual causes are a slow `handle_info/2` or `update/2`, or subscribing to a firehose (a PubSub topic that broadcasts on every sensor sample) and rendering on each message.
+Everything reaches the runtime as a message: input, subscription ticks, async results, PubSub broadcasts. When those arrive faster than the callbacks handle them, the queue grows, and every keypress waits behind the backlog. The usual causes are a slow `handle_info/2` or `update/2`, or subscribing to a firehose (a PubSub topic that broadcasts on every sensor sample) and rendering on each message. The runtime keeps its queue off-heap, so even a deep backlog drains in linear time, but it still drains one callback at a time.
 
 The runtime watches its own queue. Once it grows past `:mailbox_warn_threshold` (default `10_000`) it emits `[:ex_ratatui, :runtime, :mailbox]` and logs a warning, at most once every 30 seconds:
 
