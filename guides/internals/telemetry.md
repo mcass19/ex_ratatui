@@ -6,7 +6,7 @@ ExRatatui emits events for every runtime transition, render cycle, transport han
 
 Two categories, all prefixed with `:ex_ratatui`. **Span events** wrap something with a duration — `mount/1`, a render, a `handle_event/2` call. Each span fires three telemetry events: `:start` when it begins, `:stop` when it ends (measurements include `:duration`), `:exception` if it raises. **Single events** mark a point in time — a dropped frame, a disconnect — and fire once with no paired stop.
 
-The full catalog — every event with its measurements and metadata — lives in `ExRatatui.Telemetry`'s moduledoc. The shape of it: five runtime/render/transport spans, two library-level spans (`:image, :decode` and `:code_block, :highlight`), and four single events for session lifecycle, dropped frames, and disconnects.
+The full catalog — every event with its measurements and metadata — lives in `ExRatatui.Telemetry`'s moduledoc. The shape of it: five runtime/render/transport spans, two library-level spans (`:image, :decode` and `:code_block, :highlight`), and five single events for session lifecycle, dropped frames, disconnects, and mailbox pressure.
 
 Every runtime / render / transport / session event carries `:mod` and `:transport` in its metadata, so the same handler can tag frames by app module or filter by transport without fishing for the data elsewhere. The two library-level spans — `[:ex_ratatui, :image, :decode]` and `[:ex_ratatui, :code_block, :highlight]` — fire from pure functions outside the server, so they carry only their own decode / highlight metadata; correlate them with a render frame via the `telemetry_span_context` reference if that join is needed.
 
@@ -70,10 +70,17 @@ def metrics do
     # Session churn — SSH clients connecting/disconnecting.
     Telemetry.Metrics.counter("ex_ratatui.transport.disconnect.count",
       tags: [:transport, :reason]
+    ),
+
+    # Mailbox pressure — the app can't keep up with what is sent to it.
+    Telemetry.Metrics.last_value("ex_ratatui.runtime.mailbox.message_queue_len",
+      tags: [:mod, :transport]
     )
   ]
 end
 ```
+
+`[:ex_ratatui, :runtime, :mailbox]` fires when a runtime's message queue grows past `:mailbox_warn_threshold` (default `10_000`, `false` disables it), once per crossing, and re-arms after the queue drains below half the threshold. It comes with a `Logger.warning`, at most one every 30 seconds per runtime. See [Performance](performance.md#mailbox-pressure) for what usually causes it.
 
 ## OpenTelemetry
 
