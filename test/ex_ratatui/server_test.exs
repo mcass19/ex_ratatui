@@ -552,6 +552,44 @@ defmodule ExRatatui.ServerTest do
     end
   end
 
+  describe "process_event_result/1 on :local with live input" do
+    # With live input the next `:poll` is always queued while any other
+    # message is handled; the render decision must not count it as a backlog.
+    # These run in the test process, so its own mailbox stands in for the
+    # server's.
+    setup do
+      state =
+        build_server_state(RenderingApp, %{test_pid: self()},
+          polling_enabled?: true,
+          terminal_ref: ExRatatui.init_test_terminal(80, 24)
+        )
+
+      %{state: state}
+    end
+
+    test "renders right away when only the pending poll is queued", %{state: state} do
+      send(self(), :poll)
+
+      assert {:noreply, next} = ExRatatui.Server.process_event_result({:continue, state, true})
+      assert next.render_count == 1
+      refute next.render_pending?
+      assert_received :rendered
+      assert_received :poll
+      refute_received :__ex_ratatui_render__
+    end
+
+    test "still defers when real messages are queued behind the poll", %{state: state} do
+      send(self(), :poll)
+      send(self(), :tick)
+
+      assert {:noreply, next} = ExRatatui.Server.process_event_result({:continue, state, true})
+      assert next.render_count == 0
+      assert next.render_pending?
+      refute_received :rendered
+      assert_received :__ex_ratatui_render__
+    end
+  end
+
   describe "resolve_terminal_size/1" do
     test "passes through explicit dimensions" do
       assert {80, 24} = ExRatatui.Server.resolve_terminal_size({80, 24})
