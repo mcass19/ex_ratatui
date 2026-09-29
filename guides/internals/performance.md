@@ -22,7 +22,7 @@ A transition that finds more messages already waiting doesn't render on the spot
 
 Nothing changes for an idle app: a keypress or tick that arrives alone renders immediately. Under a steady stream the runtime still draws a frame on every pass through its queue, so the screen keeps moving. Apps that throttled renders by hand (a timer plus a "dirty" flag) to survive a burst can usually drop that code.
 
-`ExRatatui.Runtime.inject_event/2` stays synchronous: it renders before it returns, so tests can assert on `render_count` and snapshots right after it. On the `:local` transport the input poll is itself a queued message, so a `handle_info/2` render can wait up to one `poll_interval` for the poll ahead of it.
+`ExRatatui.Runtime.inject_event/2` stays synchronous: it renders before it returns, so tests can assert on `render_count` and snapshots right after it. On the `:local` transport the runtime's own pending input poll doesn't count as a backlog, so an app message that arrives alone renders right away there too.
 
 ## Skip unneeded renders — `render?: false`
 

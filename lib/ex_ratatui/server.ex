@@ -642,7 +642,7 @@ defmodule ExRatatui.Server do
   def process_poll_result({:continue, state, render?}) do
     state =
       state
-      |> observe_and_render(render?)
+      |> observe_and_render(render?, 0)
       |> flush_pending_commands()
       |> flush_pending_intents()
       |> maybe_rearm_poll()
@@ -661,7 +661,7 @@ defmodule ExRatatui.Server do
   def process_event_result({:continue, state, render?}) do
     state =
       state
-      |> observe_and_render(render?)
+      |> observe_and_render(render?, queued_polls(state))
       |> flush_pending_commands()
       |> flush_pending_intents()
 
@@ -1094,14 +1094,23 @@ defmodule ExRatatui.Server do
   defp maybe_render(state, false), do: state
 
   # One queue-length read per dispatched event or message, shared by the
-  # mailbox check and the render decision.
-  defp observe_and_render(state, render?) do
+  # mailbox check and the render decision. `own_queued` is the part of the
+  # queue that is the runtime's own bookkeeping rather than a backlog.
+  defp observe_and_render(state, render?, own_queued) do
     {:message_queue_len, len} = Process.info(self(), :message_queue_len)
 
     state
     |> check_mailbox(len)
-    |> schedule_render(render?, len)
+    |> schedule_render(render?, len - own_queued)
   end
+
+  # On `:local` with live input, every poll re-arms itself, so the next
+  # `:poll` is always sitting in the mailbox while any other message is
+  # handled. Counting it would defer every app-message render behind a
+  # blocking `poll_event/1` call (up to `poll_interval`). `process_poll_result/1`
+  # passes 0 instead: the poll it handles was consumed and re-arms afterwards.
+  defp queued_polls(%__MODULE__{transport: :local, polling_enabled?: true}), do: 1
+  defp queued_polls(_state), do: 0
 
   # Render coalescing. With nothing else queued we render right away. With
   # more messages waiting, rendering now would draw a frame the next message
@@ -1110,7 +1119,7 @@ defmodule ExRatatui.Server do
   # always renders when it reaches the head, even if more messages queued up
   # behind it, so a firehose still gets a frame per pass over the queue.
   defp schedule_render(state, false, _len), do: state
-  defp schedule_render(state, true, 0), do: do_render(state)
+  defp schedule_render(state, true, len) when len <= 0, do: do_render(state)
   defp schedule_render(%__MODULE__{render_pending?: true} = state, true, _len), do: state
 
   defp schedule_render(state, true, _len) do
