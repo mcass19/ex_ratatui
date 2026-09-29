@@ -13,4 +13,8 @@ Application.put_env(:ex_ratatui, :image_probe_fn, fn -> {:error, :no_probe_in_te
 # handoff against a fake reader in local_input_test.exs.
 Application.put_env(:ex_ratatui, :detach_local_input, false)
 
-ExUnit.start(exclude: [:distributed, :slow])
+# Priority signals (`:erlang.link/2`, `[:priority]` monitors) arrived in
+# OTP 28; the Server falls back to FIFO close on older releases.
+otp_excludes = if System.otp_release() < "28", do: [:otp28], else: []
+
+ExUnit.start(exclude: [:distributed, :slow] ++ otp_excludes)

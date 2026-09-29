@@ -101,6 +101,41 @@ defmodule ExRatatui.Test.ServerApps do
     def handle_event(_event, state), do: {:noreply, state}
   end
 
+  defmodule SlowWorker do
+    @moduledoc """
+    Sleeps `:work_ms` (mount opt) on every event and every `:work` info
+    message, so tests can back up the server's mailbox. Reports how many it
+    got through as `{:terminated, reason, handled}` on terminate.
+    """
+
+    use ExRatatui.App
+
+    @impl true
+    def mount(opts) do
+      {:ok, %{test_pid: Keyword.fetch!(opts, :test_pid), work_ms: opts[:work_ms], handled: 0}}
+    end
+
+    @impl true
+    def render(_state, _frame), do: []
+
+    @impl true
+    def handle_event(_event, state), do: work(state)
+
+    @impl true
+    def handle_info(:work, state), do: work(state)
+
+    defp work(state) do
+      Process.sleep(state.work_ms)
+      {:noreply, %{state | handled: state.handled + 1}, render?: false}
+    end
+
+    @impl true
+    def terminate(reason, state) do
+      send(state.test_pid, {:terminated, reason, state.handled})
+      :ok
+    end
+  end
+
   defmodule StopOnAnyEvent do
     @moduledoc "Returns `{:stop, state}` from every `handle_event` call."
 
