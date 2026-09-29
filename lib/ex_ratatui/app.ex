@@ -138,7 +138,8 @@ defmodule ExRatatui.App do
       `{:error, reason}` to abort startup.
     * `init/1` — Reducer runtime startup callback. Return `{:ok, initial_state}`
       or `{:ok, initial_state, runtime_opts}`.
-    * `render/2` — Called after every state change. Receives state and a
+    * `render/2` — Called after state changes; transitions that arrive
+      while more messages are queued share one frame. Receives state and a
       `%ExRatatui.Frame{}` with terminal dimensions. Return a list of
       `{widget, rect}` tuples.
     * `handle_event/2` — Called when a terminal event arrives. Return
@@ -193,10 +194,15 @@ defmodule ExRatatui.App do
               {:ok, state()} | {:ok, state(), callback_opts()} | {:error, reason :: term()}
 
   @doc """
-  Called after every state change to produce the UI.
+  Called after state changes to produce the UI.
 
   Receives the current state and a `%ExRatatui.Frame{}` with the terminal
   dimensions. Return a list of `{widget, rect}` tuples to render.
+
+  A transition renders right away when nothing else is queued for the
+  runtime. When more messages are waiting, the render is deferred until
+  they have been handled, so a burst of messages produces one frame with
+  the final state instead of one frame per message.
   """
   @callback render(state(), ExRatatui.Frame.t()) :: [
               {ExRatatui.widget(), ExRatatui.Layout.Rect.t()}

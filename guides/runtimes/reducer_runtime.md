@@ -70,7 +70,7 @@ Supervisor.start_link(children, strategy: :one_for_one)
 | Callback | Required | Description |
 |----------|----------|-------------|
 | `init/1` | Yes | Called once on startup. Return `{:ok, state}` or `{:ok, state, opts}` |
-| `render/2` | Yes | Called after every state change. Return `[{widget, rect}]` |
+| `render/2` | Yes | Called after state changes; a burst of queued messages shares one frame ([Performance](../internals/performance.md#render-coalescing)). Return `[{widget, rect}]` |
 | `update/2` | Yes | Receives `{:event, event}` or `{:info, message}`. Return `{:noreply, state}`, `{:noreply, state, opts}`, or `{:stop, state}`. End with a catch-all clause — unmatched messages crash the server |
 | `subscriptions/1` | No | Called after each state transition. Return a list of `Subscription` structs. Defaults to `[]` |
 | `terminate/2` | No | Called on shutdown. Default is a no-op |

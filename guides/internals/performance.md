@@ -11,10 +11,18 @@ When an `ExRatatui.App` runs, the server loop looks like this:
 1. Poll the terminal for an event on the DirtyIo scheduler (non-blocking against other BEAM processes).
 2. Receive an event, `handle_info` message, subscription firing, or async command result.
 3. Run the matching callback (`handle_event/2`, `update/2`, etc.) to transition state.
-4. If the transition opted in (default), call `render/2` to build the scene.
+4. If the transition opted in (default), call `render/2` to build the scene — right away when nothing else is queued, otherwise once the queued messages have been handled (see below).
 5. Hand the widget list to the Rust side, which diffs against the previous frame and writes only changed cells.
 
 Every transition is a chance to re-render. If `render/2` is cheap and transitions are sparse, there's headroom for a lot of widgets. If one of those is expensive, everything else pays.
+
+## Render coalescing
+
+A transition that finds more messages already waiting doesn't render on the spot: the frame it would draw is stale as soon as the next message is handled. The runtime queues one render behind the waiting messages instead, and every transition until then lands in that frame. 500 PubSub messages that pile up while a slow callback runs cost one `render/2` call with the final state, not 500.
+
+Nothing changes for an idle app: a keypress or tick that arrives alone renders immediately. Under a steady stream the runtime still draws a frame on every pass through its queue, so the screen keeps moving. Apps that throttled renders by hand (a timer plus a "dirty" flag) to survive a burst can usually drop that code.
+
+`ExRatatui.Runtime.inject_event/2` stays synchronous: it renders before it returns, so tests can assert on `render_count` and snapshots right after it. On the `:local` transport the input poll is itself a queued message, so a `handle_info/2` render can wait up to one `poll_interval` for the poll ahead of it.
 
 ## Skip unneeded renders — `render?: false`
 
@@ -105,7 +113,7 @@ The default `poll_interval: 16` targets ~60fps. Every 16ms the server wakes on t
 
 Applies only to the `:local` transport. Over SSH, the daemon buffers and dispatches at its own pace. Over distribution, the client polls locally — set `poll_interval` in `Distributed.attach/3` options.
 
-Remember this is just the *poll*, not the render cap. Rendering happens per-transition regardless of interval.
+Remember this is just the *poll*, not the render cap. Rendering follows transitions regardless of interval, merged only when messages queue up faster than they're handled.
 
 ## Subscriptions (reducer runtime)
 

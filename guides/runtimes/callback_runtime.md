@@ -96,7 +96,7 @@ Or run it directly:
 | Callback | Required | Description |
 |----------|----------|-------------|
 | `mount/1` | Yes | Called once on startup. Receives opts from `start_link/1`. Return `{:ok, initial_state}` or `{:error, reason}` |
-| `render/2` | Yes | Called after every state change. Receives state and `%Frame{}` with terminal dimensions. Return `[{widget, rect}]` |
+| `render/2` | Yes | Called after state changes; a burst of queued messages shares one frame ([Performance](../internals/performance.md#render-coalescing)). Receives state and `%Frame{}` with terminal dimensions. Return `[{widget, rect}]` |
 | `handle_event/2` | Yes | Called on terminal events (key, mouse, resize). Return `{:noreply, state}` or `{:stop, state}` |
 | `handle_info/2` | No | Called for non-terminal messages (e.g., PubSub, `Process.send_after`). Defaults to `{:noreply, state}` |
 | `terminate/2` | No | Called on shutdown with reason and final state. Default is a no-op |

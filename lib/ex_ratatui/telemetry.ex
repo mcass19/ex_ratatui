@@ -42,7 +42,7 @@ defmodule ExRatatui.Telemetry do
   | ----- | ----------- | ------------ | -------- |
   | `[:ex_ratatui, :session, :lifecycle, :open]` | A session-backed runtime adopted a session. | `%{system_time: integer}` | `:mod`, `:transport`, `:width`, `:height` |
   | `[:ex_ratatui, :session, :lifecycle, :close]` | A session-backed runtime released its session. Fires exactly once per session even when transport-level cleanup also closes the session ref. | `%{system_time: integer}` | `:mod`, `:transport`, `:reason` |
-  | `[:ex_ratatui, :render, :dropped]` | A frame was skipped (draw error or future backpressure). | `%{system_time: integer}` | `:mod`, `:transport`, `:reason` |
+  | `[:ex_ratatui, :render, :dropped]` | A frame failed to render or draw. Renders merged while the runtime's mailbox is busy are not reported: their transitions land in the next frame. | `%{system_time: integer}` | `:mod`, `:transport`, `:reason` |
   | `[:ex_ratatui, :transport, :disconnect]` | Session tore down. | `%{system_time: integer}` | `:mod`, `:transport`, `:reason` |
   | `[:ex_ratatui, :runtime, :mailbox]` | The runtime's message queue grew past `:mailbox_warn_threshold` (default `10_000`) — its callbacks are falling behind what is sent to it. Fires once per crossing; re-arms after the queue drains below half the threshold. Also logs a rate-limited warning. | `%{message_queue_len: integer, system_time: integer}` | `:mod`, `:transport`, `:threshold` |
 

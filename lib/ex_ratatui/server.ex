@@ -43,13 +43,15 @@ defmodule ExRatatui.Server do
     poll_interval: 16,
     terminal_initialized: false,
     local_input: :not_detached,
-    mailbox_warn_threshold: 10_000,
-    mailbox_alarm?: false,
-    mailbox_warned_at: nil
+    # Nested so the struct stays within 32 keys (a flat map past that
+    # switches to the slower hash-map representation).
+    mailbox: %{warn_threshold: 10_000, alarm?: false, warned_at: nil},
+    render_pending?: false
   ]
 
   @subscription_message :__ex_ratatui_subscription_tick__
   @async_message :__ex_ratatui_async_result__
+  @render_message :__ex_ratatui_render__
 
   @default_mailbox_warn_threshold 10_000
   @mailbox_warn_interval_ms 30_000
@@ -458,6 +460,13 @@ defmodule ExRatatui.Server do
     dispatch_subscription_tick(id, token, state)
   end
 
+  # A coalesced render (see `schedule_render/3`). Any render since it was
+  # queued already cleared the flag, which makes this one a no-op.
+  def handle_info(@render_message, %__MODULE__{render_pending?: true} = state),
+    do: {:noreply, do_render(state)}
+
+  def handle_info(@render_message, state), do: {:noreply, state}
+
   def handle_info({@async_message, message}, state) do
     state
     |> decrement_async_commands()
@@ -629,8 +638,7 @@ defmodule ExRatatui.Server do
   def process_poll_result({:continue, state, render?}) do
     state =
       state
-      |> observe_mailbox()
-      |> maybe_render(render?)
+      |> observe_and_render(render?)
       |> flush_pending_commands()
       |> flush_pending_intents()
       |> maybe_rearm_poll()
@@ -649,8 +657,7 @@ defmodule ExRatatui.Server do
   def process_event_result({:continue, state, render?}) do
     state =
       state
-      |> observe_mailbox()
-      |> maybe_render(render?)
+      |> observe_and_render(render?)
       |> flush_pending_commands()
       |> flush_pending_intents()
 
@@ -726,7 +733,7 @@ defmodule ExRatatui.Server do
   end
 
   defp put_mailbox_warn_threshold({:ok, state}, threshold),
-    do: {:ok, %{state | mailbox_warn_threshold: threshold}}
+    do: {:ok, put_in(state.mailbox.warn_threshold, threshold)}
 
   defp put_mailbox_warn_threshold(stop, _threshold), do: stop
 
@@ -737,14 +744,12 @@ defmodule ExRatatui.Server do
   # until it drains below half of it (hysteresis, so a queue hovering at the
   # threshold doesn't turn into an event storm). The log line is further
   # capped to one per `@mailbox_warn_interval_ms`.
-  defp observe_mailbox(%__MODULE__{mailbox_warn_threshold: false} = state), do: state
+  defp check_mailbox(%__MODULE__{mailbox: %{warn_threshold: false}} = state, _len), do: state
 
-  defp observe_mailbox(%__MODULE__{} = state) do
-    {:message_queue_len, len} = Process.info(self(), :message_queue_len)
-    check_mailbox(state, len)
-  end
-
-  defp check_mailbox(%__MODULE__{mailbox_alarm?: false, mailbox_warn_threshold: t} = state, len)
+  defp check_mailbox(
+         %__MODULE__{mailbox: %{alarm?: false, warn_threshold: t} = mailbox} = state,
+         len
+       )
        when len >= t do
     Telemetry.execute(
       [:runtime, :mailbox],
@@ -752,30 +757,33 @@ defmodule ExRatatui.Server do
       %{mod: state.mod, transport: state.transport, threshold: t}
     )
 
-    %{maybe_warn_mailbox(state, len) | mailbox_alarm?: true}
+    mailbox = maybe_warn_mailbox(mailbox, len, state.mod)
+    %{state | mailbox: %{mailbox | alarm?: true}}
   end
 
-  defp check_mailbox(%__MODULE__{mailbox_alarm?: true, mailbox_warn_threshold: t} = state, len)
+  defp check_mailbox(
+         %__MODULE__{mailbox: %{alarm?: true, warn_threshold: t} = mailbox} = state,
+         len
+       )
        when len * 2 < t do
-    %{state | mailbox_alarm?: false}
+    %{state | mailbox: %{mailbox | alarm?: false}}
   end
 
   defp check_mailbox(state, _len), do: state
 
-  defp maybe_warn_mailbox(%__MODULE__{mailbox_warned_at: warned_at} = state, len) do
+  defp maybe_warn_mailbox(%{warned_at: warned_at, warn_threshold: t} = mailbox, len, mod) do
     now = System.monotonic_time(:millisecond)
 
     if is_nil(warned_at) or now - warned_at >= @mailbox_warn_interval_ms do
       Logger.warning(
-        "ExRatatui runtime for #{inspect(state.mod)} has #{len} messages queued " <>
-          "(threshold #{state.mailbox_warn_threshold}). Its callbacks are falling behind " <>
-          "what is sent to it; look for a slow handle_info/2 or handle_event/2, or too many " <>
-          "subscriptions."
+        "ExRatatui runtime for #{inspect(mod)} has #{len} messages queued (threshold #{t}). " <>
+          "Its callbacks are falling behind what is sent to it; look for a slow " <>
+          "handle_info/2 or handle_event/2, or too many subscriptions."
       )
 
-      %{state | mailbox_warned_at: now}
+      %{mailbox | warned_at: now}
     else
-      state
+      mailbox
     end
   end
 
@@ -808,6 +816,7 @@ defmodule ExRatatui.Server do
         state
         |> Map.update!(:render_count, &(&1 + 1))
         |> Map.put(:last_rendered_at, System.system_time(:millisecond))
+        |> Map.put(:render_pending?, false)
         |> trace(:render, %{frame: frame, widget_count: length(widgets)})
 
       {next_state, Map.put(start_meta, :widget_count, length(widgets))}
@@ -828,13 +837,14 @@ defmodule ExRatatui.Server do
         "ExRatatui render error: #{Exception.message(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
       )
 
-      state
+      # Cleared here too, or a failed coalesced render would leave the flag
+      # set and block every later marker.
+      %{state | render_pending?: false}
   end
 
-  # also emit [:ex_ratatui, :render, :dropped] when we
-  # skip a frame because the previous NIF draw took longer than the poll
-  # interval. The draw-error path below is the only dropped-frame source
-  # today; future work should add a scheduling gate in process_poll_result/1.
+  # `[:ex_ratatui, :render, :dropped]` only reports frames that failed to
+  # draw. Frames merged by `schedule_render/3` are not dropped: the
+  # transitions they covered land in the next frame.
 
   defp current_size(%__MODULE__{transport: :session, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :cell_session, width: w, height: h}), do: {w, h}
@@ -1074,6 +1084,31 @@ defmodule ExRatatui.Server do
 
   defp maybe_render(state, true), do: do_render(state)
   defp maybe_render(state, false), do: state
+
+  # One queue-length read per handled message, shared by the mailbox check
+  # and the render decision.
+  defp observe_and_render(state, render?) do
+    {:message_queue_len, len} = Process.info(self(), :message_queue_len)
+
+    state
+    |> check_mailbox(len)
+    |> schedule_render(render?, len)
+  end
+
+  # Render coalescing. With nothing else queued we render right away. With
+  # more messages waiting, rendering now would draw a frame the next message
+  # makes stale, so we queue a single `@render_message` behind them instead:
+  # every transition until it arrives lands in the same frame. The marker
+  # always renders when it reaches the head, even if more messages queued up
+  # behind it, so a firehose still gets a frame per pass over the queue.
+  defp schedule_render(state, false, _len), do: state
+  defp schedule_render(state, true, 0), do: do_render(state)
+  defp schedule_render(%__MODULE__{render_pending?: true} = state, true, _len), do: state
+
+  defp schedule_render(state, true, _len) do
+    send(self(), @render_message)
+    %{state | render_pending?: true}
+  end
 
   defp maybe_rearm_poll(%__MODULE__{transport: :local, polling_enabled?: true} = state) do
     send(self(), :poll)
