@@ -150,17 +150,19 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_mise_toml(igniter, app) do
-      Igniter.copy_template(igniter, template_path("mise.toml.eex"), ".mise.toml", [app: app],
+      Igniter.create_new_file(
+        igniter,
+        ".mise.toml",
+        render_template("mise.toml.eex", app: app),
         on_exists: :skip
       )
     end
 
     defp maybe_create_ci_workflow(igniter, "github", app) do
-      Igniter.copy_template(
+      Igniter.create_new_file(
         igniter,
-        template_path("release.yml.eex"),
         ".github/workflows/release.yml",
-        [app: app],
+        render_template("release.yml.eex", app: app),
         on_exists: :skip
       )
     end
@@ -171,12 +173,22 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.add_issue(igniter, "unknown --ci value #{inspect(other)}; expected none or github")
     end
 
-    defp render_template(name, assigns) do
-      EEx.eval_file(template_path(name), assigns: assigns)
-    end
+    # Embedded at compile time rather than shipped under `priv/`: a package
+    # with a `priv/` directory gets it symlinked into every build, so the
+    # precompiled NIF for each target lands in one shared directory and a
+    # Nerves release picks up the host's NIF next to the target's.
+    @templates_dir Path.expand("../../../templates/burrito", __DIR__)
 
-    defp template_path(name) do
-      Path.join([:code.priv_dir(:ex_ratatui), "templates", "burrito", name])
+    @templates Map.new(~w(cli.ex.eex mise.toml.eex release.yml.eex), fn name ->
+                 path = Path.join(@templates_dir, name)
+                 @external_resource path
+                 {name, File.read!(path)}
+               end)
+
+    defp render_template(name, assigns) do
+      @templates
+      |> Map.fetch!(name)
+      |> EEx.eval_string(assigns: assigns)
     end
 
     defp next_steps_notice(igniter, app, ci) do

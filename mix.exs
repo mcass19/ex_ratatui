@@ -118,7 +118,7 @@ defmodule ExRatatui.MixProject do
       },
       keywords: ~w(tui terminal ratatui cli ssh nerves distributed otp),
       files: ~w(
-        lib native priv/templates/burrito assets/logo.png .formatter.exs mix.exs README.md
+        lib native templates/burrito assets/logo.png .formatter.exs mix.exs README.md
         LICENSE CHANGELOG.md usage-rules.md checksum-Elixir.ExRatatui.Native.exs
       ),
       exclude_patterns: ~w(native/ex_ratatui/target)
