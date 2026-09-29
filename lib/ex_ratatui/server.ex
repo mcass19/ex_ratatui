@@ -14,6 +14,9 @@ defmodule ExRatatui.Server do
   alias ExRatatui.Subscription
   alias ExRatatui.Telemetry
 
+  @default_mailbox_warn_threshold 10_000
+  @mailbox_warn_interval_ms 30_000
+
   defstruct [
     :mod,
     :user_state,
@@ -45,16 +48,13 @@ defmodule ExRatatui.Server do
     local_input: :not_detached,
     # Nested so the struct stays within 32 keys (a flat map past that
     # switches to the slower hash-map representation).
-    mailbox: %{warn_threshold: 10_000, alarm?: false, warned_at: nil},
+    mailbox: %{warn_threshold: @default_mailbox_warn_threshold, alarm?: false, warned_at: nil},
     render_pending?: false
   ]
 
   @subscription_message :__ex_ratatui_subscription_tick__
   @async_message :__ex_ratatui_async_result__
   @render_message :__ex_ratatui_render__
-
-  @default_mailbox_warn_threshold 10_000
-  @mailbox_warn_interval_ms 30_000
 
   @doc false
   def start_link(opts) do
@@ -719,7 +719,8 @@ defmodule ExRatatui.Server do
     # `apply/3` keeps OTP 26/27 builds free of undefined-function warnings:
     # `:erlang.link/2` only exists on OTP 28+.
     # credo:disable-for-next-line Credo.Check.Refactor.Apply
-    apply(:erlang, :link, [parent, [:priority]])
+    true = apply(:erlang, :link, [parent, [:priority]])
+    :ok
   end
 
   defp maybe_priority_link(_parent, _priority?), do: :ok

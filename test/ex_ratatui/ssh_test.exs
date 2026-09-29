@@ -725,13 +725,29 @@ defmodule ExRatatui.SSHTest do
       assert_receive {:DOWN, ^ref, :process, ^stubborn, :killed}, 1000
     end
 
-    test "leaves a server that honours :shutdown to stop on its own" do
-      server = spawn(fn -> Process.sleep(:infinity) end)
+    test "gives a server that honours :shutdown the grace period to stop" do
+      test_pid = self()
+
+      # Traps exits like the real Server and takes a moment to wind down, so
+      # a reaper that ignored the grace period would kill it first.
+      server =
+        spawn(fn ->
+          Process.flag(:trap_exit, true)
+          send(test_pid, :trapping)
+
+          receive do
+            {:EXIT, _from, :shutdown} ->
+              Process.sleep(50)
+              exit(:normal)
+          end
+        end)
+
+      assert_receive :trapping
       ref = Process.monitor(server)
-      state = build_state(stop_grace_ms: 20) |> Map.put(:server_pid, server)
+      state = build_state(stop_grace_ms: 1_000) |> Map.put(:server_pid, server)
 
       assert :ok = SSH.terminate(:normal, state)
-      assert_receive {:DOWN, ^ref, :process, ^server, :shutdown}, 1000
+      assert_receive {:DOWN, ^ref, :process, ^server, :normal}, 1000
     end
 
     test "is a no-op when there's no session or server" do

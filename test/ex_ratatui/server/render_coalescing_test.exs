@@ -10,6 +10,7 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
   alias ExRatatui.Event.Key
   alias ExRatatui.Runtime
   alias ExRatatui.Server
+  alias ExRatatui.Test.Mailbox
 
   defmodule CountingApp do
     use ExRatatui.App
@@ -25,6 +26,7 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
 
     @impl true
     def handle_event(%Key{code: "q"}, state), do: {:noreply, state, render?: false}
+    def handle_event(%Key{code: "b"}, state), do: {:noreply, %{state | count: state.count + 1}}
     def handle_event(_event, state), do: {:noreply, state}
 
     @impl true
@@ -40,20 +42,22 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
     end
   end
 
-  defp start do
-    {:ok, pid} =
-      Server.start_link(mod: CountingApp, name: nil, test_pid: self(), test_mode: {20, 5})
-
-    assert_receive {:rendered, 0}
+  defp start(transport \\ [test_mode: {20, 5}]) do
+    {:ok, pid} = Server.start_link([mod: CountingApp, name: nil, test_pid: self()] ++ transport)
+    assert_receive {:rendered, 0}, 1000
     pid
   end
 
   # Queues `msgs` while the server is suspended so it finds them all waiting,
-  # then waits until it has worked through them (and any marker they queued).
+  # then waits until it has worked through them and the marker they queued.
+  # Two round trips: the first `get_state` can be queued before the marker
+  # (the server only sends it once it handles the first message), but the
+  # second is sent after the first returns, so it always lands behind it.
   defp burst(pid, msgs) do
     :ok = :sys.suspend(pid)
     Enum.each(msgs, &send(pid, &1))
     :ok = :sys.resume(pid)
+    _ = :sys.get_state(pid)
     :sys.get_state(pid)
   end
 
@@ -70,7 +74,7 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
   test "an idle message renders right away" do
     pid = start()
     send(pid, :bump)
-    assert_receive {:rendered, 1}
+    assert_receive {:rendered, 1}, 1000
     refute :sys.get_state(pid).render_pending?
     GenServer.stop(pid)
   end
@@ -94,6 +98,17 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
     GenServer.stop(pid)
   end
 
+  test "a burst of remote key events renders once" do
+    pid = start(transport: {:distributed_server, self(), 20, 5})
+
+    key = %Key{code: "b", modifiers: [], kind: "press"}
+    burst(pid, List.duplicate({:ex_ratatui_event, key}, 20))
+
+    assert drain_renders() == [20]
+    assert render_count(pid) == 2
+    GenServer.stop(pid)
+  end
+
   test "render?: false transitions don't queue a render" do
     pid = start()
     burst(pid, List.duplicate(:quiet, 10))
@@ -114,7 +129,7 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
     # two bumps so it lands between them and the marker the first bump queues.
     key = %Key{code: "x", modifiers: [], kind: "press"}
     task = Task.async(fn -> Runtime.inject_event(pid, key) end)
-    wait_for_queue(pid, 3)
+    Mailbox.wait_for_len(pid, 3)
 
     :ok = :sys.resume(pid)
     assert :ok = Task.await(task)
@@ -166,16 +181,5 @@ defmodule ExRatatui.Server.RenderCoalescingTest do
     assert render_count(pid) == 1
     refute_received {:info, _}
     GenServer.stop(pid)
-  end
-
-  defp wait_for_queue(pid, n) do
-    case Process.info(pid, :message_queue_len) do
-      {:message_queue_len, len} when len >= n ->
-        :ok
-
-      _ ->
-        Process.sleep(1)
-        wait_for_queue(pid, n)
-    end
   end
 end
