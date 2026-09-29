@@ -116,6 +116,12 @@ defmodule ExRatatui.Server.MailboxPressureTest do
     GenServer.stop(pid)
   end
 
+  test "keeps its message queue off-heap, so a backlog drains in linear time" do
+    pid = start([])
+    assert Process.info(pid, :message_queue_data) == {:message_queue_data, :off_heap}
+    GenServer.stop(pid)
+  end
+
   test "defaults to a threshold of 10_000" do
     pid = start([])
     assert :sys.get_state(pid).mailbox.warn_threshold == 10_000
