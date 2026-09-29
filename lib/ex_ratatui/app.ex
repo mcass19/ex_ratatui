@@ -112,6 +112,10 @@ defmodule ExRatatui.App do
       never blocks normal processes. Lower values increase responsiveness but
       use more CPU; higher values reduce CPU but add input latency.
       Only used by the `:local` transport.
+    * `:mailbox_warn_threshold` - message queue length at which the runtime
+      emits `[:ex_ratatui, :runtime, :mailbox]` and logs a warning that its
+      callbacks are falling behind (default: `10_000`; `false` disables the
+      check). Over `:ssh` and `:distributed`, pass it inside `:app_opts`.
     * `:test_mode` - `{width, height}` tuple to use a headless test terminal
       instead of the real terminal. This disables live terminal input polling
       so tests stay isolated and `async: true` safe; use

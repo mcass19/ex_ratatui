@@ -42,11 +42,17 @@ defmodule ExRatatui.Server do
     transport: :local,
     poll_interval: 16,
     terminal_initialized: false,
-    local_input: :not_detached
+    local_input: :not_detached,
+    mailbox_warn_threshold: 10_000,
+    mailbox_alarm?: false,
+    mailbox_warned_at: nil
   ]
 
   @subscription_message :__ex_ratatui_subscription_tick__
   @async_message :__ex_ratatui_async_result__
+
+  @default_mailbox_warn_threshold 10_000
+  @mailbox_warn_interval_ms 30_000
 
   @doc false
   def start_link(opts) do
@@ -69,9 +75,18 @@ defmodule ExRatatui.Server do
     Process.flag(:trap_exit, true)
     {parent, opts} = Keyword.pop(opts, :__parent__)
     maybe_priority_link(parent, priority_signals?(opts))
+    # Validated before the terminal is touched, so a bad value can't leave
+    # the tty in raw mode.
+    mailbox_warn_threshold = mailbox_warn_threshold!(opts)
     {:ok, task_sup} = Task.Supervisor.start_link()
     opts = Keyword.put(opts, :task_supervisor, task_sup)
 
+    opts
+    |> init_transport()
+    |> put_mailbox_warn_threshold(mailbox_warn_threshold)
+  end
+
+  defp init_transport(opts) do
     case Keyword.get(opts, :transport, :local) do
       :local ->
         mod = Keyword.fetch!(opts, :mod)
@@ -614,6 +629,7 @@ defmodule ExRatatui.Server do
   def process_poll_result({:continue, state, render?}) do
     state =
       state
+      |> observe_mailbox()
       |> maybe_render(render?)
       |> flush_pending_commands()
       |> flush_pending_intents()
@@ -633,6 +649,7 @@ defmodule ExRatatui.Server do
   def process_event_result({:continue, state, render?}) do
     state =
       state
+      |> observe_mailbox()
       |> maybe_render(render?)
       |> flush_pending_commands()
       |> flush_pending_intents()
@@ -693,6 +710,74 @@ defmodule ExRatatui.Server do
 
   defp monitor_client(pid, true), do: :erlang.monitor(:process, pid, [:priority])
   defp monitor_client(pid, false), do: Process.monitor(pid)
+
+  defp mailbox_warn_threshold!(opts) do
+    case Keyword.get(opts, :mailbox_warn_threshold, @default_mailbox_warn_threshold) do
+      false ->
+        false
+
+      n when is_integer(n) and n > 0 ->
+        n
+
+      other ->
+        raise ArgumentError,
+              ":mailbox_warn_threshold must be a positive integer or false, got: #{inspect(other)}"
+    end
+  end
+
+  defp put_mailbox_warn_threshold({:ok, state}, threshold),
+    do: {:ok, %{state | mailbox_warn_threshold: threshold}}
+
+  defp put_mailbox_warn_threshold(stop, _threshold), do: stop
+
+  # Mailbox pressure: an app whose callbacks can't keep up with what is sent
+  # to it (a slow `handle_info/2`, too many subscriptions) grows its queue
+  # without bound, and everything — input, renders, disconnects — lags behind
+  # it. We report the queue crossing the threshold once, then stay quiet
+  # until it drains below half of it (hysteresis, so a queue hovering at the
+  # threshold doesn't turn into an event storm). The log line is further
+  # capped to one per `@mailbox_warn_interval_ms`.
+  defp observe_mailbox(%__MODULE__{mailbox_warn_threshold: false} = state), do: state
+
+  defp observe_mailbox(%__MODULE__{} = state) do
+    {:message_queue_len, len} = Process.info(self(), :message_queue_len)
+    check_mailbox(state, len)
+  end
+
+  defp check_mailbox(%__MODULE__{mailbox_alarm?: false, mailbox_warn_threshold: t} = state, len)
+       when len >= t do
+    Telemetry.execute(
+      [:runtime, :mailbox],
+      %{message_queue_len: len},
+      %{mod: state.mod, transport: state.transport, threshold: t}
+    )
+
+    %{maybe_warn_mailbox(state, len) | mailbox_alarm?: true}
+  end
+
+  defp check_mailbox(%__MODULE__{mailbox_alarm?: true, mailbox_warn_threshold: t} = state, len)
+       when len * 2 < t do
+    %{state | mailbox_alarm?: false}
+  end
+
+  defp check_mailbox(state, _len), do: state
+
+  defp maybe_warn_mailbox(%__MODULE__{mailbox_warned_at: warned_at} = state, len) do
+    now = System.monotonic_time(:millisecond)
+
+    if is_nil(warned_at) or now - warned_at >= @mailbox_warn_interval_ms do
+      Logger.warning(
+        "ExRatatui runtime for #{inspect(state.mod)} has #{len} messages queued " <>
+          "(threshold #{state.mailbox_warn_threshold}). Its callbacks are falling behind " <>
+          "what is sent to it; look for a slow handle_info/2 or handle_event/2, or too many " <>
+          "subscriptions."
+      )
+
+      %{state | mailbox_warned_at: now}
+    else
+      state
+    end
+  end
 
   defp init_terminal(nil, focus?, mouse?), do: Native.init_terminal(focus?, mouse?)
 

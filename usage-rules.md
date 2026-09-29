@@ -106,6 +106,7 @@ Highest-value rules. The guides hold the full set; these are the ones agents get
 - **Never create `TextInput`/`Textarea` state in `render/2` — create it once in `mount/1`/`init/1` and keep the ref in state.** Recreating it each render drops cursor position and typed text.
 - **Never do I/O, HTTP, sorting, or large allocations in `render/2`.** It runs up to ~60fps; derive once in the transition callback and store the result in state.
 - **Never make a blocking call in `handle_event/2`/`update/2`.** Use `ExRatatui.Command.async/2` (reducer) or `Task.Supervisor.async_nolink/2` (callback). A blocking call freezes the whole UI.
+- **A `[:ex_ratatui, :runtime, :mailbox]` event or "messages queued" warning means the callbacks can't keep up — fix the source, don't raise the threshold.** Make the slow callback cheap, sample or batch the noisy subscription, and return `render?: false` where nothing visible changed. `:mailbox_warn_threshold` (default `10_000`, `false` disables) is a start option; over `:ssh`/`:distributed` it goes inside `:app_opts`.
 - **Always include a catch-all `handle_event(_event, state)` / `update(_msg, state)` returning `{:noreply, state}`.** Unmatched events otherwise crash the app.
 - **Never `IO.inspect`/`IO.puts`/`dbg` to stdout while in raw mode** — it garbles the display. Log to a file via `Logger`, or use `Runtime.snapshot/1`.
 - **Reducer `update/2` receives `{:event, event}` and `{:info, msg}`, never bare structs.** All input is routed through one `update/2`.

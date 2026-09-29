@@ -162,6 +162,18 @@ end
 
 **Either way, don't use raw `Task.async/1` or `spawn/1` in production.** They're unsupervised — a crash leaks state or kills the app.
 
+## Mailbox pressure
+
+Everything reaches the runtime as a message: input, subscription ticks, async results, PubSub broadcasts. When those arrive faster than the callbacks handle them, the queue grows, and every keypress waits behind the backlog. The usual causes are a slow `handle_info/2` or `update/2`, or subscribing to a firehose (a PubSub topic that broadcasts on every sensor sample) and rendering on each message.
+
+The runtime watches its own queue. Once it grows past `:mailbox_warn_threshold` (default `10_000`) it emits `[:ex_ratatui, :runtime, :mailbox]` and logs a warning, at most once every 30 seconds:
+
+```elixir
+{:ok, _} = MyApp.TUI.start_link(mailbox_warn_threshold: 1_000)
+```
+
+`false` turns the check off. Over `:ssh` and `:distributed`, pass it inside `:app_opts`. The fix is on the app side: make the slow callback cheap, move work into async commands, sample or batch the noisy source, and skip renders with `render?: false` where nothing visible changed.
+
 ## Measuring
 
 Two tools.

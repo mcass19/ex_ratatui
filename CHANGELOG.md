@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`[:ex_ratatui, :runtime, :mailbox]` telemetry event and warning when a runtime falls behind.** An app whose callbacks can't keep up with what is sent to it (a slow `handle_info/2`, a firehose subscription) used to lag silently, with input and renders waiting behind the backlog. The runtime now checks its message queue after each message it handles; when the queue grows past the new `:mailbox_warn_threshold` start option (default `10_000`, `false` disables), it emits the event with `:message_queue_len` and logs a `Logger.warning`, at most once every 30 seconds. The event fires once per crossing and re-arms after the queue drains below half the threshold. It is included in `ExRatatui.Telemetry.attach_default_logger/1`.
+
 ### Fixed
 
 - **Nerves firmware no longer picks up the host's NIF.** The package shipped a `priv/` directory (the Burrito generator's templates), and Mix symlinks a dependency's `priv/` into every build instead of giving each target its own. The precompiled NIF for each target therefore landed in one shared `deps/ex_ratatui/priv/native/`, so after a host compile a Nerves release carried the host's `.so` next to the target's and `mix firmware` failed at the scrub step with `Unexpected executable format`. The templates now live in `templates/burrito` and are embedded into `mix ex_ratatui.gen.burrito` at compile time, the package ships no `priv/`, and each build gets its own `priv/native/` with only its own NIF.
