@@ -78,6 +78,27 @@ defmodule ExRatatui.SSH do
   Without `-t`, render bytes still reach the client and the TUI runs —
   it just can't be driven interactively.
 
+  ### Known issue: OTP 29.0.6 and 29.1
+
+  The `ssh` application in OTP 29.0.6 and 29.1 (`ssh` 6.0.5) refuses a
+  subsystem request that follows a `pty-req` or `env` request on the
+  same channel. With the daemon on one of those releases, `ssh -t host
+  -s Elixir.MyApp.TUI` fails with "PTY allocation request failed", and
+  so does plain `ssh host -s ...` when the client config sends
+  environment variables (`SendEnv LANG LC_*` is a common default in
+  the system-wide `ssh_config`). Shell mode is not affected. OTP 29.1.1
+  (`ssh` 6.0.6, OTP-20371) fixes it; upgrading the daemon's OTP is the
+  fix. Until then, skip both requests and put the local terminal in raw
+  mode by hand:
+
+      stty raw -echo; ssh -F ~/.ssh/config nerves.local -s Elixir.MyApp.TUI; stty sane
+
+  `-F` replaces the system-wide config, which is where the `SendEnv`
+  lines live (`-F /dev/null` works when there is no user config;
+  `-o SendEnv=` is rejected by OpenSSH). Without a PTY the client never
+  sends `window-change`, so the TUI keeps the size it discovered at
+  startup.
+
   ## Disconnects
 
   When the client goes away the channel sends the internal server
@@ -236,6 +257,10 @@ defmodule ExRatatui.SSH do
   `{:subsystem, ...}` message internally) and can start the TUI server
   as soon as the channel is up, instead of waiting for a shell request
   that will never arrive.
+
+  Clients connect with `ssh -t host -s Elixir.MyApp.TUI`. A daemon on
+  OTP 29.0.6 or 29.1 rejects that request; see "Known issue: OTP 29.0.6
+  and 29.1" in the moduledoc.
 
   ## Examples
 
