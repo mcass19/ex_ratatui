@@ -51,6 +51,9 @@ defmodule ExRatatui.Server do
   @doc false
   def start_link(opts) do
     {name, opts} = Keyword.pop(opts, :name, __MODULE__)
+    # The caller is the real parent (supervisor, SSH channel, CellSession
+    # owner). `$ancestors` can't be used instead: it holds registered names.
+    opts = Keyword.put(opts, :__parent__, self())
 
     if name do
       GenServer.start_link(__MODULE__, opts, name: name)
@@ -64,6 +67,8 @@ defmodule ExRatatui.Server do
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
+    {parent, opts} = Keyword.pop(opts, :__parent__)
+    maybe_priority_link(parent, priority_signals?(opts))
     {:ok, task_sup} = Task.Supervisor.start_link()
     opts = Keyword.put(opts, :task_supervisor, task_sup)
 
@@ -335,7 +340,7 @@ defmodule ExRatatui.Server do
     mod = Keyword.fetch!(opts, :mod)
 
     Telemetry.span([:transport, :connect], %{mod: mod, transport: :distributed_server}, fn ->
-      Process.monitor(client_pid)
+      monitor_client(client_pid, priority_signals?(opts))
     end)
 
     augmented_opts = augment_distributed_mount_opts(opts, width, height)
@@ -666,6 +671,28 @@ defmodule ExRatatui.Server do
         :ok
     end
   end
+
+  # The Server traps exits, so a parent's EXIT and a client's DOWN arrive as
+  # ordinary messages queued behind whatever the app is still working
+  # through — a backed-up mailbox keeps a disconnected session alive for as
+  # long as the backlog takes to drain. OTP 28+ priority signals put those
+  # two messages at the head of the queue instead. `:priority_signals` is a
+  # private opt that lets tests force the pre-28 branch.
+  defp priority_signals?(opts) do
+    Keyword.get_lazy(opts, :priority_signals, fn -> function_exported?(:erlang, :link, 2) end)
+  end
+
+  defp maybe_priority_link(parent, true) when is_pid(parent) do
+    # `apply/3` keeps OTP 26/27 builds free of undefined-function warnings:
+    # `:erlang.link/2` only exists on OTP 28+.
+    # credo:disable-for-next-line Credo.Check.Refactor.Apply
+    apply(:erlang, :link, [parent, [:priority]])
+  end
+
+  defp maybe_priority_link(_parent, _priority?), do: :ok
+
+  defp monitor_client(pid, true), do: :erlang.monitor(:process, pid, [:priority])
+  defp monitor_client(pid, false), do: Process.monitor(pid)
 
   defp init_terminal(nil, focus?, mouse?), do: Native.init_terminal(focus?, mouse?)
 

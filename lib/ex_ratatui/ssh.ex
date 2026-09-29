@@ -78,6 +78,16 @@ defmodule ExRatatui.SSH do
   Without `-t`, render bytes still reach the client and the TUI runs —
   it just can't be driven interactively.
 
+  ## Disconnects
+
+  When the client goes away the channel sends the internal server
+  `:shutdown`. The server traps exits, so on its own that signal would
+  wait behind every message already in its mailbox. On OTP 28+ the
+  server holds a priority link to the channel, so the channel's exit
+  jumps the queue and the app's `terminate/2` runs right away. On
+  OTP 26/27 a reaper kills the server if it hasn't stopped within
+  5 seconds; a server killed that way skips the app's `terminate/2`.
+
   ## Subsystem helper
 
   Returns a `{charlist, {module, init_args}}` tuple in exactly the shape
@@ -112,7 +122,8 @@ defmodule ExRatatui.SSH do
   tests can substitute fakes for `:ssh_connection.send/3` and the
   internal server's start function without standing up real
   infrastructure. Defaults point at the real OTP + Server functions;
-  production callers never pass either key.
+  production callers never pass either key. `:stop_grace_ms` shortens
+  the disconnect reaper's grace period the same way.
   """
 
   @behaviour :ssh_server_channel
@@ -169,6 +180,10 @@ defmodule ExRatatui.SSH do
   # but below the human perception threshold.
   @esc_timeout_ms 50
 
+  # How long a disconnected channel waits for its Server to honour
+  # `:shutdown` before killing it. See `maybe_stop_server/2`.
+  @stop_grace_ms 5_000
+
   defstruct [
     :mod,
     :app_opts,
@@ -184,7 +199,8 @@ defmodule ExRatatui.SSH do
     image_font_size: nil,
     rendering: false,
     subsystem_mode: false,
-    esc_timer: nil
+    esc_timer: nil,
+    stop_grace_ms: @stop_grace_ms
   ]
 
   @type t :: %__MODULE__{
@@ -202,7 +218,8 @@ defmodule ExRatatui.SSH do
           image_font_size: {pos_integer(), pos_integer()} | nil,
           rendering: boolean(),
           subsystem_mode: boolean(),
-          esc_timer: reference() | nil
+          esc_timer: reference() | nil,
+          stop_grace_ms: non_neg_integer()
         }
 
   @doc """
@@ -243,6 +260,7 @@ defmodule ExRatatui.SSH do
     subsystem_mode = Keyword.get(args, :subsystem, false)
     image_protocol = Keyword.get(args, :image_protocol)
     image_font_size = Keyword.get(args, :image_font_size)
+    stop_grace_ms = Keyword.get(args, :stop_grace_ms, @stop_grace_ms)
 
     state = %__MODULE__{
       mod: mod,
@@ -253,7 +271,8 @@ defmodule ExRatatui.SSH do
       user_fn: user_fn,
       subsystem_mode: subsystem_mode,
       image_protocol: image_protocol,
-      image_font_size: image_font_size
+      image_font_size: image_font_size,
+      stop_grace_ms: stop_grace_ms
     }
 
     {:ok, state}
@@ -471,7 +490,7 @@ defmodule ExRatatui.SSH do
   @impl :ssh_server_channel
   def terminate(_reason, %__MODULE__{} = state) do
     _ = maybe_leave_screen(state)
-    _ = maybe_stop_server(state.server_pid)
+    _ = maybe_stop_server(state.server_pid, state.stop_grace_ms)
     _ = maybe_close_session(state.session)
     :ok
   end
@@ -549,13 +568,32 @@ defmodule ExRatatui.SSH do
   defp fallback_zero(n, _default) when is_integer(n) and n > 0, do: n
   defp fallback_zero(_, default), do: default
 
-  defp maybe_stop_server(nil), do: :ok
+  defp maybe_stop_server(nil, _grace_ms), do: :ok
 
-  defp maybe_stop_server(pid) when is_pid(pid) do
-    # `:shutdown` escapes trap_exit (unlike `:normal`) and is async, so
-    # there is no race window against a server that just died.
-    if Process.alive?(pid), do: Process.exit(pid, :shutdown)
+  defp maybe_stop_server(pid, grace_ms) when is_pid(pid) do
+    # The Server traps exits, so `:shutdown` lands as an `{:EXIT, _, _}`
+    # message queued behind its whole mailbox. On OTP 28+ its priority
+    # link to this channel overtakes the backlog once the channel exits;
+    # on OTP 26/27 a backed-up Server could keep draining long after the
+    # client left, so an unlinked reaper kills it after a grace period.
+    if Process.alive?(pid) do
+      Process.exit(pid, :shutdown)
+      spawn_reaper(pid, grace_ms)
+    end
+
     :ok
+  end
+
+  defp spawn_reaper(pid, grace_ms) do
+    spawn(fn ->
+      ref = Process.monitor(pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+      after
+        grace_ms -> Process.exit(pid, :kill)
+      end
+    end)
   end
 
   defp maybe_close_session(nil), do: :ok

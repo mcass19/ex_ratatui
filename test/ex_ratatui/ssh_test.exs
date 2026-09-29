@@ -88,6 +88,7 @@ defmodule ExRatatui.SSHTest do
       assert state.replier == (&:ssh_connection.reply_request/4)
       assert state.starter == (&ExRatatui.Server.start_link/1)
       assert state.user_fn == (&:ssh.connection_info/2)
+      assert state.stop_grace_ms == 5_000
     end
 
     test "defaults subsystem_mode to false" do
@@ -704,6 +705,33 @@ defmodule ExRatatui.SSHTest do
       # Session is closed — draws on it error.
       assert {:error, _} = Session.draw(session, [])
       refute Process.alive?(server)
+    end
+
+    test "kills a server that ignores :shutdown once the grace period ends" do
+      test_pid = self()
+
+      stubborn =
+        spawn(fn ->
+          Process.flag(:trap_exit, true)
+          send(test_pid, :trapping)
+          Process.sleep(:infinity)
+        end)
+
+      assert_receive :trapping
+      ref = Process.monitor(stubborn)
+      state = build_state(stop_grace_ms: 20) |> Map.put(:server_pid, stubborn)
+
+      assert :ok = SSH.terminate(:normal, state)
+      assert_receive {:DOWN, ^ref, :process, ^stubborn, :killed}, 1000
+    end
+
+    test "leaves a server that honours :shutdown to stop on its own" do
+      server = spawn(fn -> Process.sleep(:infinity) end)
+      ref = Process.monitor(server)
+      state = build_state(stop_grace_ms: 20) |> Map.put(:server_pid, server)
+
+      assert :ok = SSH.terminate(:normal, state)
+      assert_receive {:DOWN, ^ref, :process, ^server, :shutdown}, 1000
     end
 
     test "is a no-op when there's no session or server" do
