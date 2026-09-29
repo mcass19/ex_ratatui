@@ -702,6 +702,11 @@ defmodule ExRatatui.Server do
   # long as the backlog takes to drain. OTP 28+ priority signals put those
   # two messages at the head of the queue instead. `:priority_signals` is a
   # private opt that lets tests force the pre-28 branch.
+  #
+  # Caveats: a priority EXIT also overtakes messages the parent sent before
+  # exiting, and any later plain `link/1` or `unlink/1` on the same pair
+  # drops the priority. Orderly supervisor shutdown never benefits: the
+  # supervisor unlinks before `exit(child, :shutdown)`, an ordinary signal.
   defp priority_signals?(opts) do
     Keyword.get_lazy(opts, :priority_signals, fn -> function_exported?(:erlang, :link, 2) end)
   end
@@ -803,6 +808,9 @@ defmodule ExRatatui.Server do
       :ok
   end
 
+  # `[:ex_ratatui, :render, :dropped]` only reports frames that failed to
+  # draw. Frames merged by `schedule_render/3` are not dropped: the
+  # transitions they covered land in the next frame.
   defp do_render(state) do
     {w, h} = current_size(state)
     frame = %Frame{width: w, height: h}
@@ -841,10 +849,6 @@ defmodule ExRatatui.Server do
       # set and block every later marker.
       %{state | render_pending?: false}
   end
-
-  # `[:ex_ratatui, :render, :dropped]` only reports frames that failed to
-  # draw. Frames merged by `schedule_render/3` are not dropped: the
-  # transitions they covered land in the next frame.
 
   defp current_size(%__MODULE__{transport: :session, width: w, height: h}), do: {w, h}
   defp current_size(%__MODULE__{transport: :cell_session, width: w, height: h}), do: {w, h}
@@ -1085,8 +1089,8 @@ defmodule ExRatatui.Server do
   defp maybe_render(state, true), do: do_render(state)
   defp maybe_render(state, false), do: state
 
-  # One queue-length read per handled message, shared by the mailbox check
-  # and the render decision.
+  # One queue-length read per dispatched event or message, shared by the
+  # mailbox check and the render decision.
   defp observe_and_render(state, render?) do
     {:message_queue_len, len} = Process.info(self(), :message_queue_len)
 
