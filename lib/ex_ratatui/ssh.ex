@@ -610,8 +610,9 @@ defmodule ExRatatui.SSH do
     :ok
   end
 
-  # Monitored rather than linked: the reaper has to outlive this channel,
-  # which is terminating when it spawns it.
+  # Not linked: the reaper has to outlive this channel, which is
+  # terminating when it spawns it. `spawn_monitor` only marks the
+  # unlinked spawn as deliberate; its :DOWN goes nowhere.
   defp spawn_reaper(pid, grace_ms) do
     spawn_monitor(fn ->
       ref = Process.monitor(pid)
