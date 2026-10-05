@@ -31,6 +31,7 @@ defmodule ExRatatui.Distributed.Client do
   defstruct [
     :terminal_ref,
     :remote_pid,
+    :remote_ref,
     :test_mode,
     polling_enabled?: false,
     poll_interval: 16,
@@ -71,17 +72,16 @@ defmodule ExRatatui.Distributed.Client do
 
         state = %__MODULE__{
           terminal_ref: terminal_ref,
-          remote_pid: remote_pid,
           poll_interval: poll_interval,
           test_mode: test_mode,
           polling_enabled?: polling_enabled?,
           terminal_initialized: true
         }
 
-        if remote_pid do
-          Process.monitor(remote_pid)
-          maybe_rearm_poll(state)
-        end
+        state =
+          if remote_pid,
+            do: state |> monitor_remote(remote_pid) |> maybe_rearm_poll(),
+            else: state
 
         {:ok, state}
     end
@@ -89,9 +89,7 @@ defmodule ExRatatui.Distributed.Client do
 
   @impl true
   def handle_call({:connect_remote, remote_pid}, _from, state) do
-    Process.monitor(remote_pid)
-    state = %{state | remote_pid: remote_pid}
-    maybe_rearm_poll(state)
+    state = state |> monitor_remote(remote_pid) |> maybe_rearm_poll()
     {:reply, :ok, state}
   end
 
@@ -141,6 +139,13 @@ defmodule ExRatatui.Distributed.Client do
   end
 
   ## Private helpers
+
+  # One monitor per Client: a reconnect drops the previous one (and any
+  # :DOWN it already queued) instead of stacking another.
+  defp monitor_remote(%__MODULE__{remote_ref: old_ref} = state, remote_pid) do
+    if old_ref, do: Process.demonitor(old_ref, [:flush])
+    %{state | remote_pid: remote_pid, remote_ref: Process.monitor(remote_pid)}
+  end
 
   defp maybe_rearm_poll(%__MODULE__{polling_enabled?: true} = state) do
     send(self(), :poll)
