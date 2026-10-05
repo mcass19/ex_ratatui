@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-05
+
 ### Added
 
 - **`[:ex_ratatui, :runtime, :mailbox]` telemetry event and warning when a runtime falls behind.** An app whose callbacks can't keep up with what is sent to it (a slow `handle_info/2`, a firehose subscription) used to lag silently, with input and renders waiting behind the backlog. The runtime now checks its message queue after each event or message it dispatches to the app; when the queue grows past the new `:mailbox_warn_threshold` start option (default `10_000`, `false` disables), it emits the event with `:message_queue_len` and logs a `Logger.warning`. The event fires once per crossing and re-arms after the queue drains below half the threshold; the warning is further capped at one every 30 seconds. It is included in `ExRatatui.Telemetry.attach_default_logger/1`.
@@ -617,7 +619,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/mcass19/ex_ratatui/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/mcass19/ex_ratatui/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/mcass19/ex_ratatui/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/mcass19/ex_ratatui/compare/v0.14.0...v0.14.1
