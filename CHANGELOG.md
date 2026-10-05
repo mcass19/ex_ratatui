@@ -21,6 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Nerves firmware no longer picks up the host's NIF.** The package shipped a `priv/` directory (the Burrito generator's templates), and Mix symlinks a dependency's `priv/` into every build instead of giving each target its own. The precompiled NIF for each target therefore landed in one shared `deps/ex_ratatui/priv/native/`, so after a host compile a Nerves release carried the host's `.so` next to the target's and `mix firmware` failed at the scrub step with `Unexpected executable format`. The templates now live in `templates/burrito` and are embedded into `mix ex_ratatui.gen.burrito` at compile time, the package ships no `priv/`, and each build gets its own `priv/native/` with only its own NIF.
 - **A disconnect now stops a runtime whose mailbox is backed up.** The runtime traps exits, so its parent's exit (an SSH channel closing, a crashed parent process) and a distributed client's `:DOWN` arrived as ordinary messages queued behind everything the app had not handled yet. An app falling behind its `handle_info/2` load kept rendering to a closed SSH session for as long as the backlog took to drain. On OTP 28+ the runtime now links to its parent and monitors its distributed client with priority signals, so both jump the queue and the app's `terminate/2` runs right away. Orderly supervisor shutdown is unchanged: a supervisor unlinks its child before sending `:shutdown`, so a backed-up runtime still waits out its shutdown timeout there. On OTP 26/27 the SSH channel kills a server that has not honoured `:shutdown` within 5 seconds, which skips the app's `terminate/2`; a distributed session on OTP 26/27 still closes only once its backlog drains.
 
+### Security
+
+- The NIF's Rust dependencies are updated past RustSec advisories in `quick-xml` and `crossbeam-epoch`.
+
 ## [0.16.0] - 2026-09-22
 
 ### Added
