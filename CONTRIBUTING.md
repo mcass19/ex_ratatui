@@ -88,7 +88,11 @@ mix credo --strict
 mix dialyzer
 mix test --cover
 mix rust.check
+mix hex.audit
+(cd native/ex_ratatui && cargo audit)
 ```
+
+`cargo audit` comes from `cargo install cargo-audit --locked`.
 
 ### PR Guidelines
 

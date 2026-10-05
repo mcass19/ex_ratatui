@@ -99,6 +99,39 @@ jobs:
       - run: mix test
         if: ${{ ! matrix.lint }}
 
+  # Fails on known advisories in the Hex deps (`mix hex.audit`) and the
+  # NIF's crates (`cargo audit`, vulnerabilities only). Advisories that
+  # don't apply or have no fix yet are ignored in mix.exs (`hex:
+  # [ignore_advisories: ...]`) or native/ex_ratatui/.cargo/audit.toml,
+  # each with a comment saying why.
+  audit:
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: deps
+          key: ${{ runner.os }}-audit-${{ hashFiles('mix.lock') }}
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.1.1"
+          elixir-version: "1.20"
+
+      - run: mix deps.get --check-locked
+
+      - run: mix hex.audit
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - run: cargo audit
+        working-directory: native/ex_ratatui
+
   extras:
     timeout-minutes: 15
     runs-on: ubuntu-24.04

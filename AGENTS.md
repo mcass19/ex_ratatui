@@ -34,5 +34,5 @@ The consumer-facing API guide lives in [usage-rules.md](usage-rules.md) (shipped
 - Every feature or behaviour change gets a CHANGELOG entry under `[Unreleased]` (Keep a Changelog groups); breaking changes include a Migration note
 - Docs voice: "we" or no subject — never address the reader as "you". Guides use one physical line per paragraph; prose is never hard-wrapped at a column
 - Commit subjects use `feat:`/`fix:`/`docs:`/`test:`/`refactor:`/`chore:` prefixes. `@version` bumps happen only in dedicated release commits
-- Pre-PR gate: `mix format --check-formatted && mix compile --warnings-as-errors && mix credo --strict && mix dialyzer && mix test --cover && mix rust.check`
+- Pre-PR gate: `mix format --check-formatted && mix compile --warnings-as-errors && mix credo --strict && mix dialyzer && mix test --cover && mix rust.check && mix hex.audit && (cd native/ex_ratatui && cargo audit)`
 - When the public API shape changes, update `usage-rules.md` too — downstream agents consume it
