@@ -25,6 +25,9 @@ ex_ratatui-*.tar
 # Dialyzer PLTs
 /plts/
 
+# Argus's incremental analysis cache
+/.argus/
+
 # Rust binary artifacts
 /target/
 /native/ex_ratatui/target/
