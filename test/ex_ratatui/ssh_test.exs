@@ -863,16 +863,18 @@ defmodule ExRatatui.SSHTest do
     test "omits ssh_user when the connection cannot report one" do
       test_pid = self()
 
-      # A conn that died mid-handshake (or the fake conn atoms the rest
-      # of this file passes) must degrade to no key, never crash the
-      # channel before the app is started.
+      # A conn that stops answering mid-handshake makes the real
+      # `:ssh.connection_info/2` exit. That must degrade to no key, never
+      # crash the channel before the app is started. (A closed conn, like
+      # the fake conn atoms the rest of this file passes, returns
+      # `{:error, :closed}` instead.)
       state =
         build_state(
           starter: fn opts ->
             send(test_pid, {:got_opts, opts})
             {:ok, self()}
           end,
-          user_fn: fn _conn, _keys -> raise ArgumentError, "dead conn" end
+          user_fn: fn _conn, _keys -> exit(:timeout) end
         )
         |> prime_with_pty(80, 24)
 

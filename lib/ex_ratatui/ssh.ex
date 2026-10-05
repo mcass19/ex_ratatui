@@ -555,16 +555,17 @@ defmodule ExRatatui.SSH do
 
   # The authenticated username, as sent in the SSH handshake. Present
   # under `no_auth_needed: true` too — the username is part of the
-  # protocol, not of authentication. Any failure (a conn that died
-  # mid-handshake, a fake conn in unit tests) leaves the key out
-  # rather than taking the channel down before the app starts.
+  # protocol, not of authentication. A conn that died mid-handshake
+  # leaves the key out rather than taking the channel down before the
+  # app starts: `:ssh.connection_info/2` returns `{:error, :closed}` for
+  # most of those, and exits (a call timeout, say) for the rest.
   defp put_ssh_user(opts, %__MODULE__{conn: conn, user_fn: user_fn}) do
     case user_fn.(conn, [:user]) do
       [user: user] when is_list(user) -> Keyword.put(opts, :ssh_user, List.to_string(user))
       _ -> opts
     end
   catch
-    _kind, _reason -> opts
+    :exit, _reason -> opts
   end
 
   @doc false
@@ -609,8 +610,10 @@ defmodule ExRatatui.SSH do
     :ok
   end
 
+  # Monitored rather than linked: the reaper has to outlive this channel,
+  # which is terminating when it spawns it.
   defp spawn_reaper(pid, grace_ms) do
-    spawn(fn ->
+    spawn_monitor(fn ->
       ref = Process.monitor(pid)
 
       receive do
