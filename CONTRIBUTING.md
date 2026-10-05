@@ -94,6 +94,17 @@ mix hex.audit
 
 `cargo audit` comes from `cargo install cargo-audit --locked`.
 
+### Argus
+
+CI also runs [Argus](https://hex.pm/packages/argus_beam), an OTP and concurrency analysis, on the Elixir 1.20 leg, and fails on any error or warning. It needs [Soufflé](https://souffle-lang.github.io) (on Ubuntu, the release `.deb`) and is installed as an escript with `mix escript.install hex argus_beam`. It reads the compiled beams, so run it after `mix compile`:
+
+```sh
+argus --project beams --ebin _build/dev/lib/ex_ratatui/ebin \
+  --dep-ebin _build/dev/lib/rustler_precompiled/ebin --dep-ebin _build/dev/lib/telemetry/ebin
+```
+
+Findings we accept go in `argus.config`, each with a comment saying why.
+
 ### PR Guidelines
 
 - Each PR should stay focused on a single feature or fix.
