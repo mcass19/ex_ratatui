@@ -141,7 +141,10 @@ defmodule ExRatatui.Native do
     if loaded?() do
       :ok
     else
-      :global.trans(@load_lock, &ensure_loaded_once/0)
+      # The NIF is per node, so the lock only needs this node. The default
+      # node list is the whole cluster, which makes the first load on one
+      # node wait on every connected peer.
+      :global.trans(@load_lock, &ensure_loaded_once/0, [node()])
     end
   end
 
