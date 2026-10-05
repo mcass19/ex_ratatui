@@ -103,7 +103,7 @@ argus --project beams --ebin _build/dev/lib/ex_ratatui/ebin \
   --dep-ebin _build/dev/lib/rustler_precompiled/ebin --dep-ebin _build/dev/lib/telemetry/ebin
 ```
 
-Findings we accept go in `argus.config`, each with a comment saying why.
+This prints the findings and exits 0; CI fails when any of them is an error or a warning. Findings we accept go in `argus.config`, each with a comment saying why.
 
 ### PR Guidelines
 

@@ -107,7 +107,7 @@ defmodule ExRatatui.Distributed.Client do
     {:noreply, state}
   end
 
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, %{remote_pid: pid} = state) do
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{remote_ref: ref} = state) do
     {:stop, :normal, state}
   end
 

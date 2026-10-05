@@ -131,10 +131,10 @@ jobs:
           jq -e 'all(.[]; .severity == "info")' argus.json
 
   # Fails on known advisories in the Hex deps (`mix hex.audit`) and the
-  # NIF's crates (`cargo audit`, vulnerabilities only). Advisories that
-  # don't apply or have no fix yet are ignored in mix.exs (`hex:
+  # NIF's crates (`cargo audit`, vulnerabilities only). An advisory that
+  # doesn't apply or has no fix yet can be ignored in mix.exs (`hex:
   # [ignore_advisories: ...]`) or native/ex_ratatui/.cargo/audit.toml,
-  # each with a comment saying why.
+  # with a comment saying why.
   audit:
     timeout-minutes: 10
     runs-on: ubuntu-24.04
