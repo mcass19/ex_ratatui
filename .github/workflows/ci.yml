@@ -99,6 +99,37 @@ jobs:
       - run: mix test
         if: ${{ ! matrix.lint }}
 
+      # Argus (OTP and concurrency analysis) runs last so its findings never
+      # skip the steps above. It's an escript, not a dependency: it needs
+      # Elixir 1.19+ and we support 1.17. The escript refuses a Mix project,
+      # so it reads the dev build's beams instead, with ignores in
+      # argus.config. `--fail-above` counts infos too, so the gate is jq:
+      # errors and warnings fail, infos only print. Soufflé comes from its
+      # release .deb, because the PPA's package needs libffi7, which 24.04
+      # doesn't ship.
+      - name: Install Soufflé
+        if: ${{ matrix.lint }}
+        run: |
+          deb=x86_64-ubuntu-2404-souffle-2.5-Linux.deb
+          curl -fsSLO "https://github.com/souffle-lang/souffle/releases/download/2.5/$deb"
+          echo "6b86e554f6aa5abf8a8b55d8312ae37c0957c5bd6c9edeea89246db9406f645ec5e600b84fe6636b1c163da556f0da6c3d2dad46c1083413f2fcf4f95b9ac62c  $deb" | sha512sum -c -
+          sudo apt-get update
+          sudo apt-get install -y "./$deb"
+
+      - name: Install Argus
+        if: ${{ matrix.lint }}
+        run: |
+          mix escript.install hex argus_beam 0.20.1 --force
+          echo "$HOME/.mix/escripts" >> "$GITHUB_PATH"
+
+      - name: Run Argus
+        if: ${{ matrix.lint }}
+        run: |
+          args="--project beams --ebin _build/dev/lib/ex_ratatui/ebin --dep-ebin _build/dev/lib/rustler_precompiled/ebin --dep-ebin _build/dev/lib/telemetry/ebin"
+          argus $args
+          argus $args --format json > argus.json
+          jq -e 'all(.[]; .severity == "info")' argus.json
+
   # Fails on known advisories in the Hex deps (`mix hex.audit`) and the
   # NIF's crates (`cargo audit`, vulnerabilities only). Advisories that
   # don't apply or have no fix yet are ignored in mix.exs (`hex:
