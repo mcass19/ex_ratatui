@@ -98,6 +98,36 @@ defmodule ExRatatui.Distributed.ClientTest do
 
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
     end
+
+    test "keeps one monitor when the same remote connects again" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+
+      {:ok, pid} = Client.start_link(remote_pid: remote, test_mode: {80, 24})
+      Client.connect_remote(pid, remote)
+      Client.connect_remote(pid, remote)
+
+      assert {:monitors, [process: ^remote]} = Process.info(pid, :monitors)
+
+      GenServer.stop(pid)
+      Process.exit(remote, :kill)
+    end
+
+    test "drops the old remote's monitor when a new remote connects" do
+      old_remote = spawn(fn -> Process.sleep(:infinity) end)
+      new_remote = spawn(fn -> Process.sleep(:infinity) end)
+
+      {:ok, pid} = Client.start_link(test_mode: {80, 24})
+      Client.connect_remote(pid, old_remote)
+      Client.connect_remote(pid, new_remote)
+
+      assert {:monitors, [process: ^new_remote]} = Process.info(pid, :monitors)
+
+      ref = Process.monitor(pid)
+      Process.exit(new_remote, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+
+      Process.exit(old_remote, :kill)
+    end
   end
 
   describe "incoming draw messages" do
