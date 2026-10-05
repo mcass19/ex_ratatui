@@ -13,6 +13,7 @@
   <a href="https://hex.pm/packages/ex_ratatui"><img src="https://img.shields.io/hexpm/v/ex_ratatui.svg" alt="Hex.pm" /></a>
   <a href="https://hexdocs.pm/ex_ratatui"><img src="https://img.shields.io/badge/hex-docs-blue" alt="Docs" /></a>
   <a href="https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml"><img src="https://github.com/mcass19/ex_ratatui/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://compatibility.nerves-project.org/packages/ex_ratatui"><img src="https://compatibility.nerves-project.org/badge/ex_ratatui.svg" alt="Nerves compatibility" /></a>
   <a href="https://github.com/mcass19/ex_ratatui/blob/main/LICENSE"><img src="https://img.shields.io/hexpm/l/ex_ratatui.svg" alt="License" /></a>
 </p>
 
