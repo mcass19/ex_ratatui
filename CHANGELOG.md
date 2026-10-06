@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Images and 3D keep the right size after a font change.** On a local terminal, the cell pixel size from `ExRatatui.Image.auto_local_protocol/1` (and `probe_image_protocol: true`) was measured once at startup. After ctrl +/- the terminal's cells changed size but the cached one didn't, so pixel images and `Viewport3D` were encoded for the old cells and drew too small or spilled and got cut. The cell size now follows font changes: on resize it's worked out from the OS window size, bounded by the padding seen at the probe, without querying the terminal again (that would read stdin next to the event reader). Images also re-encode when the cell size changes, not only when the protocol does. A font size passed explicitly (`ExRatatui.Distributed` client options) is left as given.
+- The `ExRatatui.Image` docs and the Images guide said `resize: :scale` stretches to fill without keeping the aspect ratio. It keeps it: `:scale` is `:fit` that also grows a smaller image to fill the rect.
+
 ## [0.17.0] - 2026-10-05
 
 ### Added

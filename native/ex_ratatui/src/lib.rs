@@ -1,4 +1,5 @@
 mod cell_session;
+mod cell_size;
 mod decode;
 mod events;
 mod highlight;

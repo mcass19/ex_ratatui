@@ -144,6 +144,9 @@ pub struct ImageState {
 
 pub struct ProtocolCache {
     pub active_protocol: ProtocolKind,
+    // The cell size the encoder was built for. The encoding is sized in
+    // pixels, so a font change (a new cell size) needs a rebuild too.
+    pub font_size: (u16, u16),
     pub stateful: StatefulProtocol,
 }
 
@@ -182,19 +185,22 @@ pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: 
 
     let resolved = resolve_protocol(state.requested_protocol, caps);
 
-    // Rebuild the encoder state when the resolved protocol changes (or on
-    // first render). `StatefulProtocol` then manages its own resize cache
-    // across subsequent renders.
+    // Rebuild the encoder state when the resolved protocol or the cell
+    // size changes (or on first render). `StatefulProtocol` then manages
+    // its own resize cache across subsequent renders.
+    let font_size = caps.font_size();
+
     let needs_rebuild = state
         .cache
         .as_ref()
-        .map(|c| c.active_protocol != resolved)
+        .map(|c| c.active_protocol != resolved || c.font_size != font_size)
         .unwrap_or(true);
 
     if needs_rebuild {
-        let stateful = build_stateful_protocol(state, resolved, caps.font_size());
+        let stateful = build_stateful_protocol(state, resolved, font_size);
         state.cache = Some(ProtocolCache {
             active_protocol: resolved,
+            font_size,
             stateful,
         });
     }
@@ -568,6 +574,24 @@ mod tests {
             state.cache.as_ref().unwrap().active_protocol,
             ProtocolKind::Kitty,
         );
+    }
+
+    #[test]
+    fn render_state_rebuilds_cache_when_the_cell_size_changes() {
+        let mut state = fresh_state(ProtocolKind::Auto, ResizeKind::Fit);
+        let area = Rect::new(0, 0, 4, 4);
+        let mut buf = Buffer::empty(area);
+        let local = |font_size| TransportCaps::Local {
+            picker_protocol: ProtocolKind::Kitty,
+            font_size,
+        };
+
+        render_state(&mut buf, &mut state, area, local((10, 21)));
+        assert_eq!(state.cache.as_ref().unwrap().font_size, (10, 21));
+
+        // ctrl + in the terminal: same protocol, bigger cells.
+        render_state(&mut buf, &mut state, area, local((22, 48)));
+        assert_eq!(state.cache.as_ref().unwrap().font_size, (22, 48));
     }
 
     // ---- pixel regions --------------------------------------------------

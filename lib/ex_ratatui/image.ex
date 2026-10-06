@@ -29,8 +29,9 @@ defmodule ExRatatui.Image do
       created with a `:font_size`, in which case every request but
       `:halfblocks` becomes a pixel region.
     * `:resize` - resize strategy. `:fit` (default, preserve aspect ratio
-      inside the rect), `:crop` (preserve aspect, fill the rect, crop the
-      overflow), or `:scale` (stretch to fill).
+      inside the rect, never upscale), `:crop` (preserve aspect, fill the
+      rect, crop the overflow), or `:scale` (like `:fit`, but also grows a
+      smaller image to fill the rect).
     * `:background` - background color used to fill transparency / unused
       area. Accepts the full `t:ExRatatui.Style.color/0` shape: `nil`
       (default, transparent), a named color atom (`:red`, `:dark_gray`,
@@ -303,7 +304,8 @@ defmodule ExRatatui.Image do
   fails (no TTY, no response), the cache stays empty and `:auto` images
   fall back to halfblocks. Either way this is a one-shot opt-in: call it
   once at app start, typically right after acquiring the terminal
-  reference.
+  reference. On a local terminal the cached font size then follows font
+  changes (ctrl +/-), worked out from the OS window size on resize.
 
       ExRatatui.run(fn terminal ->
         ExRatatui.Image.auto_local_protocol(terminal)
@@ -327,7 +329,7 @@ defmodule ExRatatui.Image do
     case probe_with(probe_fn) do
       {:ok, %{protocol: protocol, font_size: {w, h}}} ->
         Native.terminal_set_local_probe(terminal_ref, protocol, {w, h})
-        :ok
+        Native.terminal_follow_cell_size(terminal_ref)
 
       {:error, _} = err ->
         err

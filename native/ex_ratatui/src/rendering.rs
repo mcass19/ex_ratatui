@@ -78,8 +78,9 @@ fn draw_frame(resource: ResourceArc<TerminalResource>, commands: Term) -> Result
     // font size for Kitty / Sixel / iTerm2 scaling. Otherwise fall back
     // to the `image_protocol` hint (set by Distributed.attach or
     // `ExRatatui.set_image_protocol/2`), and if neither is set behave
-    // like an un-hinted raw terminal where `:auto` → halfblocks.
-    let probe = resource.local_probe.lock().map(|g| *g).unwrap_or(None);
+    // like an un-hinted raw terminal where `:auto` → halfblocks. The
+    // probe's cell size follows font changes (see `crate::cell_size`).
+    let probe = resource.current_local_probe();
     let caps = match probe {
         Some((picker_protocol, font_size)) => TransportCaps::Local {
             picker_protocol,
