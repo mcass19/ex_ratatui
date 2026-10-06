@@ -12,6 +12,8 @@ use ratatui::Terminal;
 
 use rustler::{Atom, Error, Resource, ResourceArc};
 
+use crate::cell_size::{CellTracker, WindowDims};
+
 mod atoms {
     rustler::atoms! {
         ok,
@@ -38,6 +40,43 @@ pub struct TerminalResource {
     // images render with the detected protocol AND correct font size for
     // Kitty / Sixel / iTerm2 scaling.
     pub local_probe: Mutex<Option<(crate::image::ProtocolKind, (u16, u16))>>,
+    // Follows the window after the probe so the cached cell size stays
+    // right through font changes (see `crate::cell_size`). Only set for a
+    // real terminal, by `terminal_follow_cell_size/1`.
+    cell_tracker: Mutex<Option<CellTracker>>,
+}
+
+impl TerminalResource {
+    /// The cached probe for this frame. When the window changed since the
+    /// last frame (a font change resizes the grid), the cell size is
+    /// worked out again from the OS window size and cached.
+    pub(crate) fn current_local_probe(&self) -> Option<(crate::image::ProtocolKind, (u16, u16))> {
+        let mut probe = self.local_probe.lock().ok()?;
+        let (kind, cell) = (*probe)?;
+
+        let refreshed = self
+            .cell_tracker
+            .lock()
+            .ok()
+            .and_then(|mut tracker| tracker.as_mut()?.update(os_window()?));
+
+        match refreshed {
+            Some(new_cell) => {
+                *probe = Some((kind, new_cell));
+                Some((kind, new_cell))
+            }
+            None => Some((kind, cell)),
+        }
+    }
+}
+
+fn os_window() -> Option<WindowDims> {
+    terminal::window_size().ok().map(|w| WindowDims {
+        cols: w.columns,
+        rows: w.rows,
+        width_px: w.width,
+        height_px: w.height,
+    })
 }
 
 #[rustler::resource_impl]
@@ -144,6 +183,7 @@ fn init_terminal(
         is_crossterm: true,
         image_protocol: Mutex::new(None),
         local_probe: Mutex::new(None),
+        cell_tracker: Mutex::new(None),
     }))
 }
 
@@ -198,6 +238,7 @@ fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalRes
         is_crossterm: false,
         image_protocol: Mutex::new(None),
         local_probe: Mutex::new(None),
+        cell_tracker: Mutex::new(None),
     }))
 }
 
@@ -235,7 +276,47 @@ fn terminal_set_local_probe(
         crate::image::ProtocolKind::Auto => None,
         kind => Some((kind, font_size)),
     };
+
+    // A new probe starts untracked: an explicit size from the caller (the
+    // distributed client's options) stays as given.
+    set_cell_tracker(&resource, None)?;
+
     Ok(atoms::ok())
+}
+
+/// Makes the cached probe's cell size follow font changes from now on
+/// (see `crate::cell_size`), measured against the window as it is now.
+/// The auto-probe calls it right after `terminal_set_local_probe/3`. A
+/// no-op without a cached probe, on a test terminal, or when the OS
+/// reports no pixel size.
+#[rustler::nif]
+fn terminal_follow_cell_size(resource: ResourceArc<TerminalResource>) -> Result<Atom, Error> {
+    let probe = resource
+        .local_probe
+        .lock()
+        .map_err(|_| Error::Term(Box::new("terminal local_probe lock poisoned")))?
+        .to_owned();
+
+    let tracker = match probe {
+        Some((_kind, cell)) if resource.is_crossterm => {
+            os_window().and_then(|window| CellTracker::new(window, cell))
+        }
+        _ => None,
+    };
+
+    set_cell_tracker(&resource, tracker)?;
+    Ok(atoms::ok())
+}
+
+fn set_cell_tracker(
+    resource: &TerminalResource,
+    tracker: Option<CellTracker>,
+) -> Result<(), Error> {
+    *resource
+        .cell_tracker
+        .lock()
+        .map_err(|_| Error::Term(Box::new("terminal cell_tracker lock poisoned")))? = tracker;
+    Ok(())
 }
 
 #[rustler::nif]

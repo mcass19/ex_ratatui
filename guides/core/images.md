@@ -29,7 +29,7 @@ Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so a
 | Option | Values | Default | What it does |
 |---|---|---|---|
 | `:protocol` | `:auto`, `:halfblocks`, `:kitty`, `:sixel`, `:iterm2` | `:auto` | Which terminal protocol to render with. `:auto` resolves at render time against the transport (see [resolution table](#protocol-resolution)). Explicit protocols are honored except over a plain `CellSession`, where `:halfblocks` is forced; a `CellSession` created with a `:font_size` turns every non-`:halfblocks` request into a pixel region. |
-| `:resize` | `:fit`, `:crop`, `:scale` | `:fit` | `:fit` preserves aspect inside the rect (anchored top-left if smaller). `:crop` preserves aspect, fills the rect, crops the overflow. `:scale` stretches to fill (no aspect preservation). |
+| `:resize` | `:fit`, `:crop`, `:scale` | `:fit` | `:fit` preserves aspect inside the rect (anchored top-left if smaller). `:crop` preserves aspect, fills the rect, crops the overflow. `:scale` preserves aspect like `:fit`, but also grows a smaller image to fill the rect. |
 | `:background` | `nil`, any `t:ExRatatui.Style.color/0`, or raw `{r, g, b}` | `nil` | Color used to fill transparent pixels / unused area for halfblocks. |
 
 To change options later, build a new handle — the widget struct just wraps the resource ref.

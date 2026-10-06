@@ -210,6 +210,17 @@ defmodule ExRatatui.ImageTest do
       assert :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :kitty, {10, 20})
       assert :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :auto, {0, 0})
     end
+
+    # Following font changes needs a real terminal's window size; on a
+    # headless one it's a no-op either way (the math is covered in Rust).
+    test "terminal_follow_cell_size/1 is a no-op without a probe or a real terminal" do
+      terminal = ExRatatui.init_test_terminal(6, 4)
+      on_exit(fn -> ExRatatui.Native.restore_terminal(terminal) end)
+
+      assert :ok = ExRatatui.Native.terminal_follow_cell_size(terminal)
+      :ok = ExRatatui.Native.terminal_set_local_probe(terminal, :kitty, {10, 20})
+      assert :ok = ExRatatui.Native.terminal_follow_cell_size(terminal)
+    end
   end
 
   defp draw_with_probe(widget, rect, protocol, font_size) do

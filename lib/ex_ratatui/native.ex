@@ -59,6 +59,7 @@ defmodule ExRatatui.Native do
     session_set_image_font_size: 2,
     terminal_set_image_protocol: 2,
     terminal_set_local_probe: 3,
+    terminal_follow_cell_size: 1,
     highlight_code: 3
   ]
 
