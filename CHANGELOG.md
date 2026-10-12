@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-12
+
 ### Fixed
 
 - **Images and 3D keep the right size after a font change.** On a local terminal, the cell pixel size from `ExRatatui.Image.auto_local_protocol/1` (and `probe_image_protocol: true`) was measured once at startup. After ctrl +/- the terminal's cells changed size but the cached one didn't, so pixel images and `Viewport3D` were encoded for the old cells and drew too small or spilled and got cut. The cell size now follows font changes: on resize it's worked out from the OS window size, bounded by the padding seen at the probe, without querying the terminal again (that would read stdin next to the event reader). Images also re-encode when the cell size changes, not only when the protocol does. A font size passed explicitly (`ExRatatui.Distributed` client options) is left as given.
@@ -624,7 +626,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/mcass19/ex_ratatui/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/mcass19/ex_ratatui/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/mcass19/ex_ratatui/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/mcass19/ex_ratatui/compare/v0.14.1...v0.15.0
