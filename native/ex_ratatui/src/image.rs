@@ -374,14 +374,8 @@ fn image_snapshot<'a>(
         .state
         .lock()
         .map_err(|_| Error::Term(Box::new("image lock poisoned")))?;
-    let mut owned = OwnedBinary::new(state.source_bytes.len()).unwrap_or_else(|| {
-        OwnedBinary::new(0).expect("zero-length OwnedBinary allocation cannot fail")
-    });
-    if !state.source_bytes.is_empty() {
-        owned.as_mut_slice().copy_from_slice(&state.source_bytes);
-    }
     Ok((
-        rustler::Binary::from_owned(owned, env),
+        rustler::Binary::from_owned(OwnedBinary::from_slice(&state.source_bytes), env),
         state.requested_protocol,
         state.resize,
         state.background,

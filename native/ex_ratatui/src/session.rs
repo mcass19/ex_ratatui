@@ -509,16 +509,7 @@ fn session_size(resource: ResourceArc<SessionResource>) -> Result<(u16, u16), Er
 #[rustler::nif]
 fn session_take_output<'a>(env: Env<'a>, resource: ResourceArc<SessionResource>) -> Binary<'a> {
     let bytes = resource.take_output();
-    // OwnedBinary::new returns None only on allocator failure, in which case
-    // there's nothing useful we can hand the BEAM — fall back to an empty
-    // binary so the caller doesn't have to special-case the error.
-    let mut owned = OwnedBinary::new(bytes.len()).unwrap_or_else(|| {
-        OwnedBinary::new(0).expect("zero-length OwnedBinary allocation cannot fail")
-    });
-    if !bytes.is_empty() {
-        owned.as_mut_slice().copy_from_slice(&bytes);
-    }
-    Binary::from_owned(owned, env)
+    Binary::from_owned(OwnedBinary::from_slice(&bytes), env)
 }
 
 #[cfg(test)]
