@@ -36,6 +36,12 @@ defmodule ExRatatui.ImageTest do
       end
     end
 
+    test "accepts every supported filter atom" do
+      for filter <- [:nearest, :triangle, :catmull_rom, :lanczos3] do
+        assert {:ok, %ImageWidget{}} = Image.new(@valid_png, filter: filter)
+      end
+    end
+
     test "accepts every Style.color() shape for :background" do
       # nil + raw RGB
       assert {:ok, %ImageWidget{}} = Image.new(@valid_png, background: nil)
@@ -100,6 +106,12 @@ defmodule ExRatatui.ImageTest do
     test "raises on unknown resize" do
       assert_raise ArgumentError, ~r/:resize/, fn ->
         Image.new(@valid_png, resize: :gibberish)
+      end
+    end
+
+    test "raises on unknown filter" do
+      assert_raise ArgumentError, ~r/:filter/, fn ->
+        Image.new(@valid_png, filter: :bicubic)
       end
     end
 

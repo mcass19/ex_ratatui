@@ -5,7 +5,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
-use ratatui_image::{FontSize, Resize, ResizeEncodeRender};
+use ratatui_image::{FilterType, FontSize, Resize, ResizeEncodeRender};
 
 use rustler::{Env, Error, NifTaggedEnum, OwnedBinary, Resource, ResourceArc};
 
@@ -33,10 +33,31 @@ pub enum ResizeKind {
     Scale,
 }
 
+/// The resampling filter for `Fit` and `Scale` (`Crop` never resamples).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, NifTaggedEnum)]
+pub enum FilterKind {
+    Nearest,
+    Triangle,
+    CatmullRom,
+    Lanczos3,
+}
+
+impl FilterKind {
+    fn filter_type(self) -> FilterType {
+        match self {
+            FilterKind::Nearest => FilterType::Nearest,
+            FilterKind::Triangle => FilterType::Triangle,
+            FilterKind::CatmullRom => FilterType::CatmullRom,
+            FilterKind::Lanczos3 => FilterType::Lanczos3,
+        }
+    }
+}
+
 #[derive(rustler::NifMap)]
 pub struct ImageOpts {
     pub protocol: ProtocolKind,
     pub resize: ResizeKind,
+    pub filter: FilterKind,
     pub background: Option<(u8, u8, u8)>,
 }
 
@@ -120,11 +141,14 @@ pub fn from_protocol_type(t: ProtocolType) -> ProtocolKind {
     }
 }
 
-fn to_resize(kind: ResizeKind) -> Resize {
+// ratatui-image falls back to `Nearest` for a `None` filter, which drops
+// whole pixel rows and columns and breaks thin text strokes, so the
+// filter is always passed explicitly.
+fn to_resize(kind: ResizeKind, filter: FilterKind) -> Resize {
     match kind {
-        ResizeKind::Fit => Resize::Fit(None),
+        ResizeKind::Fit => Resize::Fit(Some(filter.filter_type())),
         ResizeKind::Crop => Resize::Crop(None),
-        ResizeKind::Scale => Resize::Scale(None),
+        ResizeKind::Scale => Resize::Scale(Some(filter.filter_type())),
     }
 }
 
@@ -138,6 +162,7 @@ pub struct ImageState {
     pub source_bytes: Vec<u8>,
     pub requested_protocol: ProtocolKind,
     pub resize: ResizeKind,
+    pub filter: FilterKind,
     pub background: Option<(u8, u8, u8)>,
     pub cache: Option<ProtocolCache>,
 }
@@ -205,7 +230,7 @@ pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: 
         });
     }
 
-    let resize = to_resize(state.resize);
+    let resize = to_resize(state.resize, state.filter);
     if let Some(cache) = state.cache.as_mut() {
         cache.stateful.resize_encode_render(&resize, area, buf);
     }
@@ -222,7 +247,13 @@ pub fn render_state(buf: &mut Buffer, state: &mut ImageState, area: Rect, caps: 
 fn render_region(buf: &mut Buffer, state: &ImageState, area: Rect, font_size: (u16, u16)) {
     let (fw, fh) = (font_size.0 as u32, font_size.1 as u32);
     let (target_w, target_h) = pixel_region::rect_pixel_dims(area, font_size);
-    let picture = fit_source(&state.source, state.resize, target_w, target_h);
+    let picture = fit_source(
+        &state.source,
+        state.resize,
+        state.filter,
+        target_w,
+        target_h,
+    );
     let (pw, ph) = picture.dimensions();
 
     let (rect, canvas_w, canvas_h) = match state.background {
@@ -260,6 +291,7 @@ fn render_region(buf: &mut Buffer, state: &ImageState, area: Rect, font_size: (u
 fn fit_source(
     source: &DynamicImage,
     resize: ResizeKind,
+    filter: FilterKind,
     target_w: u32,
     target_h: u32,
 ) -> DynamicImage {
@@ -267,7 +299,7 @@ fn fit_source(
     match resize {
         ResizeKind::Fit if w <= target_w && h <= target_h => source.clone(),
         ResizeKind::Fit | ResizeKind::Scale => {
-            source.resize(target_w, target_h, imageops::FilterType::Nearest)
+            source.resize(target_w, target_h, filter.filter_type())
         }
         ResizeKind::Crop => source.crop_imm(0, 0, w.min(target_w), h.min(target_h)),
     }
@@ -330,6 +362,7 @@ fn image_new(bytes: rustler::Binary, opts: ImageOpts) -> Result<ResourceArc<Imag
         source_bytes: raw.to_vec(),
         requested_protocol: opts.protocol,
         resize: opts.resize,
+        filter: opts.filter,
         background: opts.background,
         cache: None,
     };
@@ -349,8 +382,8 @@ fn image_dimensions(resource: ResourceArc<ImageResource>) -> Result<(u32, u32), 
 }
 
 /// Returns the data needed to reconstruct this image on another BEAM
-/// node: a flat tuple `{bytes, protocol_atom, resize_atom, background}`
-/// where `background` is either `nil` or `{r, g, b}`. The receiving
+/// node: a flat tuple `{bytes, protocol_atom, resize_atom, background,
+/// filter_atom}` where `background` is either `nil` or `{r, g, b}`. The receiving
 /// node decodes the bytes into a fresh `ImageResource` via the snapshot
 /// branch of `decode_image`. Used by `ExRatatui.Distributed` — a NIF
 /// resource ref can't cross node boundaries, so the runtime snapshots
@@ -363,6 +396,7 @@ pub type ImageSnapshot<'a> = (
     ProtocolKind,
     ResizeKind,
     Option<(u8, u8, u8)>,
+    FilterKind,
 );
 
 #[rustler::nif]
@@ -379,6 +413,7 @@ fn image_snapshot<'a>(
         state.requested_protocol,
         state.resize,
         state.background,
+        state.filter,
     ))
 }
 
@@ -501,6 +536,7 @@ mod tests {
             source_bytes: bytes,
             requested_protocol: protocol,
             resize,
+            filter: FilterKind::CatmullRom,
             background: None,
             cache: None,
         }
@@ -612,6 +648,7 @@ mod tests {
             source_bytes: bytes,
             requested_protocol: ProtocolKind::Auto,
             resize,
+            filter: FilterKind::CatmullRom,
             background,
             cache: None,
         }
@@ -738,6 +775,71 @@ mod tests {
             ProtocolKind::Halfblocks
         );
         assert!((0..4).any(|x| buf[(x, 0)].symbol() != " "));
+    }
+
+    // 1-px black/white columns: the thinnest detail an image can hold,
+    // like a text stroke.
+    fn stripes_png(width: u32, height: u32) -> Vec<u8> {
+        let buf = image::RgbImage::from_fn(width, height, |x, _| {
+            if x % 2 == 0 {
+                image::Rgb([0, 0, 0])
+            } else {
+                image::Rgb([255, 255, 255])
+            }
+        });
+        let mut out: Vec<u8> = Vec::new();
+        DynamicImage::ImageRgb8(buf)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .expect("encode test PNG");
+        out
+    }
+
+    #[test]
+    fn to_resize_passes_the_filter_to_fit_and_scale() {
+        assert!(matches!(
+            to_resize(ResizeKind::Fit, FilterKind::CatmullRom),
+            Resize::Fit(Some(FilterType::CatmullRom))
+        ));
+        assert!(matches!(
+            to_resize(ResizeKind::Scale, FilterKind::Lanczos3),
+            Resize::Scale(Some(FilterType::Lanczos3))
+        ));
+        assert!(matches!(
+            to_resize(ResizeKind::Crop, FilterKind::Triangle),
+            Resize::Crop(None)
+        ));
+    }
+
+    #[test]
+    fn region_nearest_keeps_only_source_colors_when_downscaling() {
+        let mut state = state_from(stripes_png(9, 12), ResizeKind::Fit, None);
+        state.filter = FilterKind::Nearest;
+        let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 1, 1));
+
+        // Nearest picks whole source pixels: every column is pure black or
+        // white, and some source columns are dropped.
+        assert!(regions[0]
+            .data
+            .chunks(3)
+            .all(|px| px == [0, 0, 0] || px == [255, 255, 255]));
+    }
+
+    #[test]
+    fn region_smooth_filters_blend_neighbouring_pixels_when_downscaling() {
+        for filter in [
+            FilterKind::Triangle,
+            FilterKind::CatmullRom,
+            FilterKind::Lanczos3,
+        ] {
+            let mut state = state_from(stripes_png(9, 12), ResizeKind::Fit, None);
+            state.filter = filter;
+            let (_buf, regions) = render_regions(&mut state, Rect::new(0, 0, 1, 1));
+
+            assert!(
+                regions[0].data.chunks(3).any(|px| px[0] > 0 && px[0] < 255),
+                "{filter:?} should blend the stripes into greys"
+            );
+        }
     }
 
     #[test]

@@ -32,6 +32,13 @@ defmodule ExRatatui.Image do
       inside the rect, never upscale), `:crop` (preserve aspect, fill the
       rect, crop the overflow), or `:scale` (like `:fit`, but also grows a
       smaller image to fill the rect).
+    * `:filter` - resampling filter used when `:fit` or `:scale` resizes the
+      image. `:catmull_rom` (default, bicubic: sharp and keeps small text
+      legible), `:lanczos3` (about as sharp, slightly slower), `:triangle`
+      (bilinear, softer), or `:nearest` (copies whole pixels: keeps hard
+      edges on pixel art, but drops or doubles rows and columns at
+      non-integer scales, which breaks thin text strokes). `:crop` never
+      resamples, so it ignores the filter.
     * `:background` - background color used to fill transparency / unused
       area. Accepts the full `t:ExRatatui.Style.color/0` shape: `nil`
       (default, transparent), a named color atom (`:red`, `:dark_gray`,
@@ -67,16 +74,19 @@ defmodule ExRatatui.Image do
 
   @type protocol :: :auto | :halfblocks | :kitty | :sixel | :iterm2
   @type resize :: :fit | :crop | :scale
+  @type filter :: :nearest | :triangle | :catmull_rom | :lanczos3
   @type background :: nil | ExRatatui.Style.color()
 
   @type new_opts :: [
           protocol: protocol(),
           resize: resize(),
+          filter: filter(),
           background: background()
         ]
 
   @valid_protocols [:auto, :halfblocks, :kitty, :sixel, :iterm2]
   @valid_resizes [:fit, :crop, :scale]
+  @valid_filters [:nearest, :triangle, :catmull_rom, :lanczos3]
 
   @doc """
   Decode image `bytes` into a stateful widget.
@@ -92,6 +102,7 @@ defmodule ExRatatui.Image do
     nif_opts = %{
       protocol: validate_protocol(Keyword.get(opts, :protocol, :auto)),
       resize: validate_resize(Keyword.get(opts, :resize, :fit)),
+      filter: validate_filter(Keyword.get(opts, :filter, :catmull_rom)),
       background: validate_background(Keyword.get(opts, :background))
     }
 
@@ -155,6 +166,13 @@ defmodule ExRatatui.Image do
   defp validate_resize(other) do
     raise ArgumentError,
           "expected :resize to be one of #{inspect(@valid_resizes)}, got: #{inspect(other)}"
+  end
+
+  defp validate_filter(f) when f in @valid_filters, do: f
+
+  defp validate_filter(other) do
+    raise ArgumentError,
+          "expected :filter to be one of #{inspect(@valid_filters)}, got: #{inspect(other)}"
   end
 
   # Standard ANSI palette → RGB. Matches xterm's defaults for the first

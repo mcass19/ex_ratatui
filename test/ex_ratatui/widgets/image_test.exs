@@ -73,13 +73,41 @@ defmodule ExRatatui.Widgets.ImageTest do
       assert live_cells == snap_cells
     end
 
-    test "snapshot preserves resize and background" do
+    test "snapshot preserves resize, background and filter" do
       {:ok, %ImageWidget{state: ref}} =
-        Image.new(@valid_png, protocol: :sixel, resize: :crop, background: {12, 34, 56})
+        Image.new(@valid_png,
+          protocol: :sixel,
+          resize: :crop,
+          filter: :lanczos3,
+          background: {12, 34, 56}
+        )
 
-      assert {bytes, :sixel, :crop, {12, 34, 56}} = Native.image_snapshot(ref)
+      assert {bytes, :sixel, :crop, {12, 34, 56}, :lanczos3} = Native.image_snapshot(ref)
       assert is_binary(bytes)
       assert byte_size(bytes) == byte_size(@valid_png)
+    end
+
+    test "snapshot carries the default filter" do
+      {:ok, %ImageWidget{state: ref}} = Image.new(@valid_png)
+
+      assert {_bytes, :auto, :fit, nil, :catmull_rom} = Native.image_snapshot(ref)
+    end
+
+    test "a snapshot without a filter, from an older node, still renders" do
+      {:ok, %ImageWidget{state: ref}} = Image.new(@valid_png)
+      {bytes, protocol, resize, background, filter} = Native.image_snapshot(ref)
+
+      live_cells = draw_through_cell_session(%ImageWidget{state: ref}, 4, 4)
+
+      legacy_cells =
+        draw_through_cell_session(
+          %ImageWidget{state: {bytes, protocol, resize, background}},
+          4,
+          4
+        )
+
+      assert filter == :catmull_rom
+      assert legacy_cells == live_cells
     end
 
     test "Bridge accepts a snapshot tuple as state" do

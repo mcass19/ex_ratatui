@@ -30,6 +30,7 @@ Bad bytes return `{:error, {:decode_failed, message}}` rather than raising, so a
 |---|---|---|---|
 | `:protocol` | `:auto`, `:halfblocks`, `:kitty`, `:sixel`, `:iterm2` | `:auto` | Which terminal protocol to render with. `:auto` resolves at render time against the transport (see [resolution table](#protocol-resolution)). Explicit protocols are honored except over a plain `CellSession`, where `:halfblocks` is forced; a `CellSession` created with a `:font_size` turns every non-`:halfblocks` request into a pixel region. |
 | `:resize` | `:fit`, `:crop`, `:scale` | `:fit` | `:fit` preserves aspect inside the rect (anchored top-left if smaller). `:crop` preserves aspect, fills the rect, crops the overflow. `:scale` preserves aspect like `:fit`, but also grows a smaller image to fill the rect. |
+| `:filter` | `:catmull_rom`, `:lanczos3`, `:triangle`, `:nearest` | `:catmull_rom` | Resampling filter when `:fit` or `:scale` resizes the image (`:crop` never resamples). See [Resampling filters](#resampling-filters). |
 | `:background` | `nil`, any `t:ExRatatui.Style.color/0`, or raw `{r, g, b}` | `nil` | Color used to fill transparent pixels / unused area for halfblocks. |
 
 To change options later, build a new handle — the widget struct just wraps the resource ref.
@@ -150,6 +151,14 @@ The difference between `:fit` and `:crop` only manifests when the **source is *l
 This is upstream ratatui-image behavior, not something we layer on. We expose `ExRatatui.Image.render_size/4` to predict what each mode will do for a given combination of source dims, cell area, and font size — useful for status panels, layout decisions, or just understanding what's on screen. The `examples/images/image_demo.exs` example uses it to surface the render output dimensions live while cycling modes.
 
 For "fill the area regardless of source size," use `:scale`. That's the only mode that upscales.
+
+## Resampling filters
+
+An image almost never lands on its slot at a whole-number scale, so `:fit` and `:scale` resample it. The default `:catmull_rom` (bicubic) keeps edges sharp and small text legible in both directions. `:lanczos3` looks about the same and costs a little more; `:triangle` (bilinear) is softer.
+
+`:nearest` copies whole source pixels. At a non-integer scale it drops some rows and columns and doubles others, so 1-px strokes vanish or thicken: a screenshot of a dashboard comes out with misread digits and broken letters. Its use is pixel art and other images whose hard edges matter more than smoothness, ideally at whole-number scales.
+
+The resample only runs when the rect or the cell size changes, not on every frame, so the choice of filter doesn't affect frame time.
 
 ## Known limitations (v1)
 

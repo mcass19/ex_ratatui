@@ -16,7 +16,7 @@ defmodule ExRatatui.Widgets.Image do
   ```
 
   The widget itself is just a wrapper around the `:state` reference; render
-  options (`:resize`, `:protocol`, `:background`) are set once at
+  options (`:resize`, `:filter`, `:protocol`, `:background`) are set once at
   `ExRatatui.Image.new/2` and stored on the resource. To change them, build a
   new image handle.
 

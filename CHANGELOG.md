@@ -8,7 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **`:filter` option on `ExRatatui.Image.new/2`** to pick the resampling filter used by `:fit` and `:scale`: `:catmull_rom` (default), `:lanczos3`, `:triangle` or `:nearest`. See [Resampling filters](guides/core/images.md#resampling-filters).
 - Precompiled NIFs for NIF version 2.18 (OTP 29). OTP 29 used to load the 2.17 build; it now gets its own. This needs `rustler_precompiled` 0.10, so projects with an older one locked run `mix deps.update rustler_precompiled`.
+
+### Changed
+
+- **Images resize with a bicubic filter instead of nearest-neighbour.** Nearest copies whole source pixels, so at a non-integer scale it drops some rows and columns and doubles others; thin strokes in screenshots vanished or thickened ("46m" read as "45m", "Evaluated" as "Lvaluated"), whether the image was shrunk by `:fit` or grown by `:scale`. Every protocol and `CellSession` pixel regions now default to `filter: :catmull_rom`, at about the same cost. Pixel art that relied on hard edges gets them back with `filter: :nearest`.
 
 ## [0.17.1] - 2026-10-12
 

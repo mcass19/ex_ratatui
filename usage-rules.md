@@ -84,7 +84,7 @@ All widgets are structs under `ExRatatui.Widgets.*` (a few have a companion data
 
 **Rich / special**
 - `Markdown` — rendered Markdown
-- `Image` — image rendering (`ExRatatui.Image` decodes; Kitty/Sixel/iTerm2/halfblocks)
+- `Image` — image rendering (`ExRatatui.Image` decodes; Kitty/Sixel/iTerm2/halfblocks). Resizing uses `filter: :catmull_rom` by default; pass `filter: :nearest` only for pixel art, since it breaks thin text strokes in screenshots
 - `BigText` — oversized 8x8 pixel text (`ExRatatui.BigText`)
 - `CodeBlock` — syntax-highlighted code (`ExRatatui.CodeBlock`)
 

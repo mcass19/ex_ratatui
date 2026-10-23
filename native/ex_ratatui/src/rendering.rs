@@ -993,11 +993,12 @@ fn decode_checkbox(map: &TermMap<'_>) -> Result<CheckboxData, Error> {
 /// Accepts either a `ResourceArc<ImageResource>` (the fast path used for
 /// local / SSH / CellSession renders where the resource lives on the
 /// same node as the renderer) or a snapshot tuple
-/// `{bytes, protocol_atom, resize_atom, background_or_nil}` produced by
-/// `image_snapshot/1` (used by the distributed transport where NIF refs
-/// can't cross node boundaries). The snapshot path re-decodes the bytes
-/// into a fresh `ImageResource` so the rest of the render pipeline
-/// stays uniform.
+/// `{bytes, protocol_atom, resize_atom, background_or_nil, filter_atom}`
+/// produced by `image_snapshot/1` (used by the distributed transport where
+/// NIF refs can't cross node boundaries). The snapshot path re-decodes the
+/// bytes into a fresh `ImageResource` so the rest of the render pipeline
+/// stays uniform. The 4-tuple without a filter, sent by nodes from before
+/// the `:filter` option, still decodes with the default filter.
 fn decode_image(map: &TermMap<'_>) -> Result<ImageRenderData, Error> {
     let state_term = optional_term(map, "state")
         .ok_or_else(|| crate::decode::missing_field("image", "state"))?;
@@ -1007,23 +1008,30 @@ fn decode_image(map: &TermMap<'_>) -> Result<ImageRenderData, Error> {
         return Ok(ImageRenderData { resource });
     }
 
-    // Distributed snapshot: {bytes, protocol, resize, background}.
+    // Distributed snapshot: {bytes, protocol, resize, background, filter}.
     let snapshot = state_term
-        .decode::<(
-            rustler::Binary<'_>,
-            image::ProtocolKind,
-            image::ResizeKind,
-            Option<(u8, u8, u8)>,
-        )>()
+        .decode::<image::ImageSnapshot<'_>>()
+        .or_else(|_| {
+            state_term
+                .decode::<(
+                    rustler::Binary<'_>,
+                    image::ProtocolKind,
+                    image::ResizeKind,
+                    Option<(u8, u8, u8)>,
+                )>()
+                .map(|(bytes, protocol, resize, background)| {
+                    (bytes, protocol, resize, background, image::FilterKind::CatmullRom)
+                })
+        })
         .map_err(|_| {
             invalid_field(
                 "image",
                 "state",
-                "expected an ImageResource reference or a {bytes, protocol, resize, background} snapshot tuple",
+                "expected an ImageResource reference or a {bytes, protocol, resize, background, filter} snapshot tuple",
             )
         })?;
 
-    let (bytes, protocol, resize, background) = snapshot;
+    let (bytes, protocol, resize, background, filter) = snapshot;
     let raw = bytes.as_slice();
     // `::image::` so the compiler picks the external `image` crate
     // rather than our `crate::image` module (which is in scope as
@@ -1042,6 +1050,7 @@ fn decode_image(map: &TermMap<'_>) -> Result<ImageRenderData, Error> {
             source_bytes: raw.to_vec(),
             requested_protocol: protocol,
             resize,
+            filter,
             background,
             cache: None,
         }),

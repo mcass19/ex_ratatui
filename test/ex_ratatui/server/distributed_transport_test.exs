@@ -399,12 +399,13 @@ defmodule ExRatatui.Server.DistributedTransportTest do
 
       assert is_tuple(img_state), "expected Image state to be a snapshot tuple"
       refute is_reference(img_state)
-      assert {bytes, protocol, resize, background} = img_state
+      assert {bytes, protocol, resize, background, filter} = img_state
       assert is_binary(bytes)
       assert byte_size(bytes) == byte_size(@valid_png)
       assert protocol == :halfblocks
       assert resize == :fit
       assert background == nil
+      assert filter == :catmull_rom
 
       assert is_tuple(ti_state), "expected TextInput state to be a snapshot tuple"
       refute is_reference(ti_state)
