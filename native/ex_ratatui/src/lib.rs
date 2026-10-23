@@ -6,6 +6,7 @@ mod highlight;
 mod image;
 mod layout;
 mod pixel_region;
+mod pixels;
 mod rendering;
 mod session;
 mod session_input;

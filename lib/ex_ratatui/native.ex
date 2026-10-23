@@ -35,6 +35,7 @@ defmodule ExRatatui.Native do
     cell_session_new: 3,
     region_encode_png: 3,
     rotate_rgb8: 4,
+    pack_rgb8: 4,
     cell_session_close: 1,
     cell_session_draw: 2,
     cell_session_take_cells: 1,
