@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-23
+
 ### Added
 
 - **`:filter` option on `ExRatatui.Image.new/2`** to pick the resampling filter used by `:fit` and `:scale`: `:catmull_rom` (default), `:lanczos3`, `:triangle` or `:nearest`. See [Resampling filters](guides/core/images.md#resampling-filters).
@@ -637,7 +639,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.17.1...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/mcass19/ex_ratatui/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/mcass19/ex_ratatui/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/mcass19/ex_ratatui/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/mcass19/ex_ratatui/compare/v0.15.0...v0.16.0
