@@ -76,7 +76,7 @@ defmodule ExRatatui.MixProject do
 
   defp deps do
     [
-      {:rustler_precompiled, "~> 0.8"},
+      {:rustler_precompiled, "~> 0.10"},
       {:telemetry, "~> 1.0"},
 
       # Optional

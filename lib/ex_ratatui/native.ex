@@ -105,7 +105,7 @@ defmodule ExRatatui.Native do
       x86_64-unknown-linux-gnu
       x86_64-unknown-linux-musl
     ),
-    nif_versions: ["2.16", "2.17"]
+    nif_versions: ["2.16", "2.17", "2.18"]
   ]
 
   case RustlerPrecompiled.__using__(__MODULE__, precompiled_opts) do

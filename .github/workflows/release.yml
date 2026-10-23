@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nif: ["2.17", "2.16"]
+        nif: ["2.18", "2.17", "2.16"]
         # `glibc` is the newest glibc a gnu artifact may require, enforced
         # by check_glibc_floor.sh below. What an artifact requires is decided
         # by the libc it is LINKED against, not by the code: Rust's std keeps

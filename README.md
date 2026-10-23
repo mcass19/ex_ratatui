@@ -63,7 +63,7 @@ A precompiled NIF binary for the host platform is downloaded automatically. The 
 - Elixir 1.17+
 - Erlang/OTP 26 – 29
 
-Precompiled NIF binaries are available for Linux (x86_64, aarch64, armv6/hf, riscv64), macOS (x86_64, aarch64), and Windows (x86_64), covering NIF ABI versions 2.16 (OTP 26) and 2.17 (OTP 27/28) — no Rust toolchain needed. OTP 29 raised the ABI to 2.18; since the NIF ABI is backward compatible, OTP 29 loads the 2.17 binary and also needs no Rust toolchain. A native 2.18 build is pending `rustler_precompiled` support upstream.
+Precompiled NIF binaries are available for Linux (x86_64, aarch64, armv6/hf, riscv64), macOS (x86_64, aarch64), and Windows (x86_64), covering NIF ABI versions 2.16 (OTP 26), 2.17 (OTP 27/28) and 2.18 (OTP 29) — no Rust toolchain needed.
 
 The Linux glibc binaries are built against old C libraries on purpose, and the release refuses to publish one that needs more: glibc 2.28 for aarch64, armv6/hf, and riscv64 (so they load on Nerves systems and older distributions), and glibc 2.35 for x86_64. The musl binaries are self-contained.
 

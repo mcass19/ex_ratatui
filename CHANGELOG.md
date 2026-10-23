@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Precompiled NIFs for NIF version 2.18 (OTP 29). OTP 29 used to load the 2.17 build; it now gets its own. This needs `rustler_precompiled` 0.10, so projects with an older one locked run `mix deps.update rustler_precompiled`.
+
 ## [0.17.1] - 2026-10-12
 
 ### Fixed
