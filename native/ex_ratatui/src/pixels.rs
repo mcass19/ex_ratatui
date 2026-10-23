@@ -260,19 +260,19 @@ fn pack_row<'a, I>(
 
     match format {
         PixelFormat::Rgb8 => {
-            for (out, (r, g, b)) in row.chunks_exact_mut(3).zip(pixels) {
-                out.copy_from_slice(&[r, g, b]);
+            for (out, (r, g, b)) in row.as_chunks_mut::<3>().0.iter_mut().zip(pixels) {
+                *out = [r, g, b];
             }
         }
         PixelFormat::Rgb565 => {
-            for (out, (r, g, b)) in row.chunks_exact_mut(2).zip(pixels) {
+            for (out, (r, g, b)) in row.as_chunks_mut::<2>().0.iter_mut().zip(pixels) {
                 let packed = ((r as u16 >> 3) << 11) | ((g as u16 >> 2) << 5) | (b as u16 >> 3);
-                out.copy_from_slice(&packed.to_le_bytes());
+                *out = packed.to_le_bytes();
             }
         }
         PixelFormat::Xrgb8888 => {
-            for (out, (r, g, b)) in row.chunks_exact_mut(4).zip(pixels) {
-                out.copy_from_slice(&[b, g, r, 255]);
+            for (out, (r, g, b)) in row.as_chunks_mut::<4>().0.iter_mut().zip(pixels) {
+                *out = [b, g, r, 255];
             }
         }
         PixelFormat::MonoBayer4 => {
