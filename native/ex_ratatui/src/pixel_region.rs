@@ -42,7 +42,6 @@ mod atoms {
         rgb8,
         invalid_dimensions,
         invalid_angle,
-        alloc_failed,
         encode_failed,
     }
 }
@@ -97,8 +96,7 @@ fn rotate_rgb8<'a>(
     let (out_width, out_height) =
         rotated_dims(width, height, angle, data.len()).map_err(rotate_error_term)?;
 
-    let mut owned =
-        OwnedBinary::new(data.len()).ok_or_else(|| Error::Term(Box::new(atoms::alloc_failed())))?;
+    let mut owned = OwnedBinary::new(data.len());
 
     rotate_rgb8_into(data.as_slice(), owned.as_mut_slice(), width, height, angle)
         .map_err(rotate_error_term)?;
@@ -323,13 +321,7 @@ fn encode_region<'a>(env: Env<'a>, region: &PixelRegion) -> Term<'a> {
 }
 
 fn bytes_to_binary<'a>(env: Env<'a>, bytes: &[u8]) -> Term<'a> {
-    let mut owned = OwnedBinary::new(bytes.len()).unwrap_or_else(|| {
-        OwnedBinary::new(0).expect("zero-length OwnedBinary allocation cannot fail")
-    });
-    if !bytes.is_empty() {
-        owned.as_mut_slice().copy_from_slice(bytes);
-    }
-    Binary::from_owned(owned, env).encode(env)
+    Binary::from_owned(OwnedBinary::from_slice(bytes), env).encode(env)
 }
 
 #[cfg(test)]
