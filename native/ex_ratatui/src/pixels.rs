@@ -14,7 +14,6 @@ mod atoms {
         invalid_dimensions,
         invalid_angle,
         invalid_clip,
-        alloc_failed,
     }
 }
 
@@ -75,8 +74,7 @@ fn pack_rgb8<'a>(
 ) -> Result<(Term<'a>, u32, u32), Error> {
     let (_, _, len) = pack_dims(width, height, data.len(), &opts).map_err(pack_error_term)?;
 
-    let mut owned =
-        OwnedBinary::new(len).ok_or_else(|| Error::Term(Box::new(atoms::alloc_failed())))?;
+    let mut owned = OwnedBinary::new(len);
 
     let (out_width, out_height) =
         pack_rgb8_into(data.as_slice(), owned.as_mut_slice(), width, height, &opts)

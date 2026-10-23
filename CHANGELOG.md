@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Vendored Rust dependencies bumped**, including `rustler`. These compile into the precompiled NIF, so every consumer picks them up with this release.
 - **Images resize with a bicubic filter instead of nearest-neighbour.** Nearest copies whole source pixels, so at a non-integer scale it drops some rows and columns and doubles others; thin strokes in screenshots vanished or thickened ("46m" read as "45m", "Evaluated" as "Lvaluated"), whether the image was shrunk by `:fit` or grown by `:scale`. Every protocol and `CellSession` pixel regions now default to `filter: :catmull_rom`, at about the same cost. Pixel art that relied on hard edges gets them back with `filter: :nearest`.
 
 ## [0.17.1] - 2026-10-12
