@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **`:filter` option on `ExRatatui.Image.new/2`** to pick the resampling filter used by `:fit` and `:scale`: `:catmull_rom` (default), `:lanczos3`, `:triangle` or `:nearest`. See [Resampling filters](guides/core/images.md#resampling-filters).
+- **`ExRatatui.Pixels.pack_rgb8/5`** resamples a region's bitmap onto its rect, clips, rotates and packs it into `:rgb565`, `:xrgb8888`, `:mono_bayer4` (Bayer 4×4 dither anchored to the panel) or plain `:rgb8`, in one native pass. Consumers painting regions onto a panel packed every pixel in Elixir, about 20–30 ns a pixel on a laptop and ~130 on a Pi 4; the native pass is one or two, and costs the same flat or turned. A 696×480 region packed to RGB565 and turned a quarter went from ~7 ms to 0.5 ms on a laptop. See [Packing regions](guides/transports/framebuffer_surfaces.md#packing-regions).
 - Precompiled NIFs for NIF version 2.18 (OTP 29). OTP 29 used to load the 2.17 build; it now gets its own. This needs `rustler_precompiled` 0.10, so projects with an older one locked run `mix deps.update rustler_precompiled`.
 
 ### Changed

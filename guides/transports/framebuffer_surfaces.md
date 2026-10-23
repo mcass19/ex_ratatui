@@ -16,3 +16,21 @@ A panel is often fixed in the enclosure at a quarter turn from the orientation t
 `ExRatatui.CellSession.Region.rotate/2` turns the bitmap in Rust instead, in a single pass that walks destination rows so the writes stay sequential. The turned bytes then go through the same flat row-by-row path an upright panel uses. `ExRatatui.Pixels.rotate_rgb8/4` is the same operation on raw bytes and dimensions, for a surface that keeps its own buffers.
 
 Only the pixels move. A region's `x`, `y`, `width` and `height` are the app's cell coordinates, and turning them needs the size of the grid they sit in, which a region does not carry — the surface already knows that size and maps the rect onto its screen itself.
+
+## Packing regions
+
+A region still has to become the panel's bytes: scaled to its rect when the bitmap was capped or the surface scales up, cut where the rect runs off the grid, turned for a panel on its side, and packed into the panel's pixel format. Done per pixel in Elixir that is the most expensive part of a frame.
+
+`ExRatatui.Pixels.pack_rgb8/5` does all of it in one native pass, writing straight into the packed output:
+
+```elixir
+{packed, width, height} =
+  ExRatatui.Pixels.pack_rgb8(region.data, region.pixel_width, region.pixel_height, :rgb565,
+    scale_to: {rect_w, rect_h},   # the rect's full pixel size, in the app's orientation
+    clip: {visible_w, visible_h}, # the part of it on screen
+    rotate: 90,
+    origin: {x, y}                # panel position of the output's top-left pixel
+  )
+```
+
+`:rgb565` and `:xrgb8888` cover the usual Linux framebuffers, and `:mono_bayer4` dithers to `0`/`255` for 1-bit panels, anchored at `:origin` so the pattern stays put as regions move. A surface with a format of its own asks for `:rgb8` and packs the result itself, still getting the sampling, clipping and rotation natively. Sampling is against the full `:scale_to`, so a clipped region shows the same pixels it would if the whole rect fit. The moduledoc has the exact byte layouts.
