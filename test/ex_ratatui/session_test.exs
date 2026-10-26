@@ -438,6 +438,19 @@ defmodule ExRatatui.SessionTest do
       :ok = Session.close(session)
     end
 
+    test "feed_input/2 decodes kitty keyboard protocol repeats and releases" do
+      session = Session.new(20, 5)
+
+      assert [
+               %Event.Key{code: "up", modifiers: [], kind: "press"},
+               %Event.Key{code: "up", modifiers: [], kind: "repeat"},
+               %Event.Key{code: "up", modifiers: [], kind: "release"},
+               %Event.Key{code: "L", modifiers: ["shift"], kind: "release"}
+             ] = Session.feed_input(session, "\e[1;1A\e[1;1:2A\e[1;1:3A\e[108:76;2:3u")
+
+      :ok = Session.close(session)
+    end
+
     test "feed_input/2 buffers a partial CSI across calls" do
       # Same guarantee the underlying NIF makes — exposed through the
       # Elixir wrapper so a transport can rely on it.

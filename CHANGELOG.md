@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Key release events on the local terminal.** `keyboard_enhancement: true` (a `start_link` option for `:local` apps, and an `ExRatatui.run/2` option) asks the terminal for the kitty keyboard protocol, so a held key sends `"press"`, then `"repeat"`s, then `"release"` — what driving, games and other hold-to-act input need. Terminals without the protocol keep sending presses only, and `ExRatatui.Runtime.snapshot/1` reports which one we got as `:keyboard_enhancement`. With it on, autorepeat arrives as `"repeat"` rather than `"press"`, so handlers that should fire while a key is held match both. Shifted letters keep their `"shift"` modifier and lone modifier presses produce no event, as without it. A new NIF, so `init_terminal/2` keeps its arity.
 
+- **Key release events over SSH and `Distributed.attach/3`.** An SSH session whose app opts include `keyboard_enhancement: true` asks the client's terminal for the kitty keyboard protocol once in the alternate screen and drops it on the way out, and the session input parser now decodes the protocol's keys (`CSI code ; mods:event u`, and arrows, Home/End, F1–F4 and the `~` keys with an event type) into `"press"`, `"repeat"` and `"release"`, named the way the local terminal names them. `ExRatatui.CellSession` shares the parser. `Distributed.attach/3` takes the option for the attaching terminal, and its client now parks the BEAM's tty reader the way the `:local` runtime does. The SSH bare-Esc timer only arms when a chunk ends in `ESC`, so a sequence that decodes to nothing (a lone Shift under the protocol) no longer reads as Esc.
+
 ## [0.18.0] - 2026-10-23
 
 ### Added

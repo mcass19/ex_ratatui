@@ -74,6 +74,10 @@ defmodule ExRatatui.Distributed do
       path uses the supplied dimensions for Kitty / Sixel / iTerm2
       scaling instead of ratatui-image's `(8, 16)` default. Pass values
       matching the local terminal (typically `(10, 20)` for Kitty/Ghostty).
+    * `:keyboard_enhancement` — ask the local terminal for key repeat and
+      release events, forwarded to the remote app like any other key
+      (default: `false`). See
+      [Key releases](building_uis.html#key-releases).
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """
@@ -146,7 +150,8 @@ defmodule ExRatatui.Distributed do
         :test_mode,
         :init_terminal,
         :image_protocol,
-        :image_font_size
+        :image_font_size,
+        :keyboard_enhancement
       ])
 
     Client.start_link(client_opts)

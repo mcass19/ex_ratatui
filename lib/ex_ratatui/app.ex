@@ -115,8 +115,9 @@ defmodule ExRatatui.App do
     * `:keyboard_enhancement` - ask the terminal for key repeat and release
       events, delivered as `%ExRatatui.Event.Key{}` with `kind: "repeat"` and
       `kind: "release"` (default: `false`). `ExRatatui.Runtime.snapshot/1`
-      reports whether the terminal took it. Only used by the `:local`
-      transport.
+      reports whether the terminal took it (`:local` only). Over `:ssh`,
+      pass it inside `:app_opts`; the client's terminal is asked when the
+      session starts.
     * `:mailbox_warn_threshold` - message queue length at which the runtime
       emits `[:ex_ratatui, :runtime, :mailbox]` and logs a warning that its
       callbacks are falling behind (default: `10_000`; `false` disables the

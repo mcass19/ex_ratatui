@@ -10,9 +10,9 @@ defmodule ExRatatui.Runtime do
     * `:subscription_count` and `:subscriptions`
     * `:active_async_commands`
     * `:trace_enabled?`, `:trace_limit`, and `:trace_events`
-    * `:keyboard_enhancement` — `nil` unless the app was started with
-      `keyboard_enhancement: true`, then whether the terminal reports key
-      releases
+    * `:keyboard_enhancement` — on the `:local` transport, `nil` unless the
+      app was started with `keyboard_enhancement: true`, then whether the
+      terminal reports key releases; `nil` on every other transport
 
   `inject_event/2` delivers a synthetic terminal event through the same runtime
   transition path as a polled input event. This is useful for deterministic
