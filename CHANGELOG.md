@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Key release events on the local terminal.** `keyboard_enhancement: true` (a `start_link` option for `:local` apps, and an `ExRatatui.run/2` option) asks the terminal for the kitty keyboard protocol, so a held key sends `"press"`, then `"repeat"`s, then `"release"` — what driving, games and other hold-to-act input need. Terminals without the protocol keep sending presses only, and `ExRatatui.Runtime.snapshot/1` reports which one we got as `:keyboard_enhancement`. With it on, autorepeat arrives as `"repeat"` rather than `"press"`, so handlers that should fire while a key is held match both. Shifted letters keep their `"shift"` modifier and lone modifier presses produce no event, as without it. A new NIF, so `init_terminal/2` keeps its arity.
+
 ## [0.18.0] - 2026-10-23
 
 ### Added

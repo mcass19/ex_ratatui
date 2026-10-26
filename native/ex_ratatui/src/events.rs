@@ -36,6 +36,13 @@ fn poll_event(timeout_ms: u64) -> Result<Option<NifEvent>, Error> {
     let event = event::read().map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
 
     match event {
+        // With the kitty keyboard protocol on, pressing and releasing Shift,
+        // Ctrl & co. arrive as keys of their own. They carry nothing an app
+        // can't read from the modifiers of the key that follows.
+        Event::Key(KeyEvent {
+            code: KeyCode::Modifier(_),
+            ..
+        }) => Ok(None),
         Event::Key(key_event) => Ok(Some(convert_key_event(key_event))),
         Event::Mouse(mouse_event) => Ok(Some(convert_mouse_event(mouse_event))),
         Event::Resize(width, height) => Ok(Some(NifEvent::Resize(width, height))),
@@ -47,7 +54,7 @@ fn poll_event(timeout_ms: u64) -> Result<Option<NifEvent>, Error> {
 
 fn convert_key_event(event: KeyEvent) -> NifEvent {
     let code = convert_key_code(event.code);
-    let modifiers = convert_modifiers(event.modifiers);
+    let modifiers = convert_modifiers(shift_for_uppercase(event.code, event.modifiers));
     let kind = match event.kind {
         KeyEventKind::Press => "press",
         KeyEventKind::Release => "release",
@@ -55,6 +62,16 @@ fn convert_key_event(event: KeyEvent) -> NifEvent {
     };
 
     NifEvent::Key(code, modifiers, kind.to_string())
+}
+
+/// Legacy input reports an uppercase letter with Shift held; the kitty
+/// protocol's alternate-key form reports the letter alone. Adding Shift back
+/// keeps an app's key bindings the same either way.
+fn shift_for_uppercase(code: KeyCode, modifiers: KeyModifiers) -> KeyModifiers {
+    match code {
+        KeyCode::Char(c) if c.is_uppercase() => modifiers | KeyModifiers::SHIFT,
+        _ => modifiers,
+    }
 }
 
 fn convert_key_code(code: KeyCode) -> String {
@@ -158,6 +175,35 @@ mod tests {
                 assert_eq!(code, "q");
                 assert!(mods.is_empty());
                 assert_eq!(kind, "press");
+            }
+            _ => panic!("expected Key"),
+        }
+    }
+
+    #[test]
+    fn test_uppercase_char_reports_shift_with_or_without_it() {
+        // Legacy input sends Shift along; the kitty alternate-key form doesn't.
+        for mods in [KeyModifiers::SHIFT, KeyModifiers::NONE] {
+            let event = make_key(KeyCode::Char('L'), mods, KeyEventKind::Release);
+            match convert_key_event(event) {
+                NifEvent::Key(code, mods, kind) => {
+                    assert_eq!(code, "L");
+                    assert_eq!(mods, vec!["shift".to_string()]);
+                    assert_eq!(kind, "release");
+                }
+                _ => panic!("expected Key"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_lowercase_char_gets_no_shift() {
+        let event = make_key(KeyCode::Char('l'), KeyModifiers::NONE, KeyEventKind::Repeat);
+        match convert_key_event(event) {
+            NifEvent::Key(code, mods, kind) => {
+                assert_eq!(code, "l");
+                assert!(mods.is_empty());
+                assert_eq!(kind, "repeat");
             }
             _ => panic!("expected Key"),
         }

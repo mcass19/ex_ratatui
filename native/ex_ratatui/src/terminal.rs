@@ -1,9 +1,11 @@
 use std::io::Stdout;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
-    EnableFocusChange, EnableMouseCapture,
+    EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle};
 use crossterm::ExecutableCommand;
@@ -44,6 +46,9 @@ pub struct TerminalResource {
     // right through font changes (see `crate::cell_size`). Only set for a
     // real terminal, by `terminal_follow_cell_size/1`.
     cell_tracker: Mutex<Option<CellTracker>>,
+    // Set once `terminal_enable_keyboard_enhancement/1` has pushed the kitty
+    // keyboard flags, so restoring the terminal pops them again.
+    keyboard_enhanced: AtomicBool,
 }
 
 impl TerminalResource {
@@ -91,6 +96,7 @@ impl Drop for TerminalResource {
 
         if self.is_crossterm {
             if let Some(AnyTerminal::Crossterm(_)) = guard.take() {
+                pop_keyboard_enhancement(self);
                 let _ = std::io::stdout().execute(DisableMouseCapture);
                 let _ = std::io::stdout().execute(DisableFocusChange);
                 let _ = std::io::stdout().execute(DisableBracketedPaste);
@@ -184,6 +190,7 @@ fn init_terminal(
         image_protocol: Mutex::new(None),
         local_probe: Mutex::new(None),
         cell_tracker: Mutex::new(None),
+        keyboard_enhanced: AtomicBool::new(false),
     }))
 }
 
@@ -196,6 +203,7 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
 
     match guard.take() {
         Some(AnyTerminal::Crossterm(_)) => {
+            pop_keyboard_enhancement(&resource);
             let _ = std::io::stdout().execute(DisableMouseCapture);
             let _ = std::io::stdout().execute(DisableFocusChange);
             let _ = std::io::stdout().execute(DisableBracketedPaste);
@@ -213,6 +221,49 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
     }
 
     Ok(atoms::ok())
+}
+
+/// Asks the terminal to report key repeat and release events (the kitty
+/// keyboard protocol), for every key: plain text keys and modifiers too, with
+/// shifted keys reported as the character they type. Returns whether the
+/// terminal will deliver releases.
+///
+/// Support is detected with crossterm's query, which writes to the terminal
+/// and waits for its answer (up to 2s for a terminal that never answers), so
+/// it must run while nothing else reads the input: before the event loop
+/// polls, with the BEAM's own tty reader parked. Windows consoles always
+/// report releases and take no flags.
+#[rustler::nif(schedule = "DirtyIo")]
+fn terminal_enable_keyboard_enhancement(
+    resource: ResourceArc<TerminalResource>,
+) -> Result<bool, Error> {
+    if !resource.is_crossterm {
+        return Ok(false);
+    }
+
+    if cfg!(windows) {
+        return Ok(true);
+    }
+
+    let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+        | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+        | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+        | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES;
+
+    // A terminal without the protocol ignores the push, so it is popped on
+    // restore whatever the query says.
+    std::io::stdout()
+        .execute(PushKeyboardEnhancementFlags(flags))
+        .map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
+    resource.keyboard_enhanced.store(true, Ordering::SeqCst);
+
+    Ok(terminal::supports_keyboard_enhancement().unwrap_or(false))
+}
+
+fn pop_keyboard_enhancement(resource: &TerminalResource) {
+    if resource.keyboard_enhanced.swap(false, Ordering::SeqCst) {
+        let _ = std::io::stdout().execute(PopKeyboardEnhancementFlags);
+    }
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
@@ -239,6 +290,7 @@ fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalRes
         image_protocol: Mutex::new(None),
         local_probe: Mutex::new(None),
         cell_tracker: Mutex::new(None),
+        keyboard_enhanced: AtomicBool::new(false),
     }))
 }
 

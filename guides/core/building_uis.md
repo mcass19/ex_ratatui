@@ -111,6 +111,22 @@ Terminal events are polled automatically by the runtime. In the [Callback Runtim
 }
 ```
 
+### Key releases
+
+By default a terminal only tells us a key went down, so every event is `kind: "press"`, and holding a key repeats the press. Starting the app with `keyboard_enhancement: true` (or passing it to `ExRatatui.run/2`) asks the terminal for the kitty keyboard protocol: a held key then sends one `"press"`, `"repeat"`s while held, and a `"release"` when let go. That is what driving, games and anything else that acts "while held" needs.
+
+```elixir
+def handle_event(%Event.Key{code: "up", kind: kind}, state) when kind in ["press", "repeat"],
+  do: {:noreply, %{state | throttle: 1.0}}
+
+def handle_event(%Event.Key{code: "up", kind: "release"}, state),
+  do: {:noreply, %{state | throttle: 0.0}}
+```
+
+Two things change once it is on. Autorepeat arrives as `"repeat"`, so a handler matching only `kind: "press"` fires once per hold rather than once per repeat. And pressing Shift, Ctrl and the other modifiers on their own produces no event, the same as without it.
+
+kitty, Ghostty, WezTerm, foot, Alacritty, iTerm2, rio and Warp support the protocol; GNOME Terminal and other VTE-based terminals don't, and multiplexers like tmux generally don't pass releases through. Windows consoles always report releases, with or without the option, so handlers there should match `kind: "press"` explicitly. A terminal without support keeps sending presses only. `ExRatatui.Runtime.snapshot/1` reports which case we got as `:keyboard_enhancement`; an app can also wait for the first `"release"` and switch behaviour then. Only the `:local` transport and `run/2` ask for it so far.
+
 ### Mouse events
 
 ```elixir

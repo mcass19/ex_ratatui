@@ -36,7 +36,7 @@ ExRatatui.run(fn terminal ->
 end, mouse_capture: false, focus_events: false)
 ```
 
-- `run/2` — `run(fun, opts \\ [])`. `fun` is arity-1, receiving a terminal reference. Opts: `:mouse_capture` and `:focus_events`, both **default `false`** on the local transport — opt in explicitly when needed.
+- `run/2` — `run(fun, opts \\ [])`. `fun` is arity-1, receiving a terminal reference. Opts: `:mouse_capture`, `:focus_events` and `:keyboard_enhancement`, all **default `false`** on the local transport — opt in explicitly when needed.
 - `draw/2` — `draw(terminal, [{widget, %Rect{}}, ...])`. The rect, in absolute 0-based cell coordinates, says where to paint.
 - `poll_event/1` — `poll_event(timeout_ms \\ 250)`. Returns an `ExRatatui.Event.*` struct, `nil` on timeout, or `{:error, reason}`.
 - `terminal_size/0` — returns `{width, height}` (a tuple, not a `Rect`).
@@ -99,7 +99,7 @@ Compose custom composite widgets in pure Elixir via the `ExRatatui.Widget` proto
 
 Highest-value rules. The guides hold the full set; these are the ones agents get wrong most.
 
-- **Key event fields are lowercase strings, never atoms — wrong values compile and silently never match.** The shape is `%Event.Key{code: "up", kind: "press", modifiers: ["ctrl"]}`. Character keys are their string value (`"a"`, `"1"`, `" "`); special keys include `"enter"`, `"esc"`, `"tab"`, `"back_tab"`, `"backspace"`, `"up"` / `"down"` / `"left"` / `"right"`, `"page_up"` / `"page_down"`, `"f1"`..`"f12"` — full table in `ExRatatui.Event.Key`. Mouse events use string `kind` / `button` the same way (`%Event.Mouse{kind: "down", button: "left", x: 0, y: 0}`).
+- **Key event fields are lowercase strings, never atoms — wrong values compile and silently never match.** The shape is `%Event.Key{code: "up", kind: "press", modifiers: ["ctrl"]}`. Character keys are their string value (`"a"`, `"1"`, `" "`); special keys include `"enter"`, `"esc"`, `"tab"`, `"back_tab"`, `"backspace"`, `"up"` / `"down"` / `"left"` / `"right"`, `"page_up"` / `"page_down"`, `"f1"`..`"f12"` — full table in `ExRatatui.Event.Key`. `kind` is always `"press"` unless the app is started with `keyboard_enhancement: true` (`:local` / `run/2`), which adds `"repeat"` (autorepeat) and `"release"` on terminals with the kitty keyboard protocol — handlers that should keep firing while a key is held must match `"repeat"` too. Mouse events use string `kind` / `button` the same way (`%Event.Mouse{kind: "down", button: "left", x: 0, y: 0}`).
 - **Never call `draw/2` with a bare widget — pass `[{widget, %Rect{}}, ...]`.** A widget without a rect paints nothing.
 - **Never treat a widget as stateful — rebuild the struct each frame.** Widgets are immutable view descriptors, not objects that mutate in place.
 - **Never return a partial scene from `render/2` — return the whole screen.** The runtime diffs cells; the job is to describe the full frame.

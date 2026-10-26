@@ -228,10 +228,11 @@ See the [Running TUIs over SSH](../transports/ssh_transport.md) and [Running TUI
 
 ### Local terminal opts
 
-The `:local` transport (default when no `:transport` is given) accepts two extra opts on `start_link`:
+The `:local` transport (default when no `:transport` is given) accepts three extra opts on `start_link`:
 
   * `:mouse_capture` — enable mouse reporting (clicks, scroll, drag, move) — events arrive in `handle_event/2` as `%Event.Mouse{}`. Off by default because mouse-capture mode disables the terminal's native text-selection while the app is running. Pair with `ExRatatui.Focus.handle_mouse/2` to route clicks.
   * `:focus_events` — enable terminal-window focus reporting (`%Event.FocusGained{}` / `%Event.FocusLost{}`). Off by default because the request leaves `CSI ?1004h` on the user's tty; any window-switch then queues focus bytes that can leak into unrelated stdin consumers (a plain shell or `mix test` started later).
+  * `:keyboard_enhancement` — ask the terminal for key repeat and release events (`%Event.Key{kind: "repeat"}` / `"release"`), for apps that act while a key is held. See [Key releases](../core/building_uis.md#key-releases) for which terminals support it and what changes for existing handlers.
 
 ```elixir
 children = [

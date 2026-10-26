@@ -10,6 +10,9 @@ defmodule ExRatatui.Runtime do
     * `:subscription_count` and `:subscriptions`
     * `:active_async_commands`
     * `:trace_enabled?`, `:trace_limit`, and `:trace_events`
+    * `:keyboard_enhancement` — `nil` unless the app was started with
+      `keyboard_enhancement: true`, then whether the terminal reports key
+      releases
 
   `inject_event/2` delivers a synthetic terminal event through the same runtime
   transition path as a polled input event. This is useful for deterministic
@@ -39,7 +42,8 @@ defmodule ExRatatui.Runtime do
         trace_events: [map()],
         subscription_count: non_neg_integer(),
         subscriptions: [%{id: term(), kind: atom(), interval_ms: pos_integer(), fired?: boolean(), active?: boolean()}],
-        active_async_commands: non_neg_integer()
+        active_async_commands: non_neg_integer(),
+        keyboard_enhancement: boolean() | nil
       }
   """
   @spec snapshot(GenServer.server()) :: map()
