@@ -26,6 +26,7 @@ defmodule ExRatatui.Distributed.Client do
   require Logger
 
   alias ExRatatui.Event
+  alias ExRatatui.LocalInput
   alias ExRatatui.Native
 
   defstruct [
@@ -35,7 +36,8 @@ defmodule ExRatatui.Distributed.Client do
     :test_mode,
     polling_enabled?: false,
     poll_interval: 16,
-    terminal_initialized: false
+    terminal_initialized: false,
+    local_input: :not_detached
   ]
 
   @doc false
@@ -70,12 +72,19 @@ defmodule ExRatatui.Distributed.Client do
         polling_enabled? = polling_enabled?(test_mode)
         apply_image_caps(terminal_ref, image_protocol, image_font_size)
 
+        # Same local path as the `:local` runtime: park the BEAM's tty
+        # reader so crossterm owns input (and the keyboard protocol query
+        # gets its answer), then ask for key releases if wanted.
+        local_input = LocalInput.detach()
+        _ = ExRatatui.enable_keyboard_enhancement(terminal_ref, opts)
+
         state = %__MODULE__{
           terminal_ref: terminal_ref,
           poll_interval: poll_interval,
           test_mode: test_mode,
           polling_enabled?: polling_enabled?,
-          terminal_initialized: true
+          terminal_initialized: true,
+          local_input: local_input
         }
 
         state =
@@ -116,6 +125,7 @@ defmodule ExRatatui.Distributed.Client do
   @impl true
   def terminate(_reason, %__MODULE__{terminal_initialized: true} = state) do
     restore_terminal(state.terminal_ref)
+    LocalInput.reattach(state.local_input)
     :ok
   end
 

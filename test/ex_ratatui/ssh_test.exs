@@ -9,6 +9,8 @@ defmodule ExRatatui.SSHTest do
   @enter_screen "\e[?1049h\e[?25l"
   @leave_screen "\e[?1049l\e[?25h\e[0m"
   @cpr_size_query "\e[s\e[9999;9999H\e[6n\e[u"
+  @push_keyboard_enhancement "\e[>15u"
+  @pop_keyboard_enhancement "\e[<u"
 
   defmodule SampleApp do
     use ExRatatui.App
@@ -483,6 +485,24 @@ defmodule ExRatatui.SSHTest do
   end
 
   describe "bare Esc detection" do
+    test "a complete sequence that decodes to nothing doesn't schedule the esc timer" do
+      {:ok, server} = __MODULE__.FakeServer.start_link()
+      session = Session.new(80, 24)
+
+      state =
+        build_state()
+        |> Map.merge(%{session: session, server_pid: server, channel_id: 5, conn: :conn})
+
+      # A lone Left Shift release under the kitty protocol.
+      data_msg = {:ssh_cm, :conn, {:data, 5, 0, "\e[57441;1:3u"}}
+      assert {:ok, new_state} = SSH.handle_ssh_msg(data_msg, state)
+
+      assert new_state.esc_timer == nil
+
+      Session.close(session)
+      GenServer.stop(server)
+    end
+
     test "a bare 0x1B with no follow-up schedules the esc timer" do
       {:ok, server} = __MODULE__.FakeServer.start_link()
       session = Session.new(80, 24)
@@ -882,6 +902,25 @@ defmodule ExRatatui.SSHTest do
 
       assert_receive {:got_opts, opts}
       refute Keyword.has_key?(opts, :ssh_user)
+
+      Session.close(state.session)
+    end
+
+    test "asks the client for the kitty keyboard protocol when the app wants releases" do
+      state =
+        build_state(app_opts: [keyboard_enhancement: true])
+        |> prime_with_pty(80, 24)
+
+      {:ok, _} = SSH.start_server(state)
+
+      # Pushed inside the alternate screen, whose flag stack it belongs to.
+      assert_receive {:sent, :conn, _, @enter_screen <> @push_keyboard_enhancement}
+      assert_receive {:server_started, opts}
+      assert opts[:keyboard_enhancement] == true
+
+      # Popped before leaving it.
+      assert :ok = SSH.terminate(:normal, %{state | rendering: true, session: nil})
+      assert_receive {:sent, :conn, _, @pop_keyboard_enhancement <> @leave_screen}
 
       Session.close(state.session)
     end

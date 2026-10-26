@@ -194,6 +194,15 @@ defmodule ExRatatui.SSH do
   # teardown.
   @leave_screen "\e[?1049l\e[?25h\e[0m"
 
+  # Kitty keyboard protocol, for apps started with `keyboard_enhancement:
+  # true`: push flags 15 (disambiguate, event types, alternate keys, all
+  # keys as escapes — the set the local terminal asks for) once in the
+  # alternate screen, pop them before leaving it. Kitty keeps one flag
+  # stack per screen, so a client that misses the pop still gets its
+  # shell's keyboard back when it leaves the alternate screen.
+  @push_keyboard_enhancement "\e[>15u"
+  @pop_keyboard_enhancement "\e[<u"
+
   # Bare-Esc detection timeout (milliseconds). VTE's state machine
   # swallows 0x1B as the start of an escape sequence; if no follow-up
   # byte arrives within this window we emit a synthetic Esc press.
@@ -221,6 +230,7 @@ defmodule ExRatatui.SSH do
     rendering: false,
     subsystem_mode: false,
     esc_timer: nil,
+    keyboard_enhancement: false,
     stop_grace_ms: @stop_grace_ms
   ]
 
@@ -240,6 +250,7 @@ defmodule ExRatatui.SSH do
           rendering: boolean(),
           subsystem_mode: boolean(),
           esc_timer: reference() | nil,
+          keyboard_enhancement: boolean(),
           stop_grace_ms: non_neg_integer()
         }
 
@@ -297,6 +308,7 @@ defmodule ExRatatui.SSH do
       subsystem_mode: subsystem_mode,
       image_protocol: image_protocol,
       image_font_size: image_font_size,
+      keyboard_enhancement: Keyword.get(app_opts, :keyboard_enhancement, false),
       stop_grace_ms: stop_grace_ms
     }
 
@@ -460,12 +472,14 @@ defmodule ExRatatui.SSH do
 
     events = ByteStream.forward_input(session, server_pid, data)
 
-    # If the parser consumed bytes but produced no events, the VTE
-    # state machine may be sitting in the Escape state after a bare
-    # 0x1B. Schedule a short timeout — if no follow-up byte arrives
-    # the timer fires and we emit a synthetic Esc press.
+    # If the parser produced no events and the chunk ends on a 0x1B, the
+    # VTE state machine may be sitting in the Escape state after a bare
+    # Esc. Schedule a short timeout — if no follow-up byte arrives the
+    # timer fires and we emit a synthetic Esc press. Only a trailing
+    # 0x1B counts: a complete sequence that decodes to nothing (a lone
+    # Shift under the kitty protocol, a reply to a query) must not.
     state =
-      if events == [] and byte_size(data) > 0 and :binary.match(data, <<0x1B>>) != :nomatch do
+      if events == [] and byte_size(data) > 0 and :binary.last(data) == 0x1B do
         ref = Process.send_after(self(), :esc_timeout, @esc_timeout_ms)
         %{state | esc_timer: ref}
       else
@@ -538,7 +552,7 @@ defmodule ExRatatui.SSH do
     # render output. :ssh_connection.send is FIFO per channel, so
     # once this call returns the prelude is guaranteed to reach the
     # client before the server's first frame.
-    _ = state.sender.(state.conn, state.channel_id, @enter_screen)
+    _ = state.sender.(state.conn, state.channel_id, enter_screen(state))
 
     case state.starter.(opts) do
       {:ok, pid} ->
@@ -548,7 +562,7 @@ defmodule ExRatatui.SSH do
         # Undo the alt-screen enter so a client that briefly
         # connected sees a clean shell on disconnect instead of a
         # stuck alt buffer.
-        _ = state.sender.(state.conn, state.channel_id, @leave_screen)
+        _ = state.sender.(state.conn, state.channel_id, leave_screen(state))
         error
     end
   end
@@ -661,8 +675,18 @@ defmodule ExRatatui.SSH do
 
   defp maybe_leave_screen(%__MODULE__{rendering: false}), do: :ok
 
-  defp maybe_leave_screen(%__MODULE__{sender: sender, conn: conn, channel_id: channel_id}) do
-    _ = sender.(conn, channel_id, @leave_screen)
+  defp maybe_leave_screen(%__MODULE__{sender: sender, conn: conn, channel_id: channel_id} = state) do
+    _ = sender.(conn, channel_id, leave_screen(state))
     :ok
   end
+
+  defp enter_screen(%__MODULE__{keyboard_enhancement: true}),
+    do: @enter_screen <> @push_keyboard_enhancement
+
+  defp enter_screen(_state), do: @enter_screen
+
+  defp leave_screen(%__MODULE__{keyboard_enhancement: true}),
+    do: @pop_keyboard_enhancement <> @leave_screen
+
+  defp leave_screen(_state), do: @leave_screen
 end

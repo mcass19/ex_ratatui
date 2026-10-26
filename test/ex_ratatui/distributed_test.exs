@@ -61,6 +61,17 @@ defmodule ExRatatui.DistributedTest do
       GenServer.stop(pid)
     end
 
+    test "starts with keyboard enhancement asked for" do
+      # A headless terminal can't report releases; the option must not get
+      # in the way of the client starting.
+      {:ok, pid} =
+        Distributed.start_local_client(test_mode: {80, 24}, keyboard_enhancement: true)
+
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+
     test "forwards poll_interval option" do
       {:ok, pid} =
         Distributed.start_local_client(test_mode: {80, 24}, poll_interval: 32)
