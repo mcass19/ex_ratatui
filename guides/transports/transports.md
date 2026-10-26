@@ -1,45 +1,48 @@
 # Transports
 
-ExRatatui apps run against one of five transports. The model code (mount, render, handle_event, handle_info) is identical across all of them — only the surrounding plumbing differs. This guide is the canonical reference for *what works where*; each row of the matrix below links to a dedicated guide that goes deeper.
+ExRatatui apps run against one of six transports. The model code (mount, render, handle_event, handle_info) is identical across all of them — only the surrounding plumbing differs. This guide is the canonical reference for *what works where*; each row of the matrix below links to a dedicated guide that goes deeper.
 
-## The five transports
+## The six transports
 
 | Transport | Entry point | Where the terminal lives | Where the app callbacks live |
 |---|---|---|---|
 | **Local** | `ExRatatui.run/2` or `ExRatatui.Server.start_link(transport: :local)` | Host tty | Same node, same process |
 | **Byte-stream Session** | `ExRatatui.Server.start_link(transport: {:session, session, writer_fn})` | Caller-owned bytes (any transport speaking ANSI in + bytes out) | Same node |
 | **SSH** | `ExRatatui.SSH.Daemon.start_link/1` | Remote SSH client's tty | App-side; one Server per channel |
+| **IEx shell** | `ExRatatui.IODevice.run/2` | The I/O device of the calling shell (an IEx session over SSH, `iex --remsh`) | Same node; one Server per call |
 | **Distributed** | `ExRatatui.Distributed.attach/2` on the client; `ExRatatui.Distributed.Listener` on the app node | Local node's tty | Remote node, behind Erlang distribution |
 | **CellSession** | `ExRatatui.Server.start_link(transport: {:cell_session, cs, writer_fn})` | None — a `%CellSession{}` exposes the cell buffer instead of bytes (LiveView, headless tests, framebuffers) | Same node |
 
-The internal telemetry tags match: `transport: :local`, `:session`, `:distributed_server`, `:cell_session`. SSH wraps `:session`.
+The internal telemetry tags match: `transport: :local`, `:session`, `:distributed_server`, `:cell_session`. SSH and the IEx shell wrap `:session`.
 
 ## Feature matrix
 
 `✓` = supported, `—` = not applicable for this transport, `✗` = not supported today (issue / follow-up exists).
 
-| Feature | Local | Session | SSH | Distributed | CellSession |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Every widget renders (Paragraph, List, Table, Block, Gauge, Chart, …) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Key events (`Event.Key`) | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
-| Mouse events (`Event.Mouse`) | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
-| Resize events (`Event.Resize`) | ✓ | ✓ | ✓ | ✓ | ✓ (`resize/3`) |
-| Bracketed paste (`Event.Paste`) | ✓ | ✗ (VTE parser doesn't decode `CSI 200~/201~` yet) | ✗ (same) | ✗ (same) | — (caller constructs `%Event.Paste{}` directly) |
-| Focus events (`Event.FocusGained` / `FocusLost`) | ✓ opt-in via `run(fn, focus_events: true)` | ✗ | ✗ | ✗ | — |
-| Image rendering: `:halfblocks` | ✓ | ✓ | ✓ | ✓ | ✓ (forced on a session without `font_size:`) |
-| Image rendering: `:kitty` / `:sixel` / `:iterm2` | ✓ (auto-probe via `auto_local_protocol/1`) | ✓ (per-image at construction) | ✓ (`image_protocol:` opt on the daemon) | ✓ (`image_protocol:` opt on `attach/2`) | ✗ (escape sequences can't survive cell diffing) |
-| Pixel regions (RGB bitmaps for `Image` / `Viewport3D`) | — | — | — | — | ✓ (session created with `font_size:`; bitmaps in `Diff.regions`) |
-| Image protocol auto-detection | ✓ (`probe_image_protocol: true` on mount) | ✗ (caller decides) | ✗ (caller decides) | ✗ (caller decides) | — |
-| OSC 52 clipboard copy (write to terminal's clipboard via emitted bytes) | ✓ (write to stdout) | ✓ (write to the transport's byte writer) | ✓ (same — bytes cross the SSH channel) | ✓ (same — bytes ride the distribution renderer stream) | ✗ (no byte channel; route as an intent if the consumer can act on it) |
-| Intents (forward opaque terms to the transport) | — | — | — | — | ✓ (`{:cell_session, cs, cell_writer, intent_writer}` 4-tuple) |
-| `:render?` runtime opt (skip render after handler returns) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `:commands` runtime opt (long-running work via `ExRatatui.Command`) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Telemetry: `[:ex_ratatui, :transport, :connect/:disconnect]` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Telemetry: `[:ex_ratatui, :render, :frame]` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Feature | Local | Session | SSH | IEx shell | Distributed | CellSession |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Every widget renders (Paragraph, List, Table, Block, Gauge, Chart, …) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Key events (`Event.Key`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
+| Mouse events (`Event.Mouse`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
+| Resize events (`Event.Resize`) | ✓ | ✓ | ✓ | ✓ (polled every 250 ms) | ✓ | ✓ (`resize/3`) |
+| Bracketed paste (`Event.Paste`) | ✓ | ✗ (VTE parser doesn't decode `CSI 200~/201~` yet) | ✗ (same) | ✗ (same) | ✗ (same) | — (caller constructs `%Event.Paste{}` directly) |
+| Key repeat / release (`Event.Key` `kind: "repeat"` / `"release"`) | ✓ opt-in via `keyboard_enhancement: true` | ✓ (parser decodes; the owner pushes `CSI > 15 u`) | ✓ opt-in via `app_opts: [keyboard_enhancement: true]` | ✓ opt-in via `keyboard_enhancement: true` | ✓ opt-in on `attach/3` | ✓ (`feed_input/2`) |
+| Focus events (`Event.FocusGained` / `FocusLost`) | ✓ opt-in via `run(fn, focus_events: true)` | ✗ | ✗ | ✗ | ✗ | — |
+| Image rendering: `:halfblocks` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (forced on a session without `font_size:`) |
+| Image rendering: `:kitty` / `:sixel` / `:iterm2` | ✓ (auto-probe via `auto_local_protocol/1`) | ✓ (per-image at construction) | ✓ (`image_protocol:` opt on the daemon) | ✗ (no `image_protocol:` opt yet) | ✓ (`image_protocol:` opt on `attach/2`) | ✗ (escape sequences can't survive cell diffing) |
+| Pixel regions (RGB bitmaps for `Image` / `Viewport3D`) | — | — | — | — | — | ✓ (session created with `font_size:`; bitmaps in `Diff.regions`) |
+| Image protocol auto-detection | ✓ (`probe_image_protocol: true` on mount) | ✗ (caller decides) | ✗ (caller decides) | ✗ | ✗ (caller decides) | — |
+| OSC 52 clipboard copy (write to terminal's clipboard via emitted bytes) | ✓ (write to stdout) | ✓ (write to the transport's byte writer) | ✓ (same — bytes cross the SSH channel) | ✓ (same — bytes go out through the shell) | ✓ (same — bytes ride the distribution renderer stream) | ✗ (no byte channel; route as an intent if the consumer can act on it) |
+| Intents (forward opaque terms to the transport) | — | — | — | — | — | ✓ (`{:cell_session, cs, cell_writer, intent_writer}` 4-tuple) |
+| `:render?` runtime opt (skip render after handler returns) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `:commands` runtime opt (long-running work via `ExRatatui.Command`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Telemetry: `[:ex_ratatui, :transport, :connect/:disconnect]` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Telemetry: `[:ex_ratatui, :render, :frame]` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ### Notes on the gaps
 
 - **Bracketed paste over byte-stream transports** (Session, SSH, Distributed): the input parser is a custom VTE state machine, not crossterm. It doesn't decode `CSI 200~/201~` markers today. Apps that need pasted-blob handling on those transports can construct `%ExRatatui.Event.Paste{content: text}` themselves and feed it through whatever input pipeline they own — the widget-side contract (`text_input_insert_str/2`, `textarea_insert_str/2`) is transport-agnostic.
+- **Key releases** need a terminal that speaks the kitty keyboard protocol (kitty, Ghostty, WezTerm, foot, Alacritty, iTerm2 and others; not VTE-based terminals). Only the local terminal can check: elsewhere the first `"release"` is the signal. See [Key releases](../core/building_uis.md#key-releases).
 - **Focus events over byte-stream transports**: same VTE-parser gap, plus the protocol question of whether SSH-side terminal-focus events are even useful for the app-side process. Off the roadmap unless someone asks.
 - **Images over CellSession**: Kitty / Sixel / iTerm2 encoders emit escape sequences, which a cell buffer can't represent, so a plain session resolves every protocol to `:halfblocks` — cell-painted approximations that work in every browser, at per-character-pair resolution. A consumer that owns pixels creates the session with `font_size:` and receives the real bitmaps as pixel regions instead; see [Rendering to Non-Terminal Surfaces](cell_session.md#pixel-regions-for-surfaces-with-real-pixels) and [Rendering to a Framebuffer](framebuffer_surfaces.md).
 - **OSC 52 on CellSession**: same root cause as images — no byte channel. The intent mechanism is the escape hatch: emit `{:clipboard_copy, content}` from a handler, register an `intent_writer_fn` on the transport tuple, and have that writer call `navigator.clipboard.writeText` (or equivalent).
@@ -91,9 +94,10 @@ end
 
 - [Local terminal: getting started](../introduction/getting_started.md)
 - [SSH transport](ssh_transport.md)
+- [IEx shell transport](iex_shell_transport.md) — a TUI from an IEx session over SSH or `iex --remsh`
 - [Distributed transport](distributed_transport.md)
 - [Cell sessions (LiveView, headless)](cell_session.md)
 - [Rendering to a framebuffer](framebuffer_surfaces.md) — e-ink panels and other pixel displays with [raster_ex_ratatui](https://hexdocs.pm/raster_ex_ratatui)
-- [Custom transports](custom_transports.md) — implement a fifth one
+- [Custom transports](custom_transports.md) — implement one of our own
 - [Paste and clipboard](../core/paste_and_clipboard.md) — bracketed paste details + the OSC 52 snippet
 - [Images](../core/images.md) — the protocol matrix in depth

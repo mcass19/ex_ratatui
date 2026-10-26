@@ -147,6 +147,7 @@ defmodule ExRatatui.MixProject do
         "guides/runtimes/state_machines.md": [title: "State Machine Patterns"],
         "guides/transports/transports.md": [title: "Transports"],
         "guides/transports/ssh_transport.md": [title: "Running TUIs over SSH"],
+        "guides/transports/iex_shell_transport.md": [title: "Running TUIs in a Remote IEx Shell"],
         "guides/transports/distributed_transport.md": [
           title: "Running TUIs over Erlang Distribution"
         ],
@@ -298,6 +299,9 @@ defmodule ExRatatui.MixProject do
         "SSH Transport": [
           ExRatatui.SSH,
           ExRatatui.SSH.Daemon
+        ],
+        "IEx Shell Transport": [
+          ExRatatui.IODevice
         ],
         "Distribution Transport": [
           ExRatatui.Distributed,

@@ -8,6 +8,8 @@ defmodule ExRatatui.Transport do
     * The built-in `:local` transport — runs against the host tty via
       `ExRatatui.run/1`.
     * `ExRatatui.SSH` + `ExRatatui.SSH.Daemon` — serve apps over SSH.
+    * `ExRatatui.IODevice` — run an app on the calling shell's I/O
+      device (an IEx session over SSH, `iex --remsh`).
     * `ExRatatui.Distributed.Listener` — serve apps to remote BEAM nodes
       using distribution instead of raw bytes.
     * Two session-backed primitives that custom transports build on:
