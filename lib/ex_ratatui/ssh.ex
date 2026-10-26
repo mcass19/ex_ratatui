@@ -273,14 +273,24 @@ defmodule ExRatatui.SSH do
   OTP 29.0.6 or 29.1 rejects that request; see "Known issue: OTP 29.0.6
   and 29.1" in the moduledoc.
 
+  `opts` are channel options, the same ones the daemon passes down:
+  `:app_opts` (merged into every session's `mount/1` opts, e.g.
+  `keyboard_enhancement: true`), `:image_protocol` and `:image_font_size`.
+
   ## Examples
 
       iex> ExRatatui.SSH.subsystem(SomeTUIModule)
       {~c"Elixir.SomeTUIModule", {ExRatatui.SSH, [mod: SomeTUIModule, subsystem: true]}}
+
+      iex> ExRatatui.SSH.subsystem(SomeTUIModule, app_opts: [keyboard_enhancement: true])
+      {~c"Elixir.SomeTUIModule",
+       {ExRatatui.SSH,
+        [mod: SomeTUIModule, subsystem: true, app_opts: [keyboard_enhancement: true]]}}
   """
-  @spec subsystem(module()) :: {charlist(), {module(), keyword()}}
-  def subsystem(mod) when is_atom(mod) do
-    {String.to_charlist(Atom.to_string(mod)), {__MODULE__, [mod: mod, subsystem: true]}}
+  @spec subsystem(module(), keyword()) :: {charlist(), {module(), keyword()}}
+  def subsystem(mod, opts \\ []) when is_atom(mod) and is_list(opts) do
+    {String.to_charlist(Atom.to_string(mod)),
+     {__MODULE__, [mod: mod, subsystem: true] ++ Keyword.drop(opts, [:mod, :subsystem])}}
   end
 
   ## :ssh_server_channel callbacks

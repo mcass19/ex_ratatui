@@ -107,6 +107,10 @@ The subsystem name is the full Elixir module name as a charlist (that's the shap
 
 One subsystem-mode quirk worth knowing: OTP consumes the `pty_req` before a subsystem handler exists, so the channel can't learn the client's terminal size the obvious way. It starts at 80x24 and immediately discovers the real dimensions via a Cursor Position Report roundtrip — the first frame may paint briefly at 80x24, and live `window_change` resizes work normally afterwards. The full mechanism (and why `pty_req` is unrecoverable) is documented in `ExRatatui.SSH`'s moduledoc.
 
+### Opening a TUI from the IEx prompt
+
+`nerves_ssh` also gives us an IEx prompt (`ssh nerves.local`). A TUI started from there can't use the `:local` transport: that drives the device's own console, not the SSH session. `ExRatatui.IODevice.run/2` renders through the IEx session instead; [Running TUIs in a Remote IEx Shell](iex_shell_transport.md) covers it, including an IEx helper that picks the right transport wherever it is called from.
+
 ### Always pass `-t` in subsystem mode
 
 OpenSSH does **not** allocate a PTY by default for subsystem invocations. `sftp` and similar binary protocols don't need one, but a TUI absolutely does — without a PTY the client's local terminal stays in cooked mode, which means keystrokes get line-buffered and locally echoed (painting garbage over the TUI) and the alt-screen teardown on disconnect bleeds into the shell prompt. Always force PTY allocation with `-t`:
@@ -267,6 +271,16 @@ Treat it as user input, not as an identity: under `no_auth_needed` anyone can cl
 
 The key is absent when the connection cannot report a username (a client that vanished mid-handshake, for example), so always match with a fallback rather than `Keyword.fetch!/2`.
 
+## Key releases
+
+`keyboard_enhancement: true` in `:app_opts` asks each client's terminal for the kitty keyboard protocol, so held keys report `"repeat"` and `"release"` as well as `"press"`. The flags are pushed once the session is in the alternate screen and popped before it leaves; kitty keeps a separate flag stack per screen, so even a client that drops mid-session gets its shell's keyboard back. The same option goes through `subsystem/2` under `nerves_ssh`:
+
+```elixir
+ExRatatui.SSH.subsystem(MyApp.TUI, app_opts: [keyboard_enhancement: true])
+```
+
+There is no support check over SSH: a terminal without the protocol just keeps sending presses, and the first `"release"` is the signal that it has it. See [Key releases](../core/building_uis.md#key-releases).
+
 ## Testing
 
 ### Unit tests
@@ -308,6 +322,9 @@ The integration tests run as part of the default `mix test` — no special flags
 **Silent failure under `nerves_ssh`**
 : `nerves_ssh` logs its subsystem errors quietly. Enable verbose SSH logging on the client (`ssh -vv ...`) to see the server's subsystem-failure reason.
 
+**A TUI started from an SSH IEx session shows nothing**
+: It was started on the `:local` transport, which draws on the machine's own console. Use `ExRatatui.IODevice.run/2` from a shell; see [Running TUIs in a Remote IEx Shell](iex_shell_transport.md).
+
 **Tests time out waiting for an initial render**
 : The SSH channel triggers the initial render synchronously inside the linked Server's `init/1` (via the server's session init) before any client input can arrive. If `mount/1` does long I/O (e.g. HTTP, DB), the channel won't see render bytes until that finishes — move expensive work to `handle_info(:refresh, ...)` with a self-scheduled message so the first render doesn't block the handshake.
 
@@ -320,5 +337,6 @@ The integration tests run as part of the default `mix test` — no special flags
   * [Callback Runtime](../runtimes/callback_runtime.md) — OTP-style callbacks
   * [Reducer Runtime](../runtimes/reducer_runtime.md) — Elm-style commands and subscriptions
   * [Building UIs](../core/building_uis.md) — widgets, layout, styles, and events
+  * [Running TUIs in a Remote IEx Shell](iex_shell_transport.md) — a TUI from the IEx prompt `nerves_ssh` already offers
   * [Running TUIs over Erlang Distribution](distributed_transport.md) — alternative remote transport
   * [Custom Transports](custom_transports.md) — write a custom transport on top of `ExRatatui.Transport`

@@ -131,6 +131,7 @@ ExRatatui.Distributed.attach(:"app@host", StatsTui, listener: :stats_dist)
 | `:test_mode` | `{w, h}` | `nil` | Headless test terminal dimensions; disables live local input polling |
 | `:image_protocol` | `:auto \| :halfblocks \| :kitty \| :sixel \| :iterm2` | `nil` | Image protocol hint for the local terminal — drives how `protocol: :auto` images render (see [Images](../core/images.md)) |
 | `:image_font_size` | `{width_px, height_px}` | `nil` | Local cell pixel size for Kitty / Sixel / iTerm2 image scaling |
+| `:keyboard_enhancement` | `boolean()` | `false` | Ask the local terminal for key repeat and release events, forwarded to the remote app (see [Key releases](../core/building_uis.md#key-releases)) |
 
 ## Forwarding `mount/1` opts
 

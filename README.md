@@ -129,7 +129,7 @@ New here? The [Getting Started](guides/introduction/getting_started.md) guide bu
 ExRatatui offers two ways to structure a supervised app and several ways to serve it — every combination works, and switching transport doesn't change the app module.
 
 - **Runtimes:** the [Callback Runtime](guides/runtimes/callback_runtime.md) (LiveView-style `mount`/`render`/`handle_event`, the default) and the [Reducer Runtime](guides/runtimes/reducer_runtime.md) (Elm-style single `update/2` with first-class commands and subscriptions). The callback guide has a [side-by-side comparison](guides/runtimes/callback_runtime.md#callback-or-reducer).
-- **Transports:** local terminal (the default), [SSH](guides/transports/ssh_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md), including [pixel displays](guides/transports/framebuffer_surfaces.md) through [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui). The [Transports guide](guides/transports/transports.md) has the canonical feature matrix.
+- **Transports:** local terminal (the default), [SSH](guides/transports/ssh_transport.md), [a remote IEx shell](guides/transports/iex_shell_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md), including [pixel displays](guides/transports/framebuffer_surfaces.md) through [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui). The [Transports guide](guides/transports/transports.md) has the canonical feature matrix.
 
 ## Guides
 
@@ -144,8 +144,9 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Callback Runtime](guides/runtimes/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
 | [Reducer Runtime](guides/runtimes/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
 | [State Machine Patterns](guides/runtimes/state_machines.md) | Multi-screen apps, modals, and conditional UI without the tangle |
-| [Transports](guides/transports/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / Distributed / CellSession |
+| [Transports](guides/transports/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / IEx shell / Distributed / CellSession |
 | [Running TUIs over SSH](guides/transports/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
+| [Running TUIs in a Remote IEx Shell](guides/transports/iex_shell_transport.md) | Open a TUI from an IEx session over SSH or `iex --remsh`, drawn through the shell itself |
 | [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
 | [Custom Transports](guides/transports/custom_transports.md) | Plug in a custom transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
 | [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers — plus RGB pixel regions for images and 3D on surfaces that own pixels |

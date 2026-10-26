@@ -113,6 +113,7 @@ Highest-value rules. The guides hold the full set; these are the ones agents get
 - **Reducer `update/2` receives `{:event, event}` and `{:info, msg}`, never bare structs.** All input is routed through one `update/2`.
 - **`commands:` and `render?:` runtime opts are designed for the reducer runtime.** They execute under the callback runtime too (command results land in `handle_info/2`), but idiomatic callback apps use `Process.send_after/3` or a supervised Task.
 - **Never serve a TUI to remote users over the `:local` transport — use `transport: :ssh` or `:distributed`.** `:local` grabs the host tty and fails with `terminal_init_failed` where there is no TTY.
+- **From an IEx session over SSH (`nerves_ssh`) or `iex --remsh`, open a TUI with `ExRatatui.IODevice.run(MyApp.TUI, opts)`, not `start_link/1`.** `:local` would draw on the node's own console instead of the shell; `ExRatatui.IODevice.io_device?/0` tells the two apart for an IEx helper.
 - **Never background or pipe stdin into a `mix run`/`iex` TUI example.** With no TTY it exits immediately or raises `terminal_init_failed`; run it in a real terminal emulator.
 - **In tests, always pass `test_mode: {w, h}` and `name: nil`, and drive input with `ExRatatui.Runtime.inject_event/2`.** `test_mode` disables live TTY polling so `async: true` tests do not race; named apps collide across parallel tests.
 
@@ -132,6 +133,7 @@ Full walkthroughs and the complete gotcha set live in the guides (hexdocs):
 - Telemetry — https://hexdocs.pm/ex_ratatui/telemetry.html
 - Transports — https://hexdocs.pm/ex_ratatui/transports.html
 - Running over SSH — https://hexdocs.pm/ex_ratatui/ssh_transport.html
+- Running in a remote IEx shell — https://hexdocs.pm/ex_ratatui/iex_shell_transport.html
 - Running over Erlang distribution — https://hexdocs.pm/ex_ratatui/distributed_transport.html
 - Custom transports — https://hexdocs.pm/ex_ratatui/custom_transports.html
 - Rendering to non-terminal surfaces (CellSession) — https://hexdocs.pm/ex_ratatui/cell_session.html
