@@ -167,12 +167,39 @@ defmodule ExRatatuiTest do
       assert result == :done
     end
 
+    test "asks for keyboard enhancement when the option is set" do
+      terminal = ExRatatui.init_test_terminal(40, 10)
+
+      assert :done =
+               ExRatatui.execute_with_terminal(terminal, fn _t -> :done end,
+                 keyboard_enhancement: true
+               )
+    end
+
     test "restores terminal even when function raises" do
       terminal = ExRatatui.init_test_terminal(40, 10)
 
       assert_raise RuntimeError, "boom", fn ->
         ExRatatui.execute_with_terminal(terminal, fn _t -> raise "boom" end)
       end
+    end
+  end
+
+  describe "enable_keyboard_enhancement/2" do
+    test "is nil unless asked for" do
+      terminal = ExRatatui.init_test_terminal(40, 10)
+      assert ExRatatui.enable_keyboard_enhancement(terminal, []) == nil
+    end
+
+    test "is false on a terminal that can't report releases" do
+      terminal = ExRatatui.init_test_terminal(40, 10)
+      assert ExRatatui.enable_keyboard_enhancement(terminal, keyboard_enhancement: true) == false
+    end
+
+    @tag capture_log: true
+    test "is false, with a warning, when the NIF raises" do
+      assert ExRatatui.enable_keyboard_enhancement(:not_a_terminal, keyboard_enhancement: true) ==
+               false
     end
   end
 

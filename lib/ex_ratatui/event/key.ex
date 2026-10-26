@@ -5,7 +5,9 @@ defmodule ExRatatui.Event.Key do
   ## Fields
 
     * `:code` - the key that was pressed, as a string (see Key Codes below)
-    * `:kind` - `"press"`, `"release"`, or `"repeat"`
+    * `:kind` - `"press"`, `"release"`, or `"repeat"`. Terminals only report
+      the last two when asked with `keyboard_enhancement: true`; see
+      [Key releases](building_uis.html#key-releases)
     * `:modifiers` - list of active modifiers: `"shift"`, `"ctrl"`, `"alt"`,
       `"super"`, `"hyper"`, `"meta"`
 

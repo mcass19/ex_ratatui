@@ -46,6 +46,7 @@ defmodule ExRatatui.Server do
     poll_interval: 16,
     terminal_initialized: false,
     local_input: :not_detached,
+    keyboard_enhancement: nil,
     # Nested so the struct stays within 32 keys (a flat map past that
     # switches to the slower hash-map representation).
     mailbox: %{warn_threshold: @default_mailbox_warn_threshold, alarm?: false, warned_at: nil},
@@ -104,7 +105,8 @@ defmodule ExRatatui.Server do
           mod: mod,
           transport: :local,
           focus_events: focus_events?,
-          mouse_capture: mouse_capture?
+          mouse_capture: mouse_capture?,
+          keyboard_enhancement: Keyword.get(opts, :keyboard_enhancement, false)
         }
 
         terminal_ref =
@@ -165,6 +167,13 @@ defmodule ExRatatui.Server do
           # Hand local input off to crossterm for the session; resumed in
           # terminate/2. See ExRatatui.LocalInput.
           local_input: LocalInput.detach()
+        }
+
+        # After the detach, before the first poll: the support query reads
+        # the terminal's answer from the input stream.
+        state = %{
+          state
+          | keyboard_enhancement: ExRatatui.enable_keyboard_enhancement(terminal_ref, opts)
         }
 
         # Mount-time probe — only honored on :local transport (other
@@ -1398,7 +1407,8 @@ defmodule ExRatatui.Server do
             active?: not is_nil(entry.timer_ref)
           }
         end),
-      active_async_commands: state.active_async_commands
+      active_async_commands: state.active_async_commands,
+      keyboard_enhancement: state.keyboard_enhancement
     }
   end
 

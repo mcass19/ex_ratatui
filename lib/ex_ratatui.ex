@@ -198,30 +198,54 @@ defmodule ExRatatui do
       distributed transports decode mouse sequences regardless of this
       flag because their VTE-based input parser handles them
       unconditionally.
+    * `:keyboard_enhancement` — ask the terminal for key repeat and
+      release events (the kitty keyboard protocol), so `poll_event/1`
+      returns `%Event.Key{}` with `kind: "repeat"` and `kind: "release"`
+      as well as `"press"`. Defaults to `false`. Terminals without the
+      protocol keep sending presses only; the
+      [Key releases](building_uis.html#key-releases) section of the
+      Building UIs guide lists which do.
   """
   @spec run((terminal_ref() -> term()), keyword()) :: term() | {:error, term()}
   def run(fun, opts \\ []) when is_function(fun, 1) and is_list(opts) do
     focus_events? = Keyword.get(opts, :focus_events, false)
     mouse_capture? = Keyword.get(opts, :mouse_capture, false)
-    Native.init_terminal(focus_events?, mouse_capture?) |> do_run(fun)
+    Native.init_terminal(focus_events?, mouse_capture?) |> do_run(fun, opts)
   end
 
   @doc false
-  def do_run({:error, reason}, _fun), do: {:error, reason}
-  def do_run(terminal_ref, fun), do: execute_with_terminal(terminal_ref, fun)
+  def do_run(result, fun, opts \\ [])
+  def do_run({:error, reason}, _fun, _opts), do: {:error, reason}
+  def do_run(terminal_ref, fun, opts), do: execute_with_terminal(terminal_ref, fun, opts)
 
   @doc false
-  def execute_with_terminal(terminal_ref, fun) do
+  def execute_with_terminal(terminal_ref, fun, opts \\ []) do
     # Park the BEAM's tty reader so crossterm owns local input exclusively;
     # resume it once we've handed the terminal back. See ExRatatui.LocalInput.
     input = LocalInput.detach()
 
     try do
+      # After the detach: the support query reads the terminal's answer
+      # from the input the BEAM's reader would otherwise race for.
+      _ = enable_keyboard_enhancement(terminal_ref, opts)
       fun.(terminal_ref)
     after
       safe_restore_terminal(terminal_ref)
       LocalInput.reattach(input)
     end
+  end
+
+  @doc false
+  # `nil` when not asked for, else whether the terminal will report key
+  # releases. Shared by `run/2` and the `:local` runtime.
+  def enable_keyboard_enhancement(terminal_ref, opts) do
+    if Keyword.get(opts, :keyboard_enhancement, false) do
+      Native.terminal_enable_keyboard_enhancement(terminal_ref)
+    end
+  rescue
+    e ->
+      Logger.warning("Failed to enable keyboard enhancement: #{Exception.message(e)}")
+      false
   end
 
   @doc false

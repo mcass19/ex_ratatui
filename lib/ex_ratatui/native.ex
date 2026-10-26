@@ -61,6 +61,7 @@ defmodule ExRatatui.Native do
     terminal_set_image_protocol: 2,
     terminal_set_local_probe: 3,
     terminal_follow_cell_size: 1,
+    terminal_enable_keyboard_enhancement: 1,
     highlight_code: 3
   ]
 

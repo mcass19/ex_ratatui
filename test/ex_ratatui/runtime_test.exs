@@ -280,6 +280,30 @@ defmodule ExRatatui.RuntimeTest do
     assert next_state.trace_enabled?
   end
 
+  test "snapshot reports keyboard enhancement only when it was asked for" do
+    {:ok, plain} =
+      ReducerControlApp.start_link(
+        name: nil,
+        scenario: :default,
+        test_pid: self(),
+        test_mode: {40, 10}
+      )
+
+    assert Runtime.snapshot(plain).keyboard_enhancement == nil
+
+    # A headless test terminal can't report releases.
+    {:ok, enhanced} =
+      ReducerControlApp.start_link(
+        name: nil,
+        scenario: :default,
+        test_pid: self(),
+        test_mode: {40, 10},
+        keyboard_enhancement: true
+      )
+
+    assert Runtime.snapshot(enhanced).keyboard_enhancement == false
+  end
+
   test "render?: false skips the initial render until a synthetic event is injected" do
     {:ok, pid} =
       ReducerControlApp.start_link(
