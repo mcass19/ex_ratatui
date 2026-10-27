@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-27
+
 ### Added
 
 - **TUIs from a remote IEx shell.** `ExRatatui.IODevice.run/2` runs an app on the I/O device of the shell it is called from, so a TUI opened from an IEx session over SSH (`nerves_ssh`) or from `iex --remsh` draws in that session instead of on the node's own console, which is where the `:local` transport goes. Frames go out as `put_chars` requests and keys come in through `get_chars` with echo off, decoded by the same parser as SSH; the device's size is polled every 250 ms and its options are put back on exit. `ExRatatui.IODevice.io_device?/1` tells whether the calling shell is such a device, for IEx helpers that pick the transport. New guide: [Running TUIs in a Remote IEx Shell](guides/transports/iex_shell_transport.md).
@@ -649,7 +651,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/mcass19/ex_ratatui/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/mcass19/ex_ratatui/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/mcass19/ex_ratatui/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/mcass19/ex_ratatui/compare/v0.16.0...v0.17.0
