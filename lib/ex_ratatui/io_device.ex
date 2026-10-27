@@ -125,7 +125,11 @@ defmodule ExRatatui.IODevice do
   end
 
   defp remote_driver?(_device, nil), do: false
-  defp remote_driver?(_device, driver), do: driver != Process.whereis(:user_drv)
+
+  # A node without a terminal of its own (`-noshell`, a release) has no
+  # `:user_drv`, so any driver it finds belongs to someone else's shell.
+  defp remote_driver?(_device, driver),
+    do: driver not in for(name <- [:user_drv], pid = Process.whereis(name), do: pid)
 
   # OTP 28+ groups answer `{:driver_id, pid}` in any state. OTP 26/27
   # ones don't while a read is pending; they keep the driver in their
@@ -152,7 +156,10 @@ defmodule ExRatatui.IODevice do
       _ -> nil
     end
   catch
-    _kind, _reason -> nil
+    # The device's node is unreachable or too slow to answer: no driver to
+    # compare, so the device counts as local. `process_info/2` itself can't
+    # raise there, on a pid of its own node.
+    :error, {:erpc, _reason} -> nil
   end
 
   ## GenServer callbacks
@@ -214,11 +221,9 @@ defmodule ExRatatui.IODevice do
     # A chunk that ends on 0x1B and decodes to nothing may be a bare Esc
     # the parser is holding as the start of a sequence: give the rest of
     # the sequence 50 ms to arrive, then call it Esc. See `ExRatatui.SSH`.
-    if events == [] and data != "" and :binary.last(data) == 0x1B do
-      {:noreply, %{state | esc_timer: Process.send_after(self(), :esc_timeout, @esc_timeout_ms)}}
-    else
-      {:noreply, state}
-    end
+    if events == [] and data != "" and :binary.last(data) == 0x1B,
+      do: {:noreply, arm_esc_timer(state)},
+      else: {:noreply, state}
   end
 
   # `:eof` or `{:error, _}`: the shell went away.
@@ -302,6 +307,11 @@ defmodule ExRatatui.IODevice do
   defp stop_server(pid) do
     Process.unlink(pid)
     Process.exit(pid, :shutdown)
+  end
+
+  defp arm_esc_timer(%__MODULE__{} = state) do
+    ref = Process.send_after(self(), :esc_timeout, @esc_timeout_ms)
+    %{state | esc_timer: ref}
   end
 
   defp cancel_esc_timer(%__MODULE__{esc_timer: nil} = state), do: state
