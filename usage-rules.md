@@ -16,6 +16,7 @@ Pick the runtime before writing any code — this is the single most important d
 
 - The callback runtime is the default and fits most apps. Reach for the reducer runtime when modeling the app as `(msg, state) -> state` with `Command`-driven effects and `Subscription`-driven timers is worth the structure.
 - Both `App` runtimes are supervised: add `{MyApp.TUI, opts}` to a supervision tree. Never hand-roll the loop with `run/2` for a long-lived interactive app.
+- Erlang and Gleam modules can't call `use`. They export `mount/1`, `render/2`, `handle_event/2` (plus optional `handle_info/2`, `subscriptions/1`, `terminate/2`) and start with `ExRatatui.App.start_link(mod, opts)` or `ExRatatui.App.child_spec(mod, opts)`. They always run on the callback runtime, so keep an `update` function and call it from `handle_event/2` and `handle_info/2` rather than using `init/1`/`update/2` callbacks. Build widgets, `Rect`, `Style`, and `Block` with `'Elixir.ExRatatui.Style':'__struct__'(#{...})`; a plain map raises. Events and the frame are maps with string or integer fields, start options are keyword tuples, and the render flag is `{noreply, State, [{'render?', false}]}`. Custom widgets aren't possible from these languages. rebar3 needs the `exerl` plugin (never `rebar_mix`, which loses the NIF) and Elixir's lib dir on `ERL_LIBS`. See the Erlang and Gleam guide.
 
 ## Core API shape
 

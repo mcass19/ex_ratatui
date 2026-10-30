@@ -145,6 +145,7 @@ defmodule ExRatatui.MixProject do
         "guides/runtimes/callback_runtime.md": [title: "Callback Runtime"],
         "guides/runtimes/reducer_runtime.md": [title: "Reducer Runtime"],
         "guides/runtimes/state_machines.md": [title: "State Machine Patterns"],
+        "guides/runtimes/erlang_and_gleam.md": [title: "Erlang and Gleam"],
         "guides/transports/transports.md": [title: "Transports"],
         "guides/transports/ssh_transport.md": [title: "Running TUIs over SSH"],
         "guides/transports/iex_shell_transport.md": [title: "Running TUIs in a Remote IEx Shell"],

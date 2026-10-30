@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Apps without `use ExRatatui.App`.** `ExRatatui.App.start_link/2` and `ExRatatui.App.child_spec/2` start a module that implements the callbacks directly, on any transport. This is what Erlang and Gleam modules need, since `use` is an Elixir macro. The functions `use` generates call them, so nothing changes for existing apps.
+- **Erlang and Gleam guide and examples.** [Erlang and Gleam](guides/runtimes/erlang_and_gleam.md) covers installing (rebar3 needs the `exerl` plugin and Elixir's lib dir on `ERL_LIBS`), data shapes, and limits. `examples/gleam/counter` and `examples/erlang/counter` are standalone projects, and a new CI workflow runs both with their own toolchains.
+
 ### Changed
 
 - **Built-in widgets skip protocol dispatch.** Without consolidated protocols, as in Mix's dev environment, `gleam run`, and rebar3, looking up `ExRatatui.Widget` on every widget took most of the frame: a frame of 50 `Paragraph`s went from about 6 ms to about 0.4 ms under `gleam run`. A `defimpl ExRatatui.Widget` for a built-in widget struct is no longer consulted.

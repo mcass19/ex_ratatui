@@ -144,6 +144,7 @@ ExRatatui offers two ways to structure a supervised app and several ways to serv
 | [Callback Runtime](guides/runtimes/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
 | [Reducer Runtime](guides/runtimes/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
 | [State Machine Patterns](guides/runtimes/state_machines.md) | Multi-screen apps, modals, and conditional UI without the tangle |
+| [Erlang and Gleam](guides/runtimes/erlang_and_gleam.md) | Write the app in Erlang or Gleam, with runnable [Gleam](https://github.com/mcass19/ex_ratatui/tree/main/examples/gleam/counter) and [Erlang](https://github.com/mcass19/ex_ratatui/tree/main/examples/erlang/counter) examples |
 | [Transports](guides/transports/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / IEx shell / Distributed / CellSession |
 | [Running TUIs over SSH](guides/transports/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
 | [Running TUIs in a Remote IEx Shell](guides/transports/iex_shell_transport.md) | Open a TUI from an IEx session over SSH or `iex --remsh`, drawn through the shell itself |
