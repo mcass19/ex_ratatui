@@ -6,6 +6,8 @@ Most examples run under a real terminal. The two under `cell_session/` are **hea
 
 Some terminal examples also work over SSH (`--ssh`) or Erlang distribution (`--distributed`); the flag is noted where it applies (see the bottom of this file).
 
+The `mix run` commands work from the root of this repository. The [Erlang and Gleam examples](#erlang-and-gleam) are standalone projects with their own tools.
+
 ## Start here
 
 A four-step on-ramp, simplest first:
@@ -112,6 +114,15 @@ Runnable companions to the Telemetry and State Machine guides.
 |---------|-----|-------------|
 | [`telemetry.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/telemetry.exs) | `mix run examples/observability/telemetry.exs` | A TUI that attaches a `:telemetry` handler to its own runtime/render `:stop` events and renders the live counts. Pairs with [Telemetry](../guides/internals/telemetry.md). |
 | [`state_machine.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/observability/state_machine.exs) | `mix run examples/observability/state_machine.exs` | Screen-as-data dispatch (`:main`/`:settings`) with a modal `:overlay` that intercepts input — a confirm-quit `Popup`. Pairs with [State Machine Patterns](../guides/runtimes/state_machines.md). |
+
+## Erlang and Gleam
+
+Apps written in other BEAM languages, as standalone projects. Both are the reducer counter again: keys, a 1-second subscription, `render?: false`, and quit. Elixir still has to be installed. See the [Erlang and Gleam guide](../guides/runtimes/erlang_and_gleam.md).
+
+| Example | Requires | What to see |
+|---------|----------|-------------|
+| [`gleam/counter/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/gleam/counter) | `gleam`, `elixir`, `rebar3` | A Gleam module as the app, with typed constructors for layout and styles and a small Erlang file for what Gleam can't write. `gleam run`, and `gleam test` on a headless terminal. See the [subdir README](https://github.com/mcass19/ex_ratatui/blob/main/examples/gleam/counter/README.md). |
+| [`erlang/counter/`](https://github.com/mcass19/ex_ratatui/tree/main/examples/erlang/counter) | `rebar3`, `elixir` | An Erlang module implementing the `ExRatatui.App` behaviour, built with the `exerl` plugin. See the [subdir README](https://github.com/mcass19/ex_ratatui/blob/main/examples/erlang/counter/README.md). |
 
 ## Try an example over SSH
 

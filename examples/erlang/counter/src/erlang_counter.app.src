@@ -1,0 +1,5 @@
+{application, erlang_counter, [
+    {description, "A counter TUI on ExRatatui, written in Erlang"},
+    {vsn, "0.1.0"},
+    {applications, [kernel, stdlib, ex_ratatui]}
+]}.
