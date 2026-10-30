@@ -1,0 +1,141 @@
+name: BEAM Languages
+
+# Builds and runs the Erlang and Gleam examples with their own toolchains.
+#
+# Gleam rejects a Mix project as a path or git dependency, so the example
+# can only depend on ExRatatui from Hex. To test this branch, the gleam job
+# downloads the Hex package and then copies this branch's lib, mix.exs and
+# checksum file over it in build/packages/ex_ratatui. That layout is internal
+# to Gleam, so it is pinned below and bumped deliberately. The NIF still comes
+# from the published release: as in the burrito workflow, adding a NIF is fine
+# but changing a NIF's name or arity, or adding a dependency, is red until
+# the next release.
+#
+# The rebar3 job has no such overlay: exerl crashes on _checkouts, and rebar3
+# restores a modified dependency from Hex. It proves that exerl installs from
+# Hex and that the NIF loads there, using only API the last release has.
+# test/examples_test.exs is what tests the Erlang module against this branch.
+#
+# The guard job is the one in burrito_demo.yml: during a release there is a
+# window where the checksum file doesn't cover @version yet, and these jobs
+# skip (green) until the checksum commit re-triggers them.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: Checksums cover @version?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      buildable: ${{ steps.check.outputs.buildable }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the checksum file covers the current version
+        id: check
+        run: |
+          version=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs | head -n1 | tr -d '\r')
+          if grep -qF -- "-v${version}-nif-" checksum-Elixir.ExRatatui.Native.exs; then
+            echo "buildable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "buildable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No v${version} entries in the NIF checksum file (release in flight) — skipping; the checksum commit will exercise the new artifacts."
+          fi
+
+  gleam:
+    needs: guard
+    if: needs.guard.outputs.buildable == 'true'
+    name: Gleam example on this branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/gleam/counter
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.1.1"
+          elixir-version: "1.20"
+          gleam-version: "1.19.2"
+          rebar3-version: "3.28"
+
+      - name: Download dependencies
+        run: gleam deps download
+
+      - name: Overlay this branch's ExRatatui
+        run: |
+          package=build/packages/ex_ratatui
+          rm -rf "$package/lib" "$package/_build" build/dev
+          cp -r ../../../lib ../../../mix.exs ../../../checksum-Elixir.ExRatatui.Native.exs "$package/"
+
+      - name: Test
+        run: gleam test
+
+      - name: Run on a real terminal
+        env:
+          TERM: xterm-256color
+        run: |
+          gleam build
+          # Without a size the app draws into 0x0. q repeats in case it was slow to start.
+          timeout 120 script -qec "stty cols 80 rows 24; gleam run" pty.log < <(
+            sleep 5
+            printf '\033[A'
+            sleep 0.2
+            printf 'k'
+            sleep 0.2
+            printf '\033[B'
+            sleep 2
+            for _ in $(seq 1 60); do
+              printf 'q'
+              sleep 1
+            done
+          )
+          # Frames are diffs that skip spaces, so check tokens rather than whole lines.
+          grep -aq 'Counter:' pty.log
+          test "$(grep -ao '?1049h' pty.log | wc -l)" -eq 1
+          test "$(grep -ao '?1049l' pty.log | wc -l)" -eq 1
+
+  rebar3:
+    needs: guard
+    if: needs.guard.outputs.buildable == 'true'
+    name: Erlang example from Hex
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/erlang/counter
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.1.1"
+          elixir-version: "1.20"
+          rebar3-version: "3.28"
+
+      - name: Put Elixir on ERL_LIBS
+        run: echo "ERL_LIBS=$(elixir -e 'IO.puts(Path.dirname(:code.lib_dir(:elixir)))')" >> "$GITHUB_ENV"
+
+      - name: Compile
+        run: rebar3 compile
+
+      # Not `rebar3 shell --eval`, which exits 0 without evaluating anything
+      # when stdin isn't a terminal.
+      - name: Draw a frame
+        run: |
+          erl -noshell -pa _build/default/lib/*/ebin \
+            -eval 'io:put_chars(erlang_counter:headless()), init:stop().' | tee frame.txt
+          grep -q 'Counter: 0' frame.txt
