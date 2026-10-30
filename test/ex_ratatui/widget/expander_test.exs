@@ -3,6 +3,7 @@ defmodule ExRatatui.Widget.ExpanderTest do
 
   import ExRatatui.Test.Untyped
 
+  alias ExRatatui.Bridge
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Widget.Expander
   alias ExRatatui.Widgets.{Block, Paragraph}
@@ -163,5 +164,39 @@ defmodule ExRatatui.Widget.ExpanderTest do
                    ~r/BadRect.render\/2 returned an invalid entry/,
                    fn -> Expander.expand!([{%BadRect{}, @rect}]) end
     end
+  end
+
+  describe "primitives/0" do
+    test "every primitive passes through expand!/1 unchanged" do
+      for module <- Expander.primitives() do
+        command = {struct(module), @rect}
+        assert Expander.expand!([command]) == [command]
+      end
+    end
+
+    test "lists exactly the structs Bridge encodes" do
+      {:ok, modules} = :application.get_key(:ex_ratatui, :modules)
+
+      encoded =
+        modules
+        |> Enum.filter(&struct_module?/1)
+        |> Enum.reject(&(&1 |> struct() |> unsupported_by_bridge?()))
+
+      assert Enum.sort(encoded) == Enum.sort(Expander.primitives())
+    end
+  end
+
+  defp struct_module?(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :__struct__, 0)
+  end
+
+  # A primitive's default struct may fail Bridge's validation of its fields,
+  # which still shows that Bridge has an encoder for it.
+  defp unsupported_by_bridge?(widget) do
+    Bridge.encode_command({widget, @rect})
+    false
+  rescue
+    error in ArgumentError -> error.message =~ "unsupported widget struct"
+    _other -> false
   end
 end

@@ -75,6 +75,8 @@ end
 
 **Widget structs are cheap to allocate, expensive to over-nest.** A widget list with thousands of `Span` structs for one line is fine; a `List` with twenty thousand items isn't — use the next section.
 
+**Custom widgets pay for protocol dispatch outside releases.** Finding a widget's `ExRatatui.Widget` implementation takes around 100 µs when protocols aren't consolidated, as in Mix's dev environment, `gleam run`, and rebar3. Built-in widgets skip that lookup, so only custom widgets pay it, once per widget per frame. Mix's `prod` environment consolidates protocols, where the lookup costs almost nothing.
+
 ## Large trees: scrolling containers
 
 Rendering a `%List{items: one_million_rows}` means encoding every row across the NIF boundary on every frame. Don't do that. Options:
