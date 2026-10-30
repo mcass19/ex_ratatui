@@ -2,6 +2,7 @@ defmodule ExRatatuiTest do
   use ExUnit.Case, async: true
 
   doctest ExRatatui
+  doctest ExRatatui.App
   doctest ExRatatui.Style
   doctest ExRatatui.Widgets.Paragraph
   doctest ExRatatui.Widgets.Block
