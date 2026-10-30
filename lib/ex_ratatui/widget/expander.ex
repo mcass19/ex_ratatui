@@ -4,7 +4,66 @@ defmodule ExRatatui.Widget.Expander do
   alias ExRatatui.Layout.Rect
   alias ExRatatui.Widget
 
+  alias ExRatatui.Widgets.{
+    BarChart,
+    BigText,
+    Block,
+    Calendar,
+    Canvas,
+    Chart,
+    Checkbox,
+    Clear,
+    CodeBlock,
+    Gauge,
+    Image,
+    LineGauge,
+    List,
+    Markdown,
+    Paragraph,
+    Popup,
+    Scrollbar,
+    Sparkline,
+    Table,
+    Tabs,
+    Textarea,
+    TextInput,
+    Throbber,
+    Viewport3D,
+    WidgetList
+  }
+
   @max_depth 32
+
+  # The structs Bridge encodes directly. They skip `Widget.impl_for/1`, which
+  # takes around 100 µs a call when protocols aren't consolidated: `gleam run`,
+  # rebar3, and Mix in dev. A frame of 50 widgets spent most of its time there.
+  @primitives [
+    BarChart,
+    BigText,
+    Block,
+    Calendar,
+    Canvas,
+    Chart,
+    Checkbox,
+    Clear,
+    CodeBlock,
+    Gauge,
+    Image,
+    LineGauge,
+    List,
+    Markdown,
+    Paragraph,
+    Popup,
+    Scrollbar,
+    Sparkline,
+    Table,
+    Tabs,
+    Textarea,
+    TextInput,
+    Throbber,
+    Viewport3D,
+    WidgetList
+  ]
 
   # The protocol's typespec promises a list return, but user impls can
   # still return garbage at runtime — keep the defensive clause even
@@ -15,6 +74,14 @@ defmodule ExRatatui.Widget.Expander do
   @spec expand!([{struct(), Rect.t()}]) :: [{struct(), Rect.t()}]
   def expand!(commands) when is_list(commands) do
     Enum.flat_map(commands, &expand_one!(&1, 0, []))
+  end
+
+  @doc false
+  @spec primitives() :: [module()]
+  def primitives, do: @primitives
+
+  defp expand_one!({%module{}, %Rect{}} = command, _depth, _path) when module in @primitives do
+    [command]
   end
 
   defp expand_one!({widget, %Rect{} = rect}, depth, path) when is_struct(widget) do
