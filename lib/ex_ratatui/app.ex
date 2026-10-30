@@ -53,13 +53,19 @@ defmodule ExRatatui.App do
   Reducer apps receive all terminal input as `{:event, event}` and all
   mailbox messages as `{:info, msg}` through `update/2`.
 
-  The callback runtime does not strictly require the `use`: a module
-  that only declares `@behaviour ExRatatui.App` and implements the
-  required callbacks runs identically, with each missing optional
-  callback falling back to the same default the macro injects. The
-  `use` remains the recommended form — it also provides `start_link/1`
-  and `child_spec/1` for supervision — and the reducer runtime can only
-  be selected through it.
+  ## Without `use`
+
+  `use` is an Elixir macro, so a module written in Erlang or Gleam can't call it. Such a module implements the callbacks directly and starts through `start_link/2` and `child_spec/2`, passing the same options as a `use` module:
+
+      {:ok, pid} = ExRatatui.App.start_link(MyTUI, poll_interval: 33)
+
+      children = [ExRatatui.App.child_spec(MyTUI, transport: :distributed)]
+
+  It must export `mount/1`, `render/2`, and `handle_event/2`. `handle_info/2`, `subscriptions/1`, and `terminate/2` are optional, and a missing one behaves like the default `use` injects.
+
+  It always runs on the callback runtime, since `use` is what selects the reducer runtime. For the same style, keep an `update` function in the module and call it from `handle_event/2` and `handle_info/2`. Subscriptions and commands work as usual; `ExRatatui.Runtime.snapshot/1` reports `mode: :callbacks`.
+
+  See the [Erlang and Gleam guide](guides/runtimes/erlang_and_gleam.md).
 
   ## Runtime opts
 
@@ -305,7 +311,7 @@ defmodule ExRatatui.App do
 
           @doc false
           def start_link(opts \\ []) when is_list(opts) do
-            opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
+            ExRatatui.App.start_link(__MODULE__, opts)
           end
         end
 
@@ -347,13 +353,60 @@ defmodule ExRatatui.App do
 
           @doc false
           def start_link(opts \\ []) when is_list(opts) do
-            opts |> Keyword.put(:mod, __MODULE__) |> ExRatatui.App.dispatch_start()
+            ExRatatui.App.start_link(__MODULE__, opts)
           end
         end
 
       other ->
         raise ArgumentError, "unsupported ExRatatui.App runtime: #{inspect(other)}"
     end
+  end
+
+  @doc """
+  Starts `mod` as a TUI over the transport in `opts`, for a module that implements the callbacks without `use ExRatatui.App`.
+
+  Takes the options listed under [Options](#module-options), and passes them on to `c:mount/1`. A `use` module's `start_link/1` calls this.
+
+  ## Examples
+
+      iex> defmodule PlainCounter do
+      ...>   @behaviour ExRatatui.App
+      ...>   def mount(_opts), do: {:ok, 0}
+      ...>   def render(_state, _frame), do: []
+      ...>   def handle_event(_event, state), do: {:noreply, state}
+      ...> end
+      iex> {:ok, pid} = ExRatatui.App.start_link(PlainCounter, name: nil, test_mode: {40, 10})
+      iex> ExRatatui.Runtime.snapshot(pid).mod
+      PlainCounter
+      iex> GenServer.stop(pid)
+      :ok
+  """
+  @spec start_link(module(), keyword()) :: GenServer.on_start() | Supervisor.on_start()
+  def start_link(mod, opts \\ []) when is_atom(mod) and is_list(opts) do
+    opts |> Keyword.put(:mod, mod) |> dispatch_start()
+  end
+
+  @doc """
+  Returns the child spec that starts `mod` through `start_link/2`, for a module that implements the callbacks without `use ExRatatui.App`.
+
+  ## Examples
+
+      iex> spec = ExRatatui.App.child_spec(MyTUI, transport: :distributed)
+      iex> spec.id
+      MyTUI
+      iex> spec.start
+      {ExRatatui.App, :start_link, [MyTUI, [transport: :distributed]]}
+      iex> spec.restart
+      :transient
+  """
+  @spec child_spec(module(), keyword()) :: Supervisor.child_spec()
+  def child_spec(mod, opts \\ []) when is_atom(mod) and is_list(opts) do
+    %{
+      id: mod,
+      start: {__MODULE__, :start_link, [mod, opts]},
+      type: :worker,
+      restart: :transient
+    }
   end
 
   @doc false
@@ -366,9 +419,8 @@ defmodule ExRatatui.App do
   def reducer_handle_info(mod, msg, state), do: mod.update({:info, msg}, state)
 
   @doc false
-  # Routes a `use ExRatatui.App` start_link call to the right transport
-  # supervisor. Public so it can be unit-tested directly without going
-  # through a generated start_link/1.
+  # Routes a start_link call to the right transport supervisor. Public so it
+  # can be unit-tested directly.
   def dispatch_start(opts) do
     case Keyword.get(opts, :transport, :local) do
       :local ->

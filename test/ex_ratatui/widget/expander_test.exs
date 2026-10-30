@@ -73,6 +73,10 @@ defmodule ExRatatui.Widget.ExpanderTest do
     end
   end
 
+  defmodule NoImpl do
+    defstruct []
+  end
+
   @rect %Rect{x: 0, y: 0, width: 10, height: 4}
 
   describe "expand!/1" do
@@ -83,6 +87,11 @@ defmodule ExRatatui.Widget.ExpanderTest do
     test "passes primitive widgets through unchanged" do
       commands = [{%Paragraph{text: "a"}, @rect}, {%Block{title: "b"}, @rect}]
       assert Expander.expand!(commands) == commands
+    end
+
+    test "passes a struct with no Widget implementation through for Bridge to reject" do
+      command = {%NoImpl{}, @rect}
+      assert Expander.expand!([command]) == [command]
     end
 
     test "expands a single custom widget into its children" do
