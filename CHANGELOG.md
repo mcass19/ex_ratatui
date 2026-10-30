@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **Built-in widgets skip protocol dispatch.** Without consolidated protocols, as in Mix's dev environment, `gleam run`, and rebar3, looking up `ExRatatui.Widget` on every widget took most of the frame: a frame of 50 `Paragraph`s went from about 6 ms to about 0.4 ms under `gleam run`. A `defimpl ExRatatui.Widget` for a built-in widget struct is no longer consulted.
+- Bumped `pulldown-cmark`, the Markdown parser in the NIF, for a security advisory.
 
 ## [0.19.0] - 2026-10-27
 
