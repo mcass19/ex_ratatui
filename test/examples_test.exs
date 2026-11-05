@@ -5,7 +5,6 @@ defmodule ExRatatui.ExamplesTest do
   # from examples/**/*.exs, so the compiler can't see them statically.
   @compile {:no_warn_undefined,
             [
-              :erlang_counter,
               BarChartDemo,
               CalendarDemo,
               CanvasDemo,
@@ -208,80 +207,21 @@ defmodule ExRatatui.ExamplesTest do
   end
 
   # The Erlang example is a rebar3 project that builds against the last Hex
-  # release, so this is what tests it against this branch. Warnings fail too,
-  # which catches a callback that no longer matches the behaviour.
-  describe "erlang/counter" do
-    setup do
-      path = Path.join(@examples_dir, "erlang/counter/src/erlang_counter.erl")
+  # release, so this is what runs its EUnit suite against this branch. Warnings
+  # fail too, which catches a callback that no longer matches the behaviour.
+  test "erlang/counter passes its EUnit suite" do
+    for file <- ["src/erlang_counter.erl", "test/erlang_counter_tests.erl"] do
+      path = @examples_dir |> Path.join("erlang/counter/#{file}") |> String.to_charlist()
 
-      {:ok, :erlang_counter, binary} =
-        :compile.file(String.to_charlist(path), [:binary, :return_errors, :warnings_as_errors])
+      {:ok, module, binary} =
+        :compile.file(path, [:binary, :return_errors, :warnings_as_errors])
 
-      {:module, :erlang_counter} =
-        :code.load_binary(:erlang_counter, String.to_charlist(path), binary)
-
-      {:ok, pid} =
-        ExRatatui.App.start_link(:erlang_counter, name: nil, test_mode: {60, 12})
-
-      %{pid: pid}
+      {:module, ^module} = :code.load_binary(module, path, binary)
     end
 
-    defp press(pid, code) do
-      :ok = ExRatatui.Runtime.inject_event(pid, %ExRatatui.Event.Key{code: code, kind: "press"})
-    end
+    {result, output} = ExUnit.CaptureIO.with_io(fn -> :eunit.test(:erlang_counter_tests) end)
 
-    defp buffer(pid) do
-      %{terminal_ref: terminal_ref} = :sys.get_state(pid)
-      ExRatatui.get_buffer_content(terminal_ref)
-    end
-
-    test "keys change the count", %{pid: pid} do
-      for code <- ["up", "k", "up", "down", "x"], do: press(pid, code)
-
-      assert %{count: 2, ticks: 0} = :sys.get_state(pid).user_state
-      assert buffer(pid) =~ "Counter: 2"
-      assert %{mode: :callbacks, mod: :erlang_counter} = ExRatatui.Runtime.snapshot(pid)
-
-      GenServer.stop(pid)
-    end
-
-    test "a tick updates the model without a frame", %{pid: pid} do
-      assert %{subscription_count: 1, render_count: frames} = ExRatatui.Runtime.snapshot(pid)
-
-      send(pid, :tick)
-
-      assert %{count: 0, ticks: 1} = :sys.get_state(pid).user_state
-      assert %{render_count: ^frames} = ExRatatui.Runtime.snapshot(pid)
-      assert buffer(pid) =~ "Ticks: 0"
-
-      press(pid, "up")
-      assert buffer(pid) =~ "Ticks: 1"
-
-      GenServer.stop(pid)
-    end
-
-    test "other messages and events are ignored", %{pid: pid} do
-      send(pid, {:something, :else})
-      :ok = ExRatatui.Runtime.inject_event(pid, %ExRatatui.Event.Resize{width: 60, height: 12})
-
-      assert %{count: 0, ticks: 0} = :sys.get_state(pid).user_state
-
-      GenServer.stop(pid)
-    end
-
-    test "q quits", %{pid: pid} do
-      ref = Process.monitor(pid)
-
-      press(pid, "q")
-
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
-    end
-
-    test "headless/0 draws a frame with no terminal", %{pid: pid} do
-      assert :erlang_counter.headless() =~ "Counter: 0"
-
-      GenServer.stop(pid)
-    end
+    assert result == :ok, output
   end
 
   # apps/chat.exs uses the raw `ExRatatui.run/1 + poll_event` loop — no

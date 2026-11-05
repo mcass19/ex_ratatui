@@ -201,7 +201,7 @@ The SSH daemon needs the `ssh` application running, which comes with starting `e
 
 ## Testing
 
-`test_mode` and `ExRatatui.Runtime.inject_event/2` work as in the [Testing guide](../internals/testing.md). The Gleam example has a `gleam test` suite that drives the app this way, through a small Erlang file of its own.
+`test_mode` and `ExRatatui.Runtime.inject_event/2` work as in the [Testing guide](../internals/testing.md). Both examples have a suite that drives the app this way: an EUnit one run with `rebar3 eunit`, and a `gleam test` one that goes through a small Erlang file of its own.
 
 ## Limits
 

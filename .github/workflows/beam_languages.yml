@@ -14,7 +14,7 @@ name: BEAM Languages
 # The rebar3 job has no such overlay: exerl crashes on _checkouts, and rebar3
 # restores a modified dependency from Hex. It proves that exerl installs from
 # Hex and that the NIF loads there, using only API the last release has.
-# test/examples_test.exs is what tests the Erlang module against this branch.
+# test/examples_test.exs runs the Erlang example's EUnit suite against this branch.
 #
 # The guard job is the one in burrito_demo.yml: during a release there is a
 # window where the checksum file doesn't cover @version yet, and these jobs

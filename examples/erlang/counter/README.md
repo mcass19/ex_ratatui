@@ -14,13 +14,21 @@ See the [Erlang and Gleam guide](../../../guides/runtimes/erlang_and_gleam.md).
 export ERL_LIBS=$(elixir -e 'IO.puts(Path.dirname(:code.lib_dir(:elixir)))')
 ```
 
-`start/0` needs `ExRatatui.App.start_link/2`, which is newer than ExRatatui 0.19.0 on Hex. `headless/0` works on any release.
+`start/0` and the tests need `ExRatatui.App.start_link/2`, which is newer than ExRatatui 0.19.0 on Hex. `headless/0` works on any release.
 
 ## Run
 
 ```sh
 rebar3 shell --eval 'erlang_counter:start(), init:stop().'
 ```
+
+## Test
+
+```sh
+rebar3 eunit
+```
+
+The tests run on a headless terminal, using `test_mode` and `ExRatatui.Runtime.inject_event/2`.
 
 ## Check the install
 
