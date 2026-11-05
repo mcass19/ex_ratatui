@@ -117,7 +117,7 @@ Runnable companions to the Telemetry and State Machine guides.
 
 ## Erlang and Gleam
 
-Apps written in other BEAM languages, as standalone projects. Both are the reducer counter again: keys, a 1-second subscription, `render?: false`, and quit. Elixir still has to be installed. See the [Erlang and Gleam guide](../guides/runtimes/erlang_and_gleam.md).
+Apps written in other BEAM languages, as standalone projects. Both are the reducer counter again (keys, a 1-second subscription, `render?: false`, and quit), plus a `TextInput` whose label Enter logs to a `Table`. Elixir still has to be installed. See the [Erlang and Gleam guide](../guides/runtimes/erlang_and_gleam.md).
 
 | Example | Requires | What to see |
 |---------|----------|-------------|

@@ -155,6 +155,7 @@ Elixir modules are the atoms `'Elixir.ExRatatui.Layout'` and so on, and Elixir s
 | Value | Erlang | Gleam |
 |---|---|---|
 | Widgets, `Rect`, `Style`, `Block` | `'Elixir.ExRatatui.Style':'__struct__'(#{fg => cyan})` | The same, in the Erlang file |
+| `TextInput` and `Textarea` state | `'Elixir.ExRatatui':text_input_new()`, a reference kept in the state | The same function, through `@external` |
 | Frame, events | Maps: `#{width := W}`, `#{code := <<"q">>, kind := <<"press">>}` | Field access in the Erlang file |
 | `mount/1` result | `{ok, State}` | `Ok(state)` |
 | Transition result | `{noreply, State}`, `{stop, State}` | Custom type: `Noreply(state)`, `Stop(state)` |
@@ -232,3 +233,4 @@ The SSH daemon needs the `ssh` application running, which comes with starting `e
 - **No JavaScript target for Gleam.** ExRatatui is a NIF on the BEAM.
 - **Gleam can't check the callbacks.** Erlang's `-behaviour` warns about a missing callback at compile time. Gleam has no behaviours and trusts `@external` types as written, so a misspelled callback or a wrong signature only fails at runtime.
 - **A wrong shim can look like a blank screen.** A bad widget doesn't crash the app: the frame is dropped with a log line and a `[:ex_ratatui, :render, :dropped]` telemetry event, and the last good frame stays up.
+- **Gleam types.** Every widget needs a shim in an Erlang file today. A separate package with typed widgets and events would remove them.

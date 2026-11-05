@@ -3,13 +3,27 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-keys_change_the_count_test() ->
+arrows_change_the_count_test() ->
     Pid = start(),
 
-    [press(Pid, Code) || Code <- [<<"up">>, <<"k">>, <<"up">>, <<"down">>, <<"x">>]],
+    [press(Pid, Code) || Code <- [<<"up">>, <<"up">>, <<"up">>, <<"down">>]],
 
-    ?assertEqual(#{count => 2, ticks => 0}, model(Pid)),
+    ?assertMatch(#{count := 2, ticks := 0}, model(Pid)),
     ?assert(contains(buffer(Pid), <<"Counter: 2">>)),
+
+    stop(Pid).
+
+enter_logs_the_typed_label_test() ->
+    Pid = start(),
+
+    [press(Pid, Code) || Code <- [<<"up">>, <<"h">>, <<"i">>, <<"x">>, <<"backspace">>]],
+    ?assert(contains(buffer(Pid), <<"hi">>)),
+
+    press(Pid, <<"enter">>),
+
+    ?assertMatch(#{log := [{<<"hi">>, 1}]}, model(Pid)),
+    ?assertEqual(<<>>, 'Elixir.ExRatatui':text_input_get_value(maps:get(input, model(Pid)))),
+    ?assert(contains(buffer(Pid), <<"hi">>)),
 
     stop(Pid).
 
@@ -19,7 +33,7 @@ tick_updates_the_model_without_a_frame_test() ->
 
     Pid ! tick,
 
-    ?assertEqual(#{count => 0, ticks => 1}, model(Pid)),
+    ?assertMatch(#{count := 0, ticks := 1}, model(Pid)),
     ?assertEqual(Frames, snapshot(Pid, render_count)),
     ?assert(contains(buffer(Pid), <<"Ticks: 0">>)),
 
@@ -32,10 +46,10 @@ other_messages_and_events_are_ignored_test() ->
     Pid = start(),
 
     Pid ! {something, unexpected},
-    Resize = 'Elixir.ExRatatui.Event.Resize':'__struct__'(#{width => 60, height => 12}),
+    Resize = 'Elixir.ExRatatui.Event.Resize':'__struct__'(#{width => 60, height => 20}),
     ok = 'Elixir.ExRatatui.Runtime':inject_event(Pid, Resize),
 
-    ?assertEqual(#{count => 0, ticks => 0}, model(Pid)),
+    ?assertMatch(#{count := 0, ticks := 0}, model(Pid)),
 
     stop(Pid).
 
@@ -46,11 +60,11 @@ the_subscription_is_active_test() ->
 
     stop(Pid).
 
-q_quits_test() ->
+esc_quits_test() ->
     Pid = start(),
     Ref = monitor(process, Pid),
 
-    press(Pid, <<"q">>),
+    press(Pid, <<"esc">>),
 
     receive
         {'DOWN', Ref, process, Pid, Reason} -> ?assertEqual(normal, Reason)
@@ -61,7 +75,7 @@ headless_draws_a_frame_test() ->
     ?assert(contains(erlang_counter:headless(), <<"Counter: 0">>)).
 
 start() ->
-    Opts = [{name, nil}, {test_mode, {60, 12}}],
+    Opts = [{name, nil}, {test_mode, {60, 20}}],
     {ok, Pid} = 'Elixir.ExRatatui.App':start_link(erlang_counter, Opts),
     Pid.
 

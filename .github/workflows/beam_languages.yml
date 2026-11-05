@@ -2,23 +2,14 @@ name: BEAM Languages
 
 # Builds and runs the Erlang and Gleam examples with their own toolchains.
 #
-# Gleam rejects a Mix project as a path or git dependency, so the example
-# can only depend on ExRatatui from Hex. To test this branch, the gleam job
-# downloads the Hex package and then copies this branch's lib, mix.exs and
-# checksum file over it in build/packages/ex_ratatui. That layout is internal
-# to Gleam, so it is pinned below and bumped deliberately. The NIF still comes
-# from the published release: as in the burrito workflow, adding a NIF is fine
-# but changing a NIF's name or arity, or adding a dependency, is red until
-# the next release.
+# gleam: Gleam only takes ExRatatui from Hex, so the job copies this branch's
+# lib, mix.exs and checksum file over the downloaded package (a Gleam-internal
+# layout, hence the pinned version). The NIF still comes from the last release.
 #
-# The rebar3 job has no such overlay: exerl crashes on _checkouts, and rebar3
-# restores a modified dependency from Hex. It proves that exerl installs from
-# Hex and that the NIF loads there, using only API the last release has.
-# test/examples_test.exs runs the Erlang example's EUnit suite against this branch.
+# rebar3: rebar3 can't take that overlay, so this job only checks the Hex
+# install. test/examples_test.exs runs the EUnit suite against this branch.
 #
-# The guard job is the one in burrito_demo.yml: during a release there is a
-# window where the checksum file doesn't cover @version yet, and these jobs
-# skip (green) until the checksum commit re-triggers them.
+# guard: as in burrito_demo.yml, skips while a release's checksums are missing.
 
 on:
   pull_request:
@@ -86,17 +77,15 @@ jobs:
           TERM: xterm-256color
         run: |
           gleam build
-          # Without a size the app draws into 0x0. q repeats in case it was slow to start.
+          # Without a size the app draws into 0x0. Esc repeats in case it was slow to start.
           timeout 120 script -qec "stty cols 80 rows 24; gleam run" pty.log < <(
             sleep 5
             printf '\033[A'
             sleep 0.2
-            printf 'k'
-            sleep 0.2
-            printf '\033[B'
+            printf 'hi\r'
             sleep 2
             for _ in $(seq 1 60); do
-              printf 'q'
+              printf '\033'
               sleep 1
             done
           )
