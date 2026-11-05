@@ -1,6 +1,6 @@
 # erlang_counter — an ExRatatui app in Erlang
 
-The counter from [`basics/reducer_counter_app.exs`](../../basics/reducer_counter_app.exs), written in Erlang: Up/k and Down/j change the count, a 1-second subscription counts ticks with `render?: false`, and q quits. A tick shows up on the next key's frame.
+The counter from [`basics/reducer_counter_app.exs`](../../basics/reducer_counter_app.exs), written in Erlang: Up and Down change the count, a 1-second subscription counts ticks with `render?: false`, typing fills a `TextInput`, Enter logs the label and count to a `Table`, and Esc quits. A tick shows up on the next key's frame.
 
 See the [Erlang and Gleam guide](../../../guides/runtimes/erlang_and_gleam.md).
 

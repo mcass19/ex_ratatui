@@ -1,6 +1,6 @@
 # gleam_counter — an ExRatatui app in Gleam
 
-The counter from [`basics/reducer_counter_app.exs`](../../basics/reducer_counter_app.exs), written in Gleam: Up/k and Down/j change the count, a 1-second subscription counts ticks with `render?: false`, and q quits. A tick shows up on the next key's frame.
+The counter from [`basics/reducer_counter_app.exs`](../../basics/reducer_counter_app.exs), written in Gleam: Up and Down change the count, a 1-second subscription counts ticks with `render?: false`, typing fills a `TextInput`, Enter logs the label and count to a `Table`, and Esc quits. A tick shows up on the next key's frame.
 
 `src/gleam_counter.gleam` holds the app, in the shape of an Elm program. `src/gleam_counter_ffi.erl` holds what Gleam can't write: Elixir structs, event fields, and the `'render?'` atom.
 
