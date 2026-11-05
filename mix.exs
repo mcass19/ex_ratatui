@@ -134,10 +134,12 @@ defmodule ExRatatui.MixProject do
       source_ref: "v#{@version}",
       extras: [
         "README.md": [title: "Overview"],
-        "usage-rules.md": [title: "Usage Rules (for AI agents)"],
+        "usage-rules.md": [title: "Usage Rules"],
         "guides/introduction/getting_started.md": [title: "Getting Started"],
+        "guides/introduction/installation.md": [title: "Installation"],
         "examples/README.md": [title: "Examples", filename: "examples"],
-        "guides/core/building_uis.md": [title: "Building UIs"],
+        "guides/introduction/built_with.md": [title: "Built with ExRatatui"],
+        "guides/core/building_uis.md": [title: "Fundamentals"],
         "guides/core/3d.md": [title: "3D Rendering"],
         "guides/core/custom_widgets.md": [title: "Custom Widgets"],
         "guides/core/images.md": [title: "Images"],
@@ -146,55 +148,49 @@ defmodule ExRatatui.MixProject do
         "guides/runtimes/reducer_runtime.md": [title: "Reducer Runtime"],
         "guides/runtimes/state_machines.md": [title: "State Machine Patterns"],
         "guides/runtimes/erlang_and_gleam.md": [title: "Erlang and Gleam"],
-        "guides/transports/transports.md": [title: "Transports"],
-        "guides/transports/ssh_transport.md": [title: "Running TUIs over SSH"],
-        "guides/transports/iex_shell_transport.md": [title: "Running TUIs in a Remote IEx Shell"],
-        "guides/transports/distributed_transport.md": [
-          title: "Running TUIs over Erlang Distribution"
-        ],
+        "guides/transports/transports.md": [title: "Choosing a Transport"],
+        "guides/transports/ssh_transport.md": [title: "SSH"],
+        "guides/transports/iex_shell_transport.md": [title: "Remote IEx Shell"],
+        "guides/transports/distributed_transport.md": [title: "Erlang Distribution"],
         "guides/transports/custom_transports.md": [title: "Custom Transports"],
-        "guides/transports/cell_session.md": [title: "Rendering to Non-Terminal Surfaces"],
-        "guides/transports/framebuffer_surfaces.md": [title: "Rendering to a Framebuffer"],
+        "guides/transports/cell_session.md": [title: "Non-Terminal Surfaces"],
+        "guides/transports/framebuffer_surfaces.md": [title: "Framebuffers"],
         "guides/internals/architecture.md": [title: "Architecture"],
         "guides/internals/testing.md": [title: "Testing"],
         "guides/internals/debugging.md": [title: "Debugging"],
         "guides/internals/performance.md": [title: "Performance"],
         "guides/internals/telemetry.md": [title: "Telemetry"],
-        "guides/packaging/packaging_with_burrito.md": [title: "Packaging with Burrito"],
-        "guides/cheatsheets/widgets.cheatmd": [title: "Widgets Cheatsheet"],
+        "guides/packaging/packaging_with_burrito.md": [title: "Burrito"],
+        "guides/cheatsheets/widgets.cheatmd": [title: "Widgets"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
       ],
       groups_for_extras: [
-        Introduction: ["guides/introduction/getting_started.md", "examples/README.md"],
+        Introduction: [
+          "guides/introduction/getting_started.md",
+          "guides/introduction/installation.md",
+          "examples/README.md",
+          "guides/introduction/built_with.md"
+        ],
         "Building UIs": Path.wildcard("guides/core/*.md"),
         Runtimes: Path.wildcard("guides/runtimes/*.md"),
         Transports: Path.wildcard("guides/transports/*.md"),
         "Going Deeper": Path.wildcard("guides/internals/*.md"),
         Packaging: Path.wildcard("guides/packaging/*.md"),
-        Cheatsheets: Path.wildcard("guides/cheatsheets/*.cheatmd")
+        Cheatsheets: Path.wildcard("guides/cheatsheets/*.cheatmd"),
+        "AI Agents": ["usage-rules.md"]
       ],
       groups_for_modules: [
         Core: [
           ExRatatui,
-          ExRatatui.LocalInput,
           ExRatatui.Session,
-          ExRatatui.CellSession,
-          ExRatatui.CellSession.Cell,
-          ExRatatui.CellSession.Snapshot,
-          ExRatatui.CellSession.Diff
+          ExRatatui.LocalInput
         ],
-        Observability: [
-          ExRatatui.Telemetry
-        ],
-        Application: [
+        Runtimes: [
           ExRatatui.App,
-          ExRatatui.Burrito
-        ],
-        "Reducer Runtime": [
+          ExRatatui.Runtime,
           ExRatatui.Command,
-          ExRatatui.Subscription,
-          ExRatatui.Runtime
+          ExRatatui.Subscription
         ],
         Layout: [
           ExRatatui.Frame,
@@ -211,16 +207,14 @@ defmodule ExRatatui.MixProject do
           ExRatatui.Text.Line,
           ExRatatui.Text.Span
         ],
-        Events: [
+        "Events and Focus": [
           ExRatatui.Event,
           ExRatatui.Event.Key,
           ExRatatui.Event.Mouse,
           ExRatatui.Event.Resize,
           ExRatatui.Event.Paste,
           ExRatatui.Event.FocusGained,
-          ExRatatui.Event.FocusLost
-        ],
-        Focus: [
+          ExRatatui.Event.FocusLost,
           ExRatatui.Focus
         ],
         Widgets: [
@@ -293,20 +287,28 @@ defmodule ExRatatui.MixProject do
         "Custom Widgets": [
           ExRatatui.Widget
         ],
-        Transport: [
+        Transports: [
           ExRatatui.Transport,
-          ExRatatui.Transport.ByteStream
-        ],
-        "SSH Transport": [
+          ExRatatui.Transport.ByteStream,
           ExRatatui.SSH,
-          ExRatatui.SSH.Daemon
-        ],
-        "IEx Shell Transport": [
-          ExRatatui.IODevice
-        ],
-        "Distribution Transport": [
+          ExRatatui.SSH.Daemon,
+          ExRatatui.IODevice,
           ExRatatui.Distributed,
           ExRatatui.Distributed.Listener
+        ],
+        "Non-Terminal Surfaces": [
+          ExRatatui.CellSession,
+          ExRatatui.CellSession.Cell,
+          ExRatatui.CellSession.Snapshot,
+          ExRatatui.CellSession.Diff,
+          ExRatatui.CellSession.Region,
+          ExRatatui.Pixels
+        ],
+        Packaging: [
+          ExRatatui.Burrito
+        ],
+        Observability: [
+          ExRatatui.Telemetry
         ]
       ]
     ]

@@ -21,22 +21,15 @@
 
 ## Features
 
-- **25 built-in widgets** — Paragraph, Block, List, Table, Gauge, BarChart, Chart, Canvas, Calendar, Tabs, TextInput, Textarea, Markdown, Image, BigText, CodeBlock, Viewport3D, and more
-- **Constraint-based layout** — percentages, lengths, ratios, min/max, and fill constraints, with flex alignment and spacing
-- **Rich styling** — named, RGB, and 256-indexed colors, text modifiers, per-span rich text, and a semantic theme palette
-- **Two runtimes** — LiveView-style callbacks or an Elm-style reducer with commands and subscriptions, both OTP-supervised
-- **Transport-agnostic apps** — the same module serves a local terminal, SSH clients, or remote BEAM nodes over Erlang distribution
-- **Non-terminal rendering** — expose the rendered cell buffer to Phoenix LiveView, embedded framebuffers, and screenshot tools
-- **Images in the terminal** — PNG / JPEG / GIF / WebP rendered via Kitty, Sixel, iTerm2, or halfblocks, adapting to the terminal at hand
-- **3D rendering** — software-rasterized or ray-traced scenes (`Viewport3D`) with meshes, lights, materials, a movable camera, and a scene-graph for articulated models, blitted into true-color cells
-- **Syntax-highlighted code and big text** — `CodeBlock` with curated themes; oversized 8×8 pixel text for titles and banners
-- **Full event handling** — non-blocking keyboard, mouse, resize, focus, and bracketed-paste events
-- **Focus management** — a declarative focus ring with Tab cycling and mouse hit-testing for multi-panel apps
-- **Custom widgets in pure Elixir** — compose primitives into reusable widgets via a protocol, no Rust required
-- **First-class testing** — headless backend and event injection for CI-friendly assertions
-- **Observability built in** — `:telemetry` events across runtime, render, and transports
-- **Precompiled NIFs** — no Rust toolchain needed; event polling runs on the DirtyIo scheduler and never blocks the BEAM
-- **Single-binary distribution** — ship a TUI as one native executable per OS/arch via [Burrito](https://github.com/burrito-elixir/burrito), no Erlang or Rust install needed on the target machine; `mix ex_ratatui.gen.burrito` scaffolds the wiring
+- **25 built-in widgets** — from paragraphs, lists, and tables to charts, canvas, text inputs, markdown, syntax-highlighted code, images (Kitty, Sixel, iTerm2, halfblocks), and 3D viewports
+- **Layout and styling** — ratatui's constraint-based layout, named, RGB, and indexed colors, and per-span rich text
+- **Two OTP runtimes** — LiveView-style callbacks or an Elm-style reducer with commands and subscriptions, with apps written in Elixir, Erlang, or Gleam
+- **Serve it anywhere** — the same app module runs in a local terminal, over SSH, over Erlang distribution, or on non-terminal surfaces like LiveView and pixel displays
+- **Full input** — keyboard, mouse, resize, focus, and paste events, plus a focus ring for multi-panel apps
+- **Custom widgets in pure Elixir** — compose primitives through a protocol, no Rust required
+- **Testable and observable** — a headless test terminal, event injection, and `:telemetry` events throughout
+- **No Rust toolchain needed** — precompiled NIFs, with event polling on DirtyIo schedulers so the BEAM never blocks
+- **Single-binary distribution** — ship one native executable per OS/arch via [Burrito](https://github.com/burrito-elixir/burrito), scaffolded by `mix ex_ratatui.gen.burrito`
 
 ## Installation
 
@@ -50,46 +43,7 @@ def deps do
 end
 ```
 
-Then fetch and compile:
-
-```sh
-mix deps.get && mix compile
-```
-
-A precompiled NIF binary for the host platform is downloaded automatically. The native library itself is loaded lazily on first use, so compiling a project that depends on `ex_ratatui` does not require the NIF to be loaded into the compiler VM.
-
-### Prerequisites
-
-- Elixir 1.17+
-- Erlang/OTP 26 – 29
-
-Precompiled NIF binaries are available for Linux (x86_64, aarch64, armv6/hf, riscv64), macOS (x86_64, aarch64), and Windows (x86_64), covering NIF ABI versions 2.16 (OTP 26), 2.17 (OTP 27/28) and 2.18 (OTP 29) — no Rust toolchain needed.
-
-The Linux glibc binaries are built against old C libraries on purpose, and the release refuses to publish one that needs more: glibc 2.28 for aarch64, armv6/hf, and riscv64 (so they load on Nerves systems and older distributions), and glibc 2.35 for x86_64. The musl binaries are self-contained.
-
-On musl systems (Alpine, single-binary [Burrito](https://github.com/burrito-elixir/burrito) payloads, Nerves-style rootfs): the `*-unknown-linux-musl` artifacts published up to v0.11.2 dynamically link `libgcc_s.so.1`, which stock musl systems do not ship — `apk add libgcc` fixes the resulting relocation error. Artifacts from later releases embed the unwinder statically and depend on musl libc alone.
-
-To compile from source instead, install the [Rust toolchain](https://rustup.rs/) and set:
-
-```sh
-export EX_RATATUI_BUILD=true
-```
-
-Or, without an env var, in your `config/config.exs`:
-
-```elixir
-config :rustler_precompiled, :force_build, ex_ratatui: true
-```
-
-The application config takes precedence over `EX_RATATUI_BUILD`, and `config :rustler_precompiled, force_build_all: true` takes precedence over both.
-
-Either way, forcing a build also requires Rustler in the consuming project's dependencies — ex_ratatui declares `:rustler` as optional, and optional dependencies are not fetched transitively, so without it the build fails with `Rustler.Compiler is not available`:
-
-```elixir
-{:rustler, ">= 0.0.0"}
-```
-
-Forcing a build is also required when depending on a git tag instead of Hex (`{:ex_ratatui, github: "mcass19/ex_ratatui", tag: "..."}`): the checksum file for a release's precompiled artifacts can only be committed after the tag triggers their build, so each tag predates its own checksums and the precompiled path fails with `the precompiled NIF file does not exist in the checksum file`. The Hex package always carries the complete checksum file.
+The first compile downloads a precompiled NIF for the host, so no Rust toolchain is needed. Requirements, supported platforms, and building from source are in the [Installation guide](guides/introduction/installation.md).
 
 ## Quick Start
 
@@ -124,41 +78,17 @@ Try the [examples catalog](examples/README.md) for more — every widget has a f
 
 New here? The [Getting Started](guides/introduction/getting_started.md) guide builds a supervised todo app from `mix new` to a working TUI.
 
-## Runtimes and Transports
-
-ExRatatui offers two ways to structure a supervised app and several ways to serve it — every combination works, and switching transport doesn't change the app module.
-
-- **Runtimes:** the [Callback Runtime](guides/runtimes/callback_runtime.md) (LiveView-style `mount`/`render`/`handle_event`, the default) and the [Reducer Runtime](guides/runtimes/reducer_runtime.md) (Elm-style single `update/2` with first-class commands and subscriptions). The callback guide has a [side-by-side comparison](guides/runtimes/callback_runtime.md#callback-or-reducer).
-- **Transports:** local terminal (the default), [SSH](guides/transports/ssh_transport.md), [a remote IEx shell](guides/transports/iex_shell_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md), including [pixel displays](guides/transports/framebuffer_surfaces.md) through [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui). The [Transports guide](guides/transports/transports.md) has the canonical feature matrix.
-
 ## Guides
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](guides/introduction/getting_started.md) | Walk-through from `mix new` to a supervised TUI — the place to start |
-| [Building UIs](guides/core/building_uis.md) | Widgets, layout, styles, rich text, and events — everything for `render/2` |
-| [Custom Widgets](guides/core/custom_widgets.md) | Compose primitives into reusable widgets via the `ExRatatui.Widget` protocol |
-| [Images](guides/core/images.md) | Image rendering across terminals and transports — protocols, resizing, telemetry |
-| [3D Rendering](guides/core/3d.md) | Lit 3D scenes with `Viewport3D` — meshes, camera, render modes, and pipelines |
-| [Paste and Clipboard](guides/core/paste_and_clipboard.md) | Bracketed paste behaviour, batch-insert helpers, and an OSC 52 copy snippet |
-| [Callback Runtime](guides/runtimes/callback_runtime.md) | OTP-supervised apps with `mount`, `render`, `handle_event`, and `handle_info` callbacks |
-| [Reducer Runtime](guides/runtimes/reducer_runtime.md) | Elm-style apps with `init`, `update`, `subscriptions`, commands, and runtime inspection |
-| [State Machine Patterns](guides/runtimes/state_machines.md) | Multi-screen apps, modals, and conditional UI without the tangle |
-| [Erlang and Gleam](guides/runtimes/erlang_and_gleam.md) | Write the app in Erlang or Gleam, with runnable [Gleam](https://github.com/mcass19/ex_ratatui/tree/main/examples/gleam/counter) and [Erlang](https://github.com/mcass19/ex_ratatui/tree/main/examples/erlang/counter) examples |
-| [Transports](guides/transports/transports.md) | Canonical feature matrix — what works where across Local / Session / SSH / IEx shell / Distributed / CellSession |
-| [Running TUIs over SSH](guides/transports/ssh_transport.md) | Serve any app as a remote TUI over SSH, standalone or under `nerves_ssh` |
-| [Running TUIs in a Remote IEx Shell](guides/transports/iex_shell_transport.md) | Open a TUI from an IEx session over SSH or `iex --remsh`, drawn through the shell itself |
-| [Running TUIs over Erlang Distribution](guides/transports/distributed_transport.md) | Drive a TUI from a remote BEAM node with zero NIF on the app side |
-| [Custom Transports](guides/transports/custom_transports.md) | Plug in a custom transport (TCP, Livebook, WebSocket) via the `ExRatatui.Transport` behaviour |
-| [Rendering to Non-Terminal Surfaces](guides/transports/cell_session.md) | Use `ExRatatui.CellSession` to expose the rendered cell buffer to LiveView, framebuffers, screenshot tools, and other non-ANSI consumers — plus RGB pixel regions for images and 3D on surfaces that own pixels |
-| [Rendering to a Framebuffer](guides/transports/framebuffer_surfaces.md) | Put a TUI on a pixel display, such as an e-ink panel or a Linux framebuffer, with [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui) |
-| [Architecture](guides/internals/architecture.md) | The NIF bridge and the per-transport process trees |
-| [Testing](guides/internals/testing.md) | Headless backend, `test_mode`, `inject_event`, and assertion patterns |
-| [Debugging](guides/internals/debugging.md) | `Runtime.snapshot`, tracing, buffer inspection, and common errors |
-| [Performance](guides/internals/performance.md) | Render-loop tuning, `render?: false`, large trees, async effects |
-| [Telemetry](guides/internals/telemetry.md) | `:telemetry` events for runtime, render, transport, and session — logging, metrics, OpenTelemetry |
-| [Packaging with Burrito](guides/packaging/packaging_with_burrito.md) | Ship a TUI as a single-file native binary per OS/arch via [Burrito](https://github.com/burrito-elixir/burrito) — no Erlang or Rust install required for end users |
-| [Widgets Cheatsheet](guides/cheatsheets/widgets.cheatmd) | One-page reference with every struct and its key fields |
+The guides follow the groups in the docs sidebar. Every runtime works with every transport, and switching transport doesn't change the app module.
+
+- **Introduction:** [Getting Started](guides/introduction/getting_started.md) builds a supervised todo app from `mix new` and is the place to start. Also [Installation](guides/introduction/installation.md), the [examples catalog](examples/README.md), and [Built with ExRatatui](guides/introduction/built_with.md).
+- **Building UIs:** [Building UIs](guides/core/building_uis.md) covers widgets, layout, styles, rich text, and events. Then [custom widgets](guides/core/custom_widgets.md), [images](guides/core/images.md), [3D rendering](guides/core/3d.md), and [paste and clipboard](guides/core/paste_and_clipboard.md).
+- **Runtimes:** the [Callback Runtime](guides/runtimes/callback_runtime.md) (LiveView-style `mount`/`render`/`handle_event`, the default) and the [Reducer Runtime](guides/runtimes/reducer_runtime.md) (Elm-style `update/2` with commands and subscriptions), compared [side by side](guides/runtimes/callback_runtime.md#callback-or-reducer). Also [state machine patterns](guides/runtimes/state_machines.md) and apps written in [Erlang and Gleam](guides/runtimes/erlang_and_gleam.md).
+- **Transports:** the local terminal by default, or [SSH](guides/transports/ssh_transport.md), [a remote IEx shell](guides/transports/iex_shell_transport.md), [Erlang distribution](guides/transports/distributed_transport.md), [custom transports](guides/transports/custom_transports.md), and [non-terminal surfaces](guides/transports/cell_session.md), including [pixel displays](guides/transports/framebuffer_surfaces.md) through [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui). The [Transports guide](guides/transports/transports.md) has the feature matrix.
+- **Going deeper:** [Architecture](guides/internals/architecture.md), [Testing](guides/internals/testing.md), [Debugging](guides/internals/debugging.md), [Performance](guides/internals/performance.md), and [Telemetry](guides/internals/telemetry.md).
+- **Packaging:** single-file native binaries with [Burrito](guides/packaging/packaging_with_burrito.md).
+- **Cheatsheets:** the [widgets cheatsheet](guides/cheatsheets/widgets.cheatmd), every struct with its key fields.
 
 ## How It Works
 
@@ -174,17 +104,7 @@ The [Architecture guide](guides/internals/architecture.md) has the full picture 
 
 ## Built with ExRatatui
 
-- [ash_tui](https://github.com/mcass19/ash_tui) — Interactive terminal explorer for [Ash](https://ash-hq.org) domains, resources, attributes, actions, and more.
-- [bb_tui](https://github.com/mcass19/bb_tui) — Terminal-based dashboard for [Beam Bots](https://github.com/beam-bots) robots.
-- [switchyard](https://github.com/nshkrdotcom/switchyard) — Full-featured reducer runtime workbench exercising command batching, async effects, subscription reconciliation, runtime snapshots, distributed attach, and row-scrolled WidgetList.
-- [caudata](https://github.com/quaywin/caudata) — Zero-config multi-server log streamer aggregating real-time logs from remote Linux hosts over native SSH, with Docker/Systemd/Launchd discovery and live CPU, RAM, and disk metrics.
-- [ex_athena](https://github.com/udin-io/ex_athena) — Provider-agnostic AI agent loop with a terminal chat TUI (via `mix athena.chat`), supporting Ollama, OpenAI-compatible, llama.cpp, and Anthropic backends.
-- [beamcore](https://github.com/beamcore/agent) — Terminal coding agent where each instance is a distributed [OTP](https://www.erlang.org/) node, with in-VM code execution, persistent memory, mesh RPC, live runtime attachment, and multi-provider LLM support.
-- [extop](https://github.com/z7ealth/extop) — Live Linux system monitor with real-time CPU, GPU, memory, disk, and network charts alongside a sortable, filterable process table with signal management.
-- [phoenix_gen_api_tui](https://hex.pm/packages/phoenix_gen_api_tui) — Terminal-based explorer for [PhoenixGenApi](https://hex.pm/packages/phoenix_gen_api) applications, with runtime inspection of services, call flows, cluster topology, health, and rate limits — no database connection required.
-- [nerves_ex_ratatui_example](https://github.com/mcass19/nerves_ex_ratatui_example) — Example [Nerves](https://nerves-project.org) project with two TUIs (system monitor and LED control) on embedded hardware, reachable over SSH subsystems and Erlang distribution.
-- [phoenix_ex_ratatui_example](https://github.com/mcass19/phoenix_ex_ratatui_example) — Example [Phoenix](https://www.phoenixframework.org/) project with a TUI served over SSH and Erlang distribution alongside a public LiveView chat room, sharing PubSub between the browser and the terminal.
-- ... yours? Open a PR! Plenty of ideas to explore in [awesome-ratatui](https://github.com/ratatui/awesome-ratatui).
+[Built with ExRatatui](guides/introduction/built_with.md) lists apps that use it, from Ash and robotics explorers to system monitors and coding agents. Yours? Open a PR.
 
 ## Contributing
 

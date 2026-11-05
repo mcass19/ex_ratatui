@@ -1,4 +1,4 @@
-# Rendering to non-terminal surfaces with `CellSession`
+# Rendering to Non-Terminal Surfaces with `CellSession`
 
 `ExRatatui.Session` is the right primitive when whatever consumes the TUI speaks ANSI — a real terminal, an SSH channel, a TCP socket on the other end of a raw-mode client. It encodes the rendered frame as escape sequences and hands them to the transport.
 

@@ -16,7 +16,7 @@ Pick the runtime before writing any code — this is the single most important d
 
 - The callback runtime is the default and fits most apps. Reach for the reducer runtime when modeling the app as `(msg, state) -> state` with `Command`-driven effects and `Subscription`-driven timers is worth the structure.
 - Both `App` runtimes are supervised: add `{MyApp.TUI, opts}` to a supervision tree. Never hand-roll the loop with `run/2` for a long-lived interactive app.
-- Erlang and Gleam modules can't call `use`. They export `mount/1`, `render/2`, `handle_event/2` (plus optional `handle_info/2`, `subscriptions/1`, `terminate/2`) and start with `ExRatatui.App.start_link(mod, opts)` or `ExRatatui.App.child_spec(mod, opts)`. They always run on the callback runtime, so keep an `update` function and call it from `handle_event/2` and `handle_info/2` rather than using `init/1`/`update/2` callbacks. Build widgets, `Rect`, `Style`, and `Block` with `'Elixir.ExRatatui.Style':'__struct__'(#{...})`; a plain map raises. Events and the frame are maps with string or integer fields, start options are keyword tuples, and the render flag is `{noreply, State, [{'render?', false}]}`. Custom widgets aren't possible from these languages. rebar3 needs the `exerl` plugin (never `rebar_mix`, which loses the NIF) and Elixir's lib dir on `ERL_LIBS`. See the Erlang and Gleam guide.
+- Erlang and Gleam modules can't call `use`: they export the `ExRatatui.App` callbacks and start with `ExRatatui.App.start_link/2` or `child_spec/2`. Widgets and nested values are built with `'Elixir.ExRatatui.Style':'__struct__'(#{...})`, never plain maps. Install steps and the reducer style are in the [Erlang and Gleam guide](https://hexdocs.pm/ex_ratatui/erlang_and_gleam.html).
 
 ## Core API shape
 
@@ -81,7 +81,7 @@ All widgets are structs under `ExRatatui.Widgets.*` (a few have a companion data
 
 **Input (stateful — NIF-backed)**
 - `TextInput` — single-line editor; drive via `ExRatatui.text_input_*` helpers
-- `Textarea` — multi-line editor; drive via `ExRatatui.textarea_*` helpers and set `wrap_mode: :word_or_glyph` when long logical lines should soft-wrap to the widget width (`:none` is the default)
+- `Textarea` — multi-line editor; drive via `ExRatatui.textarea_*` helpers
 
 **Rich / special**
 - `Markdown` — rendered Markdown
@@ -92,7 +92,7 @@ All widgets are structs under `ExRatatui.Widgets.*` (a few have a companion data
 **App-level helpers (not widgets)**
 - `ExRatatui.Focus` — focus ring for multi-panel apps. `handle_key/2` consumes Tab/Shift+Tab and returns `{focus, key_or_nil}` (`nil` = consumed); register rects to get click-to-focus via `handle_mouse/2`; style with `focused?/2`. Pure data, no process — do not hand-roll focus tracking.
 - `ExRatatui.Theme` — semantic color palette (eleven slots) with `default/0` / `light/0` constructors and `border_style/2` / `text_style/2` / `selection_style/1` helpers. Pure data threaded through render code — no globals, no automatic widget injection.
-- `ExRatatui.CellSession` — render to a cell buffer instead of ANSI bytes (Phoenix LiveView, framebuffers, screenshots). Reach for it before parsing ANSI out of a `Session`. When the consumer owns real pixels, create it with `font_size: {w, h}`: `Viewport3D` and `Image` in pixel modes then ship RGB bitmaps in `Diff.regions` / `Snapshot.regions` (`ExRatatui.CellSession.Region`, the complete list per frame, covered cells blank) instead of half blocks. A consumer painting a panel that is mounted on its side turns a region's bitmap with `ExRatatui.CellSession.Region.rotate/2` (or `ExRatatui.Pixels.rotate_rgb8/4` on the raw bytes) instead of gathering each row from a source column — it rotates the pixels only, never the cell rect. A consumer painting regions onto a panel packs them with `ExRatatui.Pixels.pack_rgb8/5` (resample to the rect, clip, rotate and pack to `:rgb565` / `:xrgb8888` / `:mono_bayer4` / `:rgb8` in one call) instead of looping over pixels. To put an app on a pixel display, such as an e-ink panel or a Linux framebuffer, use [raster_ex_ratatui](https://hexdocs.pm/raster_ex_ratatui) rather than rasterising cells by hand.
+- `ExRatatui.CellSession` — render to a cell buffer instead of ANSI bytes (Phoenix LiveView, screenshots, custom surfaces); reach for it before parsing ANSI out of a `Session`. For pixel displays such as e-ink panels or Linux framebuffers, use [raster_ex_ratatui](https://hexdocs.pm/raster_ex_ratatui) rather than rasterising cells by hand. Pixel regions are in the [CellSession guide](https://hexdocs.pm/ex_ratatui/cell_session.html), and rotating and packing them in the [framebuffer guide](https://hexdocs.pm/ex_ratatui/framebuffer_surfaces.html).
 
 Compose custom composite widgets in pure Elixir via the `ExRatatui.Widget` protocol — no Rust required. See the Custom Widgets guide.
 
@@ -120,25 +120,12 @@ Highest-value rules. The guides hold the full set; these are the ones agents get
 
 ## Going deeper
 
-Full walkthroughs and the complete gotcha set live in the guides (hexdocs):
+Full walkthroughs and the complete gotcha set live in the guides on hexdocs, grouped as in the docs sidebar:
 
-- Getting started — https://hexdocs.pm/ex_ratatui/getting_started.html
-- Building UIs — https://hexdocs.pm/ex_ratatui/building_uis.html
-- Callback runtime — https://hexdocs.pm/ex_ratatui/callback_runtime.html
-- Reducer runtime — https://hexdocs.pm/ex_ratatui/reducer_runtime.html
-- Custom widgets — https://hexdocs.pm/ex_ratatui/custom_widgets.html
-- State machine patterns — https://hexdocs.pm/ex_ratatui/state_machines.html
-- Testing — https://hexdocs.pm/ex_ratatui/testing.html
-- Debugging — https://hexdocs.pm/ex_ratatui/debugging.html
-- Performance — https://hexdocs.pm/ex_ratatui/performance.html
-- Telemetry — https://hexdocs.pm/ex_ratatui/telemetry.html
-- Transports — https://hexdocs.pm/ex_ratatui/transports.html
-- Running over SSH — https://hexdocs.pm/ex_ratatui/ssh_transport.html
-- Running in a remote IEx shell — https://hexdocs.pm/ex_ratatui/iex_shell_transport.html
-- Running over Erlang distribution — https://hexdocs.pm/ex_ratatui/distributed_transport.html
-- Custom transports — https://hexdocs.pm/ex_ratatui/custom_transports.html
-- Rendering to non-terminal surfaces (CellSession) — https://hexdocs.pm/ex_ratatui/cell_session.html
-- Rendering to a framebuffer — https://hexdocs.pm/ex_ratatui/framebuffer_surfaces.html
-- Images — https://hexdocs.pm/ex_ratatui/images.html
-- Paste and clipboard — https://hexdocs.pm/ex_ratatui/paste_and_clipboard.html
-- Widgets cheatsheet — https://hexdocs.pm/ex_ratatui/widgets.html
+- **Introduction:** [Getting started](https://hexdocs.pm/ex_ratatui/getting_started.html), [Installation](https://hexdocs.pm/ex_ratatui/installation.html), [Examples](https://hexdocs.pm/ex_ratatui/examples.html)
+- **Building UIs:** [Building UIs](https://hexdocs.pm/ex_ratatui/building_uis.html), [Custom widgets](https://hexdocs.pm/ex_ratatui/custom_widgets.html), [Images](https://hexdocs.pm/ex_ratatui/images.html), [3D rendering](https://hexdocs.pm/ex_ratatui/3d.html), [Paste and clipboard](https://hexdocs.pm/ex_ratatui/paste_and_clipboard.html)
+- **Runtimes:** [Callback runtime](https://hexdocs.pm/ex_ratatui/callback_runtime.html), [Reducer runtime](https://hexdocs.pm/ex_ratatui/reducer_runtime.html), [State machine patterns](https://hexdocs.pm/ex_ratatui/state_machines.html), [Erlang and Gleam](https://hexdocs.pm/ex_ratatui/erlang_and_gleam.html)
+- **Transports:** [Transports](https://hexdocs.pm/ex_ratatui/transports.html), [SSH](https://hexdocs.pm/ex_ratatui/ssh_transport.html), [Remote IEx shell](https://hexdocs.pm/ex_ratatui/iex_shell_transport.html), [Erlang distribution](https://hexdocs.pm/ex_ratatui/distributed_transport.html), [Custom transports](https://hexdocs.pm/ex_ratatui/custom_transports.html), [CellSession](https://hexdocs.pm/ex_ratatui/cell_session.html), [Framebuffers](https://hexdocs.pm/ex_ratatui/framebuffer_surfaces.html)
+- **Going deeper:** [Architecture](https://hexdocs.pm/ex_ratatui/architecture.html), [Testing](https://hexdocs.pm/ex_ratatui/testing.html), [Debugging](https://hexdocs.pm/ex_ratatui/debugging.html), [Performance](https://hexdocs.pm/ex_ratatui/performance.html), [Telemetry](https://hexdocs.pm/ex_ratatui/telemetry.html)
+- **Packaging:** [Burrito](https://hexdocs.pm/ex_ratatui/packaging_with_burrito.html)
+- **Cheatsheets:** [Widgets](https://hexdocs.pm/ex_ratatui/widgets.html)

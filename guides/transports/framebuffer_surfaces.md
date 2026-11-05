@@ -1,4 +1,4 @@
-# Rendering to a framebuffer
+# Rendering to a Framebuffer
 
 An `ExRatatui.App` can run on a display that has no terminal at all, such as the 1-bit e-ink panel on the Goatmire name badge. The app does not change. It renders into an `ExRatatui.CellSession`, and something on the device side turns the cells and pixel regions of every frame into pixels for the panel.
 
