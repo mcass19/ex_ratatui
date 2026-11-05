@@ -13,6 +13,10 @@ Application.put_env(:ex_ratatui, :image_probe_fn, fn -> {:error, :no_probe_in_te
 # handoff against a fake reader in local_input_test.exs.
 Application.put_env(:ex_ratatui, :detach_local_input, false)
 
+# examples_test.exs runs the Erlang example's EUnit suite, and Mix prunes
+# OTP applications that aren't dependencies from the code path.
+Mix.ensure_application!(:eunit)
+
 # Priority signals (`:erlang.link/2`, `[:priority]` monitors) arrived in
 # OTP 28; the Server falls back to FIFO close on older releases.
 otp_excludes = if String.to_integer(System.otp_release()) < 28, do: [:otp28], else: []
