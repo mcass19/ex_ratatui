@@ -44,5 +44,5 @@ ex_ratatui-*.tar
 # Dev docs
 docs/dev/
 
-# mise
-mise.toml
+# mise (the examples' own mise.toml files are tracked)
+/mise.toml
