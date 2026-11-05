@@ -14,11 +14,11 @@ Needs `gleam`, `elixir`, and `rebar3` on the `PATH`. Gleam builds ExRatatui with
 gleam add ex_ratatui
 ```
 
-Gleam rejects a Mix project as a path or git dependency, so only Hex releases work. That Gleam builds Mix packages at all is observed rather than documented; tested with Gleam 1.19.2.
+Gleam rejects a Mix project as a path or git dependency, so only Hex releases work.
 
 ### Erlang
 
-Needs `rebar3` and `elixir`. Use the [`exerl`](https://hex.pm/packages/exerl) plugin, tested with 0.3.0. `rebar_mix` copies only a dependency's `ebin`, which loses the NIF, so the app fails to load it at runtime.
+Needs `rebar3` and `elixir`. Use the [`exerl`](https://hex.pm/packages/exerl) plugin. `rebar_mix` copies only a dependency's `ebin`, which loses the NIF, so the app fails to load it at runtime.
 
 ```erlang
 {deps, [{ex_ratatui, "~> 0.19"}]}.
@@ -148,8 +148,6 @@ wait_for_exit(Pid) ->
     receive {'DOWN', Ref, process, Pid, _Reason} -> nil end.
 ```
 
-Unlike Erlang's `-behaviour`, nothing checks these callbacks or the `@external` signatures at compile time.
-
 ## Data shapes
 
 Elixir modules are the atoms `'Elixir.ExRatatui.Layout'` and so on, and Elixir strings are binaries. In Gleam, `@external(erlang, "Elixir.ExRatatui.Layout", "split")` binds any function whose arguments Gleam can write.
@@ -167,17 +165,20 @@ Elixir modules are the atoms `'Elixir.ExRatatui.Layout'` and so on, and Elixir s
 
 Nested values have to be real structs too: a plain map for `style` or `block` raises when the frame is encoded.
 
-## Elm-style updates
+## The reducer style
 
-`use` is what selects the reducer runtime, so these modules run on the callback runtime. For the same structure, keep an `update` function and call it from `handle_event/2` and `handle_info/2`. `subscriptions/1` and runtime opts such as `commands` work the same way. The only visible difference is `mode: :callbacks` in `ExRatatui.Runtime.snapshot/1`.
+In Elixir, `use ExRatatui.App, runtime: :reducer` only adds three callbacks that forward to `init/1` and `update/2`. Without `use`, write them by hand and the module works like a reducer app:
 
 ```erlang
-handle_info(tick, Model) -> update(tick, Model);
-handle_info(_Message, Model) -> {noreply, Model}.
+mount(Opts) -> init(Opts).
+handle_event(Event, Model) -> update({event, Event}, Model).
+handle_info(Message, Model) -> update({info, Message}, Model).
 
 subscriptions(_Model) ->
     ['Elixir.ExRatatui.Subscription':interval(counter_tick, 1000, tick)].
 ```
+
+`subscriptions/1` and runtime opts such as `commands` work the same. The only difference is `mode: :callbacks` in `ExRatatui.Runtime.snapshot/1`.
 
 `handle_info/2` receives whatever reaches the runtime's mailbox, so a Gleam version needs a catch-all clause even if its message type lists only `Tick`.
 
@@ -191,7 +192,29 @@ init([]) ->
     {ok, {#{strategy => one_for_one}, Children}}.
 ```
 
-`gleam_otp` supervisors take their own child format and haven't been tested.
+A `gleam_otp` supervisor takes a function that returns `actor.Started`, so wrap `start_link/2`, with `Pid` from `gleam/erlang/process` in its `@external`. Make the child `Transient` like `child_spec/2` does: the default `Permanent` restarts the app when it quits on q.
+
+```gleam
+import gleam/otp/actor
+import gleam/otp/static_supervisor as supervisor
+import gleam/otp/supervision
+import gleam/string
+
+fn start_tui() -> Result(actor.Started(Nil), actor.StartError) {
+  case start_link(MyTui, []) {
+    Ok(pid) -> Ok(actor.Started(pid:, data: Nil))
+    Error(reason) -> Error(actor.InitFailed(string.inspect(reason)))
+  }
+}
+
+pub fn start_supervisor() {
+  supervisor.new(supervisor.OneForOne)
+  |> supervisor.add(
+    supervision.worker(start_tui) |> supervision.restart(supervision.Transient),
+  )
+  |> supervisor.start
+}
+```
 
 ## Transports
 
@@ -207,5 +230,5 @@ The SSH daemon needs the `ssh` application running, which comes with starting `e
 
 - **No custom widgets.** `ExRatatui.Widget` is an Elixir protocol, and neither language can write a `defimpl`.
 - **No JavaScript target for Gleam.** ExRatatui is a NIF on the BEAM.
+- **Gleam can't check the callbacks.** Erlang's `-behaviour` warns about a missing callback at compile time. Gleam has no behaviours and trusts `@external` types as written, so a misspelled callback or a wrong signature only fails at runtime.
 - **A wrong shim can look like a blank screen.** A bad widget doesn't crash the app: the frame is dropped with a log line and a `[:ex_ratatui, :render, :dropped]` telemetry event, and the last good frame stays up.
-- **Tested on Linux only**, with OTP 29 and Elixir 1.20. macOS, rebar3 releases, and `gleam export` haven't been run.

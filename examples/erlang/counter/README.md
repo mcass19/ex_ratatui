@@ -6,7 +6,7 @@ See the [Erlang and Gleam guide](../../../guides/runtimes/erlang_and_gleam.md).
 
 ## Requirements
 
-`rebar3` and `elixir`. Tested with rebar3 3.28, OTP 29, and Elixir 1.20, which `mise install` sets up from `mise.toml`.
+`rebar3` and `elixir`. `mise install` sets them up from `mise.toml`.
 
 `rebar.config` uses the [`exerl`](https://hex.pm/packages/exerl) plugin rather than `rebar_mix`, which copies only a dependency's `ebin` and so loses the NIF. Elixir's lib dir has to be on `ERL_LIBS`, or `Application.app_dir/2` is undefined when the NIF loads:
 

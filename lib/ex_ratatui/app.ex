@@ -63,7 +63,7 @@ defmodule ExRatatui.App do
 
   It must export `mount/1`, `render/2`, and `handle_event/2`. `handle_info/2`, `subscriptions/1`, and `terminate/2` are optional, and a missing one behaves like the default `use` injects.
 
-  It always runs on the callback runtime, since `use` is what selects the reducer runtime. For the same style, keep an `update` function in the module and call it from `handle_event/2` and `handle_info/2`. Subscriptions and commands work as usual; `ExRatatui.Runtime.snapshot/1` reports `mode: :callbacks`.
+  For the reducer style, write the three callbacks `use ExRatatui.App, runtime: :reducer` would add: `mount/1` calls `init/1`, and `handle_event/2` and `handle_info/2` call `update/2` with `{:event, event}` and `{:info, msg}`. Subscriptions and commands work as usual; `ExRatatui.Runtime.snapshot/1` reports `mode: :callbacks`.
 
   See the [Erlang and Gleam guide](guides/runtimes/erlang_and_gleam.md).
 
