@@ -10,8 +10,6 @@ See the [Erlang and Gleam guide](../../../guides/runtimes/erlang_and_gleam.md).
 
 `gleam`, `elixir`, and `rebar3`. Gleam builds ExRatatui with Mix and `telemetry` with rebar3. `mise install` sets them all up from `mise.toml`.
 
-This example needs `ExRatatui.App.start_link/2`, which is newer than ExRatatui 0.19.0 on Hex.
-
 ## Run
 
 ```sh

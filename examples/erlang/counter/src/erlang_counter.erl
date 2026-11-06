@@ -3,7 +3,7 @@
 
 -behaviour('Elixir.ExRatatui.App').
 
--export([start/0, headless/0]).
+-export([start/0]).
 -export([mount/1, render/2, handle_event/2, handle_info/2, subscriptions/1]).
 
 %% Runs the TUI in this terminal until Esc.
@@ -13,14 +13,6 @@ start() ->
     receive
         {'DOWN', Ref, process, Pid, _Reason} -> ok
     end.
-
-%% Draws one frame on a test terminal and returns its text, with no terminal needed.
-headless() ->
-    Terminal = 'Elixir.ExRatatui':init_test_terminal(60, 20),
-    {ok, Model} = mount([]),
-    Frame = 'Elixir.ExRatatui.Frame':'__struct__'(#{width => 60, height => 20}),
-    ok = 'Elixir.ExRatatui':draw(Terminal, render(Model, Frame)),
-    'Elixir.ExRatatui':get_buffer_content(Terminal).
 
 mount(_Opts) ->
     %% The text input keeps its state in the NIF, so the model holds a reference that typing updates in place.

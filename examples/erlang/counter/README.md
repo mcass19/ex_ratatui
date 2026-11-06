@@ -14,8 +14,6 @@ See the [Erlang and Gleam guide](../../../guides/runtimes/erlang_and_gleam.md).
 export ERL_LIBS=$(elixir -e 'IO.puts(Path.dirname(:code.lib_dir(:elixir)))')
 ```
 
-`start/0` and the tests need `ExRatatui.App.start_link/2`, which is newer than ExRatatui 0.19.0 on Hex. `headless/0` works on any release.
-
 ## Run
 
 ```sh
@@ -29,14 +27,3 @@ rebar3 eunit
 ```
 
 The tests run on a headless terminal, using `test_mode` and `ExRatatui.Runtime.inject_event/2`.
-
-## Check the install
-
-`headless/0` draws one frame on a test terminal and returns its text, so it needs no terminal at all:
-
-```sh
-rebar3 compile
-erl -noshell -pa _build/default/lib/*/ebin -eval 'io:put_chars(erlang_counter:headless()), init:stop().'
-```
-
-`rebar3 shell --eval` needs a terminal on stdin, so scripts should use `erl` as above.

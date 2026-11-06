@@ -71,9 +71,6 @@ esc_quits_test() ->
     after 2000 -> error(timeout)
     end.
 
-headless_draws_a_frame_test() ->
-    ?assert(contains(erlang_counter:headless(), <<"Counter: 0">>)).
-
 start() ->
     Opts = [{name, nil}, {test_mode, {60, 20}}],
     {ok, Pid} = 'Elixir.ExRatatui.App':start_link(erlang_counter, Opts),

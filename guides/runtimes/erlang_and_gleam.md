@@ -21,7 +21,7 @@ Gleam rejects a Mix project as a path or git dependency, so only Hex releases wo
 Needs `rebar3` and `elixir`. Use the [`exerl`](https://hex.pm/packages/exerl) plugin. `rebar_mix` copies only a dependency's `ebin`, which loses the NIF, so the app fails to load it at runtime.
 
 ```erlang
-{deps, [{ex_ratatui, "~> 0.19"}]}.
+{deps, [{ex_ratatui, "~> 0.20"}]}.
 {plugins, [exerl]}.
 ```
 

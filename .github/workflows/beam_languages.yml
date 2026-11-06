@@ -6,8 +6,8 @@ name: BEAM Languages
 # lib, mix.exs and checksum file over the downloaded package (a Gleam-internal
 # layout, hence the pinned version). The NIF still comes from the last release.
 #
-# rebar3: rebar3 can't take that overlay, so this job only checks the Hex
-# install. test/examples_test.exs runs the EUnit suite against this branch.
+# rebar3: rebar3 can't take that overlay, so this job runs the example against
+# the last Hex release. test/examples_test.exs runs the EUnit suite against this branch.
 #
 # guard: as in burrito_demo.yml, skips while a release's checksums are missing.
 
@@ -118,13 +118,27 @@ jobs:
       - name: Put Elixir on ERL_LIBS
         run: echo "ERL_LIBS=$(elixir -e 'IO.puts(Path.dirname(:code.lib_dir(:elixir)))')" >> "$GITHUB_ENV"
 
-      - name: Compile
-        run: rebar3 compile
+      - name: Test
+        run: rebar3 eunit
 
-      # Not `rebar3 shell --eval`, which exits 0 without evaluating anything
-      # when stdin isn't a terminal.
-      - name: Draw a frame
+      - name: Run on a real terminal
+        env:
+          TERM: xterm-256color
         run: |
-          erl -noshell -pa _build/default/lib/*/ebin \
-            -eval 'io:put_chars(erlang_counter:headless()), init:stop().' | tee frame.txt
-          grep -q 'Counter: 0' frame.txt
+          rebar3 compile
+          # Without a size the app draws into 0x0. Esc repeats in case it was slow to start.
+          timeout 120 script -qec "stty cols 80 rows 24; erl -noshell -pa _build/default/lib/*/ebin -eval '{ok, _} = application:ensure_all_started(ex_ratatui), erlang_counter:start(), init:stop().'" pty.log < <(
+            sleep 5
+            printf '\033[A'
+            sleep 0.2
+            printf 'hi\r'
+            sleep 2
+            for _ in $(seq 1 60); do
+              printf '\033'
+              sleep 1
+            done
+          )
+          # Frames are diffs that skip spaces, so check tokens rather than whole lines.
+          grep -aq 'Counter:' pty.log
+          test "$(grep -ao '?1049h' pty.log | wc -l)" -eq 1
+          test "$(grep -ao '?1049l' pty.log | wc -l)" -eq 1

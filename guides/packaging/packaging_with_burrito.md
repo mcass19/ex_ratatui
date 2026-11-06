@@ -45,7 +45,7 @@ Add ex_ratatui and burrito to `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:ex_ratatui, "~> 0.12"},
+    {:ex_ratatui, "~> 0.20"},
     {:burrito, "~> 1.6"}
   ]
 end
