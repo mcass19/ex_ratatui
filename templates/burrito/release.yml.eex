@@ -39,7 +39,7 @@ jobs:
           - os: macos-15-intel
             target: macos
             artifact: <%= @app %>_macos
-          - os: macos-14
+          - os: macos-15
             target: macos_silicon
             artifact: <%= @app %>_macos_silicon
           - os: windows-latest

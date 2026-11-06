@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mix ex_ratatui.gen.burrito --ci github` builds the Apple Silicon binary on `macos-15`.** The scaffolded workflow used `macos-14`, which GitHub retired on November 2, 2026, so that job no longer starts. Projects that already generated the workflow should change the label in `.github/workflows/release.yml` themselves.
+
 ## [0.20.0] - 2026-11-06
 
 ### Added

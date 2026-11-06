@@ -239,7 +239,8 @@ defmodule Mix.Tasks.ExRatatui.Gen.BurritoTest do
 
       assert diff =~ "ubuntu-latest"
       assert diff =~ "macos-15-intel"
-      assert diff =~ "macos-14"
+      assert diff =~ ~r/os: macos-15\n/
+      refute diff =~ "macos-14"
       assert diff =~ "windows-latest"
       assert diff =~ "BURRITO_TARGET: ${{ matrix.target }}"
       assert diff =~ "softprops/action-gh-release"

@@ -181,8 +181,8 @@ strategy:
   matrix:
     include:
       - { os: ubuntu-latest,  target: linux,         artifact: my_tui_linux }
-      - { os: macos-15-intel,       target: macos,         artifact: my_tui_macos }
-      - { os: macos-14,       target: macos_silicon, artifact: my_tui_macos_silicon }
+      - { os: macos-15-intel, target: macos,         artifact: my_tui_macos }
+      - { os: macos-15,       target: macos_silicon, artifact: my_tui_macos_silicon }
       - { os: windows-latest, target: windows,       artifact: my_tui_windows.exe }
 ```
 
