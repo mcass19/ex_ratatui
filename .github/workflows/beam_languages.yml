@@ -41,7 +41,7 @@ jobs:
   gleam:
     needs: guard
     if: needs.guard.outputs.buildable == 'true'
-    name: Gleam example on this branch
+    name: Gleam
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -97,7 +97,7 @@ jobs:
   rebar3:
     needs: guard
     if: needs.guard.outputs.buildable == 'true'
-    name: Erlang example from Hex
+    name: Erlang
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
