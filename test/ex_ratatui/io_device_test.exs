@@ -339,6 +339,18 @@ defmodule ExRatatui.IODeviceTest do
       assert_receive {:written, @leave_screen}
       assert_receive {:setopts, [echo: true, binary: false]}
     end
+
+    test "runs on the caller's group leader by default" do
+      {:ok, device} = StringIO.open("")
+      leader = Process.group_leader()
+      Process.group_leader(self(), device)
+
+      try do
+        assert {:error, {:io_device, {:error, :enotsup}}} = IODevice.run(KeyApp)
+      after
+        Process.group_leader(self(), leader)
+      end
+    end
   end
 
   describe "io_device?/1" do

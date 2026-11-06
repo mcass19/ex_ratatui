@@ -11,7 +11,7 @@ defmodule ExRatatui.IODevice do
   front of us. This transport renders through the shell's own I/O device
   instead, the way any IEx output reaches the user:
 
-      iex> ExRatatui.IODevice.run(MyApp.TUI)
+      ExRatatui.IODevice.run(MyApp.TUI)
 
   Frames are rendered by an `ExRatatui.Session` and written with
   `put_chars` requests; keys are read one character at a time with

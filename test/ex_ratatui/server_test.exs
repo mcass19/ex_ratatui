@@ -626,6 +626,8 @@ defmodule ExRatatui.ServerTest do
                ExRatatui.Server.continue_init({:error, "no tty"}, [])
     end
 
+    # A plain ref stands in for the terminal, so the first draw logs a render error.
+    @tag :capture_log
     test "enables polling for live local servers" do
       {:ok, task_sup} = Task.Supervisor.start_link()
 
