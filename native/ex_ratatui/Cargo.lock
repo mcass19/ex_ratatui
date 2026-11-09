@@ -200,9 +200,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.10.0"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e055fa6e3e40ad6187ba25b6855eeb635d5271f8e0f0e1e9a5826b8d75bea0"
+checksum = "4ff2a8126fff0f8c839080d619675a585e61720bb12d2baceae45769fd66f155"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -1680,9 +1680,9 @@ dependencies = [
 
 [[package]]
 name = "ratatui-textarea"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78cdce79220909bec1bb8307c29fad7d0df7434280da6ecaf44cb208393bed00"
+checksum = "6cf7263fbb7f37caa4bcfd00fc604ff1409f70456a833fbdff99282e88fdfe92"
 dependencies = [
  "ratatui-core",
  "ratatui-crossterm",
@@ -2320,9 +2320,9 @@ dependencies = [
 
 [[package]]
 name = "tui-markdown"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ab50607adeb8d597e0f3653e5b173c14d7d8ef95f89f25a985828f0e127ba1"
+checksum = "2cfb7c11a39510870d32639a98de09d95cd68f1be22a5526617d26c39de07a22"
 dependencies = [
  "ansi-to-tui",
  "itertools 0.15.0",
