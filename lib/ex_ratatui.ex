@@ -26,6 +26,7 @@ defmodule ExRatatui do
       paste, focus)
     * `terminal_size/0` — current terminal dimensions
     * `set_terminal_title/1` — set the terminal window / tab title (OSC 0/2)
+    * `set_mouse_pointer/1` — set the local terminal's mouse pointer (OSC 22)
 
   ## Events
 
@@ -343,6 +344,67 @@ defmodule ExRatatui do
   @spec set_terminal_title(String.t()) :: :ok | {:error, term()}
   def set_terminal_title(title) when is_binary(title) do
     Native.set_terminal_title(title)
+  end
+
+  @typedoc "A mouse pointer shape, separate from the terminal's text cursor."
+  @type mouse_pointer ::
+          :default
+          | :pointer
+          | :text
+          | :crosshair
+          | :move
+          | :grab
+          | :grabbing
+          | :not_allowed
+          | :wait
+          | :progress
+
+  @mouse_pointers [
+    :default,
+    :pointer,
+    :text,
+    :crosshair,
+    :move,
+    :grab,
+    :grabbing,
+    :not_allowed,
+    :wait,
+    :progress
+  ]
+
+  @doc """
+  Sets the local terminal's operating-system mouse pointer using OSC 22.
+
+  Accepts `:default`, `:pointer` (a pointing hand), `:text`, `:crosshair`,
+  `:move`, `:grab`, `:grabbing`, `:not_allowed`, `:wait`, or `:progress`.
+  Best-effort, like `set_terminal_title/1`: `:ok` means the sequence was
+  written, not that the terminal supports it. Returns `{:error, reason}`
+  on an output error. Invalid shapes raise `ArgumentError`.
+
+  The caller decides whether the terminal supports these CSS shape names.
+  No capability query is sent. `:default` selects the default arrow; it does
+  not restore an earlier override. Low-level callers own reset/cleanup.
+  Supervised apps should return the `ExRatatui.App` runtime opt `pointer:`
+  instead, for deduplication and automatic reset on shutdown.
+
+  ## Examples
+
+      ExRatatui.set_mouse_pointer(:pointer)
+      ExRatatui.set_mouse_pointer(:default)
+  """
+  @spec set_mouse_pointer(mouse_pointer()) :: :ok | {:error, term()}
+  def set_mouse_pointer(shape) do
+    Native.set_mouse_pointer(mouse_pointer_name(shape))
+  end
+
+  @doc false
+  @spec mouse_pointer_name(mouse_pointer()) :: String.t()
+  def mouse_pointer_name(shape) when shape in @mouse_pointers do
+    shape |> Atom.to_string() |> String.replace("_", "-")
+  end
+
+  def mouse_pointer_name(shape) do
+    raise ArgumentError, "invalid mouse pointer shape: #{inspect(shape)}"
   end
 
   @doc """

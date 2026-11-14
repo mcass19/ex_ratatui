@@ -1,4 +1,4 @@
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
@@ -279,6 +279,36 @@ fn set_terminal_title(title: String) -> Result<Atom, Error> {
     Ok(atoms::ok())
 }
 
+#[rustler::nif(schedule = "DirtyIo")]
+fn set_mouse_pointer(shape: String) -> Result<Atom, Error> {
+    let sequence = mouse_pointer_sequence(&shape).ok_or(Error::BadArg)?;
+    write_mouse_pointer(&mut std::io::stdout().lock(), sequence)
+        .map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
+    Ok(atoms::ok())
+}
+
+fn mouse_pointer_sequence(shape: &str) -> Option<&'static [u8]> {
+    // Fixed CSS names only: no arbitrary OSC payloads or support queries.
+    Some(match shape {
+        "default" => b"\x1b]22;default\x1b\\",
+        "pointer" => b"\x1b]22;pointer\x1b\\",
+        "text" => b"\x1b]22;text\x1b\\",
+        "crosshair" => b"\x1b]22;crosshair\x1b\\",
+        "move" => b"\x1b]22;move\x1b\\",
+        "grab" => b"\x1b]22;grab\x1b\\",
+        "grabbing" => b"\x1b]22;grabbing\x1b\\",
+        "not-allowed" => b"\x1b]22;not-allowed\x1b\\",
+        "wait" => b"\x1b]22;wait\x1b\\",
+        "progress" => b"\x1b]22;progress\x1b\\",
+        _ => return None,
+    })
+}
+
+fn write_mouse_pointer(writer: &mut impl Write, sequence: &[u8]) -> std::io::Result<()> {
+    writer.write_all(sequence)?;
+    writer.flush()
+}
+
 #[rustler::nif]
 fn init_test_terminal(width: u16, height: u16) -> Result<ResourceArc<TerminalResource>, Error> {
     let backend = TestBackend::new(width, height);
@@ -398,5 +428,55 @@ fn get_buffer_content(resource: ResourceArc<TerminalResource>) -> Result<String,
             "get_buffer_content requires a test terminal",
         ))),
         None => Err(Error::Term(Box::new("terminal not initialized"))),
+    }
+}
+
+#[cfg(test)]
+mod pointer_tests {
+    use super::*;
+
+    #[test]
+    fn writes_fixed_css_shapes_with_string_terminator() {
+        for shape in [
+            "default",
+            "pointer",
+            "text",
+            "crosshair",
+            "move",
+            "grab",
+            "grabbing",
+            "not-allowed",
+            "wait",
+            "progress",
+        ] {
+            let mut output = Vec::new();
+            write_mouse_pointer(&mut output, mouse_pointer_sequence(shape).unwrap()).unwrap();
+            assert_eq!(output, format!("\x1b]22;{shape}\x1b\\").as_bytes());
+        }
+        for invalid in [
+            "",
+            "?pointer",
+            ">pointer",
+            "<",
+            "pointer\x07",
+            "not_allowed",
+        ] {
+            assert!(mouse_pointer_sequence(invalid).is_none());
+        }
+    }
+
+    #[test]
+    fn propagates_output_errors() {
+        struct FailingWriter;
+        impl Write for FailingWriter {
+            fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let error = write_mouse_pointer(&mut FailingWriter, b"pointer").unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe);
     }
 }

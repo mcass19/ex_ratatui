@@ -116,6 +116,7 @@ end
 | `commands: [...]` | `[]` | Side effects to execute after the state transition |
 | `intents: [...]` | `[]` | Opaque directives forwarded to the transport's `intent_writer_fn` in emission order. See [Intents](#intents) below. |
 | `render?: bool` | `true` | Whether to re-render after this transition |
+| `pointer: shape` | unchanged | Local mouse pointer shape, deduplicated and independent of rendering. See [Mouse pointer feedback](callback_runtime.md#mouse-pointer-feedback) for terminal gating and cleanup. |
 | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing |
 
 `ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).

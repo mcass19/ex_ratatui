@@ -188,8 +188,28 @@ end
 | `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-trace). |
 | `commands: [...]` | `[]` | Queue `ExRatatui.Command` structs; results are delivered to `handle_info/2`. Designed for the reducer runtime but executed under both. |
 | `render?: bool` | `true` | Skip the re-render for this callback return. Works under both runtimes. |
+| `pointer: shape` | unchanged | Local mouse pointer shape (`:pointer`, `:default`, etc.), deduplicated and independent of `render?`. Other transports and `test_mode` ignore it. Gate terminal support in the app. |
 
 `ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
+
+### Mouse pointer feedback
+
+For a terminal known by the app to support OSC 22 CSS names, return `pointer: :pointer` over an enabled clickable region and `pointer: :default` elsewhere. Reuse click hit-testing, including overlays and selection state, and return `render?: false` for motion that only changes hover feedback. Omission leaves the current shape unchanged. This controls the operating-system mouse pointer, independently of the text cursor.
+
+```elixir
+def handle_event(%ExRatatui.Event.Mouse{kind: "moved"} = event, state) do
+  if state.pointer_supported? do
+    shape = if clickable_at?(state, event), do: :pointer, else: :default
+    {:noreply, state, pointer: shape, render?: false}
+  else
+    {:noreply, state, render?: false}
+  end
+end
+```
+
+The runtime resets an active override on shutdown, including callback crashes. Before handing the terminal to another program, reset in a completed transition before that program runs; a queued command runs after the pointer opt is applied. The reset selects the default arrow and does not restore an earlier override. The low-level `ExRatatui.set_mouse_pointer/1` has caller-owned cleanup instead.
+
+[Kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document CSS pointer names. Terminal support varies, so unknown terminals should omit `pointer:`. No capability queries or pointer stack operations are sent. The [mouse pointer example](https://github.com/mcass19/ex_ratatui/blob/main/examples/mouse_pointer.exs) opts in explicitly and exercises hover without redraws.
 
 
 ## Error handling and supervision

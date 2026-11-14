@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Local mouse pointer shapes.** `ExRatatui.set_mouse_pointer/1` writes a fixed set of OSC 22 CSS shape names, including `:pointer` for a pointing hand and `:default` for the default arrow. Apps in either runtime can return `pointer:` from transition callbacks; the runtime deduplicates successful writes, applies them even with `render?: false`, and resets an active override on cleanup. Headless and non-local transports ignore the opt. Terminal capability gating and hit-testing remain app-owned; no queries, push/pop restoration, or automatic detection are performed.
+
 ### Fixed
 
 - **`mix ex_ratatui.gen.burrito --ci github` builds the Apple Silicon binary on `macos-15`.** The scaffolded workflow used `macos-14`, which GitHub retired on November 2, 2026, so that job no longer starts. Projects that already generated the workflow should change the label in `.github/workflows/release.yml` themselves.
