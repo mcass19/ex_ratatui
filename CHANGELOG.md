@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **Mouse pointer shapes on the local terminal.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and resets it on exit. `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. Other transports ignore the opt. `ExRatatui.Runtime.snapshot/1` reports the current shape as `:pointer`, also under `test_mode`, where nothing is written. Thanks to @houllette!
+- **Mouse pointer shapes on the local terminal.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and the arrow comes back when the app stops, a crash or a kill included. `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. Other transports ignore the opt. `ExRatatui.Runtime.snapshot/1` reports the current shape as `:pointer`, also under `test_mode`, where nothing is written. Thanks to @houllette!
 
 ### Fixed
 

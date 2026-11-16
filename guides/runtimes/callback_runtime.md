@@ -209,7 +209,7 @@ end
 
 Terminal support varies ([kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document the shape names) and nothing is detected or queried, so the app decides whether to return `pointer:` at all. Only the `:local` transport acts on it; other transports ignore it. Under `test_mode` nothing is written, but `ExRatatui.Runtime.snapshot/1` reports the shape as `:pointer`, so a test can inject a `"moved"` event and assert on it.
 
-The runtime goes back to the default arrow on shutdown, including after a crash in a callback. Before handing the terminal to another program (an editor, say), return `pointer: :default` from the transition that queues the handoff: the pointer is applied before queued commands run. `ExRatatui.set_mouse_pointer/1` is the low-level call and leaves cleanup to the caller. [`examples/basics/mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) shows the whole loop.
+The arrow comes back when the app stops, whether it exits, crashes in a callback or is killed. Before handing the terminal to another program (an editor, say), return `pointer: :default` from the transition that queues the handoff: the pointer is applied before queued commands run. `ExRatatui.set_mouse_pointer/1` is the low-level call, for `ExRatatui.run/2` loops; the arrow comes back there too, when `run/2` restores the terminal. [`examples/basics/mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) shows the whole loop.
 
 
 ## Error handling and supervision
