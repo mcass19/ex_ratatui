@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-16
+
 ### Added
 
 - **Mouse pointer shapes.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and the arrow comes back when the app stops or crashes (on the local terminal, also when it is killed). `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. The shape is set on the terminal the app is drawn on: the local one, an SSH client's, the IEx shell's or the attaching node's. `ExRatatui.Runtime.snapshot/1` reports the current shape as `:pointer`, also under `test_mode`, where nothing is written. Thanks to @houllette!
@@ -678,7 +680,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Precompiled NIFs:** Via `rustler_precompiled` for Linux, macOS, and Windows (x86_64 and aarch64) — no Rust toolchain required
 - **Examples:** `hello_world.exs` (minimal display), `counter.exs` (interactive key events), `counter_app.exs` (App-based counter), `task_manager.exs` (full app with all widgets), and `examples/task_manager/` (supervised Ecto + SQLite CRUD app)
 
-[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/mcass19/ex_ratatui/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/mcass19/ex_ratatui/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/mcass19/ex_ratatui/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/mcass19/ex_ratatui/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/mcass19/ex_ratatui/compare/v0.17.1...v0.18.0
