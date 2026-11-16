@@ -46,7 +46,7 @@ defmodule ExRatatui.Server do
     poll_interval: 16,
     terminal_initialized: false,
     local_input: :not_detached,
-    keyboard_enhancement: nil,
+    local_terminal: %{keyboard_enhancement: nil, pointer: nil, pointer_setter: nil},
     # Nested so the struct stays within 32 keys (a flat map past that
     # switches to the slower hash-map representation).
     mailbox: %{warn_threshold: @default_mailbox_warn_threshold, alarm?: false, warned_at: nil},
@@ -161,6 +161,18 @@ defmodule ExRatatui.Server do
           test_mode: test_mode,
           terminal_ref: terminal_ref,
           terminal_size_fn: terminal_size_fn,
+          # Headless runs never write pointer controls. Tests may supply a
+          # setter to observe the live path without touching the host tty.
+          local_terminal: %{
+            keyboard_enhancement: nil,
+            pointer: nil,
+            pointer_setter:
+              Keyword.get(
+                opts,
+                :mouse_pointer_fn,
+                if(test_mode, do: nil, else: &ExRatatui.set_mouse_pointer/1)
+              )
+          },
           task_supervisor: Keyword.fetch!(opts, :task_supervisor),
           terminal_initialized: true,
           runtime_mode: runtime_mode(mod),
@@ -171,10 +183,11 @@ defmodule ExRatatui.Server do
 
         # After the detach, before the first poll: the support query reads
         # the terminal's answer from the input stream.
-        state = %{
-          state
-          | keyboard_enhancement: ExRatatui.enable_keyboard_enhancement(terminal_ref, opts)
-        }
+        state =
+          put_in(
+            state.local_terminal.keyboard_enhancement,
+            ExRatatui.enable_keyboard_enhancement(terminal_ref, opts)
+          )
 
         # Mount-time probe — only honored on :local transport (other
         # transports either force halfblocks (CellSession) or surface
@@ -186,6 +199,7 @@ defmodule ExRatatui.Server do
         state =
           state
           |> maybe_set_trace(runtime_opts)
+          |> maybe_set_mouse_pointer(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
           |> queue_intents(runtime_opts)
@@ -552,6 +566,7 @@ defmodule ExRatatui.Server do
   @impl true
   def terminate(reason, %__MODULE__{transport: :local, terminal_initialized: true} = state) do
     cancel_subscription_timers(state)
+    reset_mouse_pointer(state)
     restore_terminal(state.terminal_ref)
     LocalInput.reattach(state.local_input)
     app_terminate(state, reason)
@@ -1037,6 +1052,7 @@ defmodule ExRatatui.Server do
     %{
       commands: [],
       intents: [],
+      pointer: nil,
       render?: true,
       trace?: nil,
       probe_image_protocol: false
@@ -1053,6 +1069,7 @@ defmodule ExRatatui.Server do
     %{
       commands: Command.normalize(Map.get(runtime_opts, :commands)),
       intents: normalize_intents(Map.get(runtime_opts, :intents)),
+      pointer: normalize_pointer(Map.get(runtime_opts, :pointer)),
       render?: Map.get(runtime_opts, :render?, true),
       trace?: Map.get(runtime_opts, :trace?),
       probe_image_protocol: Map.get(runtime_opts, :probe_image_protocol, false)
@@ -1073,11 +1090,45 @@ defmodule ExRatatui.Server do
     raise ArgumentError, "invalid intents (must be a list): #{inspect(other)}"
   end
 
+  defp normalize_pointer(nil), do: nil
+
+  defp normalize_pointer(shape) do
+    _ = ExRatatui.mouse_pointer_name(shape)
+    shape
+  end
+
+  defp maybe_set_mouse_pointer(state, %{pointer: nil}), do: state
+
+  defp maybe_set_mouse_pointer(
+         %__MODULE__{
+           transport: :local,
+           local_terminal: %{pointer: previous, pointer_setter: setter}
+         } = state,
+         %{pointer: shape}
+       )
+       when is_function(setter, 1) and shape != previous do
+    case setter.(shape) do
+      :ok -> put_in(state.local_terminal.pointer, shape)
+      {:error, _reason} -> state
+    end
+  end
+
+  defp maybe_set_mouse_pointer(state, _runtime_opts), do: state
+
+  defp reset_mouse_pointer(%__MODULE__{local_terminal: %{pointer: shape, pointer_setter: setter}})
+       when shape not in [nil, :default] do
+    _ = setter.(:default)
+    :ok
+  end
+
+  defp reset_mouse_pointer(_state), do: :ok
+
   defp apply_transition({:continue, user_state, runtime_opts}, state) do
     next_state =
       state
       |> Map.put(:user_state, user_state)
       |> maybe_set_trace(runtime_opts)
+      |> maybe_set_mouse_pointer(runtime_opts)
       |> reconcile_subscriptions()
       |> queue_commands(runtime_opts)
       |> queue_intents(runtime_opts)
@@ -1091,6 +1142,7 @@ defmodule ExRatatui.Server do
       |> flush_pending_render()
       |> Map.put(:user_state, user_state)
       |> maybe_set_trace(runtime_opts)
+      |> maybe_set_mouse_pointer(runtime_opts)
       |> reconcile_subscriptions()
       |> queue_commands(runtime_opts)
       |> queue_intents(runtime_opts)
@@ -1408,7 +1460,7 @@ defmodule ExRatatui.Server do
           }
         end),
       active_async_commands: state.active_async_commands,
-      keyboard_enhancement: state.keyboard_enhancement
+      keyboard_enhancement: state.local_terminal.keyboard_enhancement
     }
   end
 
