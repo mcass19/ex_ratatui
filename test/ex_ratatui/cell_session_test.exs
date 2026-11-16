@@ -865,6 +865,18 @@ defmodule ExRatatui.CellSessionTest do
       :ok = CellSession.close(session)
     end
 
+    test "feed_input/2 decodes SGR mouse reports" do
+      session = CellSession.new(20, 5)
+
+      assert [%Event.Mouse{kind: "down", button: "left", x: 4, y: 2, modifiers: []}] =
+               CellSession.feed_input(session, "\e[<0;5;3M")
+
+      assert [%Event.Mouse{kind: "moved", button: "", x: 0, y: 0, modifiers: ["shift"]}] =
+               CellSession.feed_input(session, "\e[<39;1;1M")
+
+      :ok = CellSession.close(session)
+    end
+
     test "feed_input/2 buffers a partial CSI across calls" do
       session = CellSession.new(20, 5)
 

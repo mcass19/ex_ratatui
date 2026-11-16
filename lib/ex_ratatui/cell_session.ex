@@ -244,6 +244,15 @@ defmodule ExRatatui.CellSession do
       iex> session = ExRatatui.CellSession.new(20, 5)
       iex> ExRatatui.CellSession.feed_input(session, "a")
       [%ExRatatui.Event.Key{code: "a", modifiers: [], kind: "press"}]
+
+  Mouse reports are decoded in their SGR form, which a terminal sends once
+  it has been asked for `CSI ? 1006 h` next to one of the tracking modes
+  (`CSI ? 1000 h` for clicks and the wheel, `CSI ? 1003 h` for movement
+  too). Positions are 0-based:
+
+      iex> session = ExRatatui.CellSession.new(20, 5)
+      iex> ExRatatui.CellSession.feed_input(session, "\\e[<0;5;3M")
+      [%ExRatatui.Event.Mouse{kind: "down", button: "left", x: 4, y: 2, modifiers: []}]
   """
   @spec feed_input(t(), binary()) :: [Event.t()]
   def feed_input(%__MODULE__{ref: ref}, bytes) when is_binary(bytes) do
