@@ -297,11 +297,9 @@ defmodule ExRatatui.Distributed.ClientTest do
       ExRatatui.Native.restore_terminal(ref)
     end
 
-    test "attempts real terminal init when nil" do
-      case Client.default_init_terminal(nil) do
-        {:error, _} -> :ok
-        ref when is_reference(ref) -> ExRatatui.Native.restore_terminal(ref)
-      end
+    test "opens the real terminal when nil" do
+      # test_helper.exs makes that fail, the same way on every machine.
+      assert Client.default_init_terminal(nil) == {:error, :no_terminal_in_tests}
     end
   end
 

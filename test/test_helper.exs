@@ -13,6 +13,15 @@ Application.put_env(:ex_ratatui, :image_probe_fn, fn -> {:error, :no_probe_in_te
 # handoff against a fake reader in local_input_test.exs.
 Application.put_env(:ex_ratatui, :detach_local_input, false)
 
+# Opening the real terminal puts it in raw mode on the alternate screen: on a
+# developer's machine that is the terminal the suite runs in, and on CI it
+# fails, so a test going through it has two outcomes. Make it fail the same
+# way everywhere; tests that need a terminal use `test_mode` or
+# `ExRatatui.init_test_terminal/2`, and run_test.exs swaps in its own.
+Application.put_env(:ex_ratatui, :init_terminal_fn, fn _focus_events?, _mouse_capture? ->
+  {:error, :no_terminal_in_tests}
+end)
+
 # examples_test.exs runs the Erlang example's EUnit suite, and Mix prunes
 # OTP applications that aren't dependencies from the code path.
 Mix.ensure_application!(:eunit)
