@@ -21,4 +21,8 @@ Mix.ensure_application!(:eunit)
 # OTP 28; the Server falls back to FIFO close on older releases.
 otp_excludes = if String.to_integer(System.otp_release()) < 28, do: [:otp28], else: []
 
-ExUnit.start(exclude: [:distributed, :slow] ++ otp_excludes)
+# ExUnit's 100 ms default for `assert_receive` is tight for messages that
+# cross a few processes on a loaded CI runner. A passing assertion returns
+# as soon as the message arrives, so the longer wait only costs time on a
+# failure.
+ExUnit.start(exclude: [:distributed, :slow] ++ otp_excludes, assert_receive_timeout: 1_000)
