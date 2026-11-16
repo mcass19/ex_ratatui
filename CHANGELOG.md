@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **Local mouse pointer shapes.** `ExRatatui.set_mouse_pointer/1` writes a fixed set of OSC 22 CSS shape names, including `:pointer` for a pointing hand and `:default` for the default arrow. Apps in either runtime can return `pointer:` from transition callbacks; the runtime deduplicates successful writes, applies them even with `render?: false`, and resets an active override on cleanup. Headless and non-local transports ignore the opt. Terminal capability gating and hit-testing remain app-owned; no queries, push/pop restoration, or automatic detection are performed.
+- **Mouse pointer shapes on the local terminal.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and resets it on exit. `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. Other transports ignore the opt. Thanks to @houllette!
 
 ### Fixed
 

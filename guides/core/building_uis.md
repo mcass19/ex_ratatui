@@ -139,6 +139,8 @@ kitty, Ghostty, WezTerm, foot, Alacritty, iTerm2, rio and Warp support the proto
 }
 ```
 
+`"moved"` events can drive hover feedback: the `pointer:` runtime opt turns the mouse pointer into a hand over a clickable region. See [Mouse pointer feedback](../runtimes/callback_runtime.md#mouse-pointer-feedback).
+
 ### Resize events
 
 ```elixir

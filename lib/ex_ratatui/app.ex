@@ -87,7 +87,7 @@ defmodule ExRatatui.App do
   | `commands: [...]` | `[]` | Side effects to execute after the state transition. Designed for the reducer runtime but executed under both — under the callback runtime, results are delivered to `handle_info/2`. See `ExRatatui.Command`. |
   | `intents: [...]` | `[]` | Opaque directives forwarded verbatim to the transport's `intent_writer_fn` in the order they were emitted. ex_ratatui defines no vocabulary — consumers do. `phoenix_ex_ratatui` consumes `{:navigate, path}`, `{:patch, path}`, `{:redirect, path}` to dispatch LV navigation, for example. Transports that don't supply an intent writer (the existing 3-tuple `:cell_session` shape, plus `:local` / `:session` / `:distributed_server`) silently drop intents — apps stay portable across transports. |
   | `render?: bool` | `true` | Whether to re-render after this transition. Works under both runtimes. |
-  | `pointer: shape` | unchanged | Set the local mouse pointer to a `t:ExRatatui.mouse_pointer/0` shape. Applied independently of `render?`, with identical successful writes deduplicated. Omit (or use `nil`) to leave it unchanged; use `:default` to reset. Ignored on other transports and under `test_mode`. The app decides whether the terminal supports OSC 22 CSS names; no detection or queries occur. The runtime resets an active override to `:default` on cleanup. |
+  | `pointer: shape` | unchanged | Set the local terminal's mouse pointer to a `t:ExRatatui.mouse_pointer/0` shape. `:default` goes back to the arrow; omitting the opt (or `nil`) keeps the current shape. Written only when the shape changes, independently of `render?`, and reset to `:default` on cleanup. Ignored on other transports and under `test_mode`. Nothing is detected, so the app decides whether the terminal supports it. See [Mouse pointer feedback](guides/runtimes/callback_runtime.md#mouse-pointer-feedback). |
   | `trace?: bool` | unchanged | Enable or disable in-memory runtime tracing. |
   | `probe_image_protocol: bool` | `false` | When `true` on the `:local` transport, the runtime calls `ExRatatui.Image.auto_local_protocol/1` once right after `mount/1` so image widgets with `protocol: :auto` resolve to the detected terminal protocol (Kitty / Sixel / iTerm2 / Halfblocks). Soft-fails silently with no TTY. Skipped under `test_mode: {w, h}`. No effect on other transports — CellSession forces halfblocks, SSH / Distributed use their session-level `:image_protocol` opt. Only meaningful on `mount/1`. See the [Images guide](guides/core/images.md). |
 
@@ -95,14 +95,6 @@ defmodule ExRatatui.App do
   **before** the server exits, so a "logout" key returning
   `{:stop, state, intents: [{:redirect, "/login"}]}` reliably reaches
   the consumer before the linked-server EXIT propagates.
-
-  Pointer opts work in both runtimes, including mount and stopping returns.
-  Hit-testing and terminal capability gating belong to the app. Returning
-  `pointer: :default` leaves a clickable region; omitting the opt preserves
-  the current shape. Cleanup selects the default arrow, without querying
-  or restoring a previous override. Before handing the terminal to another
-  program, apply `pointer: :default` in a transition before that handoff
-  runs (for example, before a queued command).
 
   ## Options
 
