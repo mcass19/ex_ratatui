@@ -4,12 +4,29 @@ defmodule ExRatatui.BurritoTest do
 
   import ExUnit.CaptureIO
 
-  # Stub TUIs must not terminate before `main/3` has set its monitor, or
-  # the DOWN reason arrives as :noproc instead of the intended one — so
-  # each spins until it is monitored. Abnormal exits use spawn (no link):
-  # the entry point unlinks right after monitoring, and racing the exit
-  # into that window would kill the test process instead.
-  defmodule Sync do
+  # Stub TUIs. The linked ones are already dead when `start_link/1` returns,
+  # the earliest a TUI can stop: `main/3` still has to report their real
+  # exit reason, and survive the crash. It traps exits by then, so a stub
+  # can wait for its own child here.
+  defmodule Stub do
+    def start_dead(reason) do
+      pid = spawn_link(fn -> exit(reason) end)
+      ref = Process.monitor(pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _reason} -> {:ok, pid}
+      end
+    end
+
+    # Spins until `main/3` is blocked waiting for the stub to stop.
+    def await_waiting(caller) do
+      case Process.info(caller, :status) do
+        {:status, :waiting} -> :ok
+        _ -> await_waiting(caller)
+      end
+    end
+
+    # Spins until `main/3` has fallen back to monitoring the stub.
     def await_monitor do
       case Process.info(self(), :monitored_by) do
         {:monitored_by, []} -> await_monitor()
@@ -19,33 +36,41 @@ defmodule ExRatatui.BurritoTest do
   end
 
   defmodule NormalExit do
-    alias ExRatatui.BurritoTest.Sync
+    alias ExRatatui.BurritoTest.Stub
 
-    def start_link([]) do
-      {:ok, spawn_link(fn -> Sync.await_monitor() end)}
-    end
+    def start_link([]), do: Stub.start_dead(:normal)
   end
 
   defmodule ShutdownTupleExit do
-    alias ExRatatui.BurritoTest.Sync
+    alias ExRatatui.BurritoTest.Stub
 
-    def start_link([]) do
-      {:ok,
-       spawn(fn ->
-         Sync.await_monitor()
-         exit({:shutdown, :done})
-       end)}
-    end
+    def start_link([]), do: Stub.start_dead({:shutdown, :done})
   end
 
   defmodule CrashExit do
-    alias ExRatatui.BurritoTest.Sync
+    alias ExRatatui.BurritoTest.Stub
+
+    def start_link([]), do: Stub.start_dead(:boom)
+  end
+
+  defmodule LateExit do
+    alias ExRatatui.BurritoTest.Stub
+
+    def start_link([]) do
+      caller = self()
+      {:ok, spawn_link(fn -> Stub.await_waiting(caller) end)}
+    end
+  end
+
+  # A `start_link/1` that does not link: only the monitor sees it stop.
+  defmodule Unlinked do
+    alias ExRatatui.BurritoTest.Stub
 
     def start_link([]) do
       {:ok,
        spawn(fn ->
-         Sync.await_monitor()
-         exit(:boom)
+         Stub.await_monitor()
+         exit({:shutdown, :done})
        end)}
     end
   end
@@ -116,6 +141,35 @@ defmodule ExRatatui.BurritoTest do
           end)
 
         assert stderr =~ "demo terminated: :boom"
+      end)
+    end
+
+    test "exits 0 when the TUI stops while it is being waited on" do
+      standalone(fn ->
+        ExRatatui.Burrito.main(LateExit, [], name: "demo", halt: halt_fun(self()))
+        assert_receive {:halted, 0}
+      end)
+    end
+
+    test "waits for a TUI whose start_link/1 did not link" do
+      standalone(fn ->
+        ExRatatui.Burrito.main(Unlinked, [], name: "demo", halt: halt_fun(self()))
+        assert_receive {:halted, 0}
+      end)
+    end
+
+    test "leaves the caller's exit trapping and mailbox as it found them" do
+      standalone(fn ->
+        for stub <- [NormalExit, LateExit, Unlinked, CrashExit, FailsToStart] do
+          capture_io(:stderr, fn ->
+            ExRatatui.Burrito.main(stub, [], name: "demo", halt: halt_fun(self()))
+          end)
+
+          assert_receive {:halted, _code}
+          assert Process.info(self(), :trap_exit) == {:trap_exit, false}
+          refute_received {:EXIT, _pid, _reason}
+          refute_received {:DOWN, _ref, :process, _pid, _reason}
+        end
       end)
     end
 
