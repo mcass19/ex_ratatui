@@ -188,13 +188,13 @@ end
 | `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-trace). |
 | `commands: [...]` | `[]` | Queue `ExRatatui.Command` structs; results are delivered to `handle_info/2`. Designed for the reducer runtime but executed under both. |
 | `render?: bool` | `true` | Skip the re-render for this callback return. Works under both runtimes. |
-| `pointer: shape` | unchanged | Local mouse pointer shape (`:pointer`, `:default`, etc.), deduplicated and independent of `render?`. Other transports and `test_mode` ignore it. Gate terminal support in the app. |
+| `pointer: shape` | unchanged | Mouse pointer shape on the local terminal (`:pointer`, `:default`, …). See [Mouse pointer feedback](#mouse-pointer-feedback). |
 
 `ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
 
 ### Mouse pointer feedback
 
-For a terminal known by the app to support OSC 22 CSS names, return `pointer: :pointer` over an enabled clickable region and `pointer: :default` elsewhere. Reuse click hit-testing, including overlays and selection state, and return `render?: false` for motion that only changes hover feedback. Omission leaves the current shape unchanged. This controls the operating-system mouse pointer, independently of the text cursor.
+`pointer:` sets the operating-system mouse pointer (not the text cursor) through OSC 22. Return `pointer: :pointer` over a clickable region and `pointer: :default` elsewhere; leaving the opt out keeps the current shape. The runtime writes only when the shape changes and needs no render for it, so motion that only changes the pointer can return `render?: false`.
 
 ```elixir
 def handle_event(%ExRatatui.Event.Mouse{kind: "moved"} = event, state) do
@@ -207,9 +207,9 @@ def handle_event(%ExRatatui.Event.Mouse{kind: "moved"} = event, state) do
 end
 ```
 
-The runtime resets an active override on shutdown, including callback crashes. Before handing the terminal to another program, reset in a completed transition before that program runs; a queued command runs after the pointer opt is applied. The reset selects the default arrow and does not restore an earlier override. The low-level `ExRatatui.set_mouse_pointer/1` has caller-owned cleanup instead.
+Terminal support varies ([kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document the shape names) and nothing is detected or queried, so the app decides whether to return `pointer:` at all. Only the `:local` transport acts on it; other transports and `test_mode` ignore it.
 
-[Kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document CSS pointer names. Terminal support varies, so unknown terminals should omit `pointer:`. No capability queries or pointer stack operations are sent. The [mouse pointer example](https://github.com/mcass19/ex_ratatui/blob/main/examples/mouse_pointer.exs) opts in explicitly and exercises hover without redraws.
+The runtime goes back to the default arrow on shutdown, including after a crash in a callback. Before handing the terminal to another program (an editor, say), return `pointer: :default` from the transition that queues the handoff: the pointer is applied before queued commands run. `ExRatatui.set_mouse_pointer/1` is the low-level call and leaves cleanup to the caller. [`examples/basics/mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) shows the whole loop.
 
 
 ## Error handling and supervision

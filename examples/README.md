@@ -21,7 +21,7 @@ The [Getting Started](../guides/introduction/getting_started.md) guide builds a 
 
 ## Basics
 
-The runtime loop, four ways — from a raw render/poll loop to the supervised runtimes — plus held keys and a TUI from a remote IEx shell.
+The runtime loop, four ways — from a raw render/poll loop to the supervised runtimes — plus held keys, mouse pointer shapes and a TUI from a remote IEx shell.
 
 | Example | Run | What to see |
 |---------|-----|-------------|
@@ -30,6 +30,7 @@ The runtime loop, four ways — from a raw render/poll loop to the supervised ru
 | [`counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/counter_app.exs) | `mix run examples/basics/counter_app.exs` | The same counter, this time as a supervised `ExRatatui.App` with `mount/1`, `render/2`, `handle_event/2`. The typical starting point for real apps. |
 | [`reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/reducer_counter_app.exs) | `mix run examples/basics/reducer_counter_app.exs` | Counter on the reducer runtime. Demonstrates `init/1` + `update/2`, a 1-second `Subscription.interval`, and `render?: false` for tick bookkeeping. |
 | [`key_releases.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/key_releases.exs) | `mix run examples/basics/key_releases.exs` | Hold-to-drive arrow pad on `keyboard_enhancement: true`: lit exactly while held on terminals with the kitty keyboard protocol, with a press-only fallback elsewhere, plus a live log of every `press`/`repeat`/`release`. Also supports `--ssh`. See [Key releases](https://hexdocs.pm/ex_ratatui/building_uis.html#key-releases). |
+| [`mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) | `EX_RATATUI_POINTER=1 mix run examples/basics/mouse_pointer.exs` | A hand pointer over a clickable region with the `pointer:` runtime opt, on terminals with OSC 22 pointer shapes (kitty, Ghostty). Hovering never redraws. See [Mouse pointer feedback](https://hexdocs.pm/ex_ratatui/callback_runtime.html#mouse-pointer-feedback). |
 | [`iex_over_ssh.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/iex_over_ssh.exs) | `mix run --no-halt examples/basics/iex_over_ssh.exs` | An SSH daemon that hands each client an IEx shell, like `nerves_ssh`; `ExRatatui.IODevice.run(ShellDemo)` at the remote prompt opens the TUI in that session (see below). |
 | [`echo_chat.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/echo_chat.exs) | `mix run examples/basics/echo_chat.exs` | A raw render/poll loop that echoes typed lines into a transcript. A plain per-keystroke input buffer — the input-fidelity stress test for fast typing — that stays lossless thanks to the `:local` input handoff (see the [Debugging guide](https://hexdocs.pm/ex_ratatui/debugging.html#dropped-keystrokes-or-missing-characters)). |
 
