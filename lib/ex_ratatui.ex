@@ -383,9 +383,10 @@ defmodule ExRatatui do
 
   The caller decides whether the terminal supports these CSS shape names.
   No capability query is sent. `:default` selects the default arrow; it does
-  not restore an earlier override. Low-level callers own reset/cleanup.
-  Supervised apps should return the `ExRatatui.App` runtime opt `pointer:`
-  instead, for deduplication and automatic reset on shutdown.
+  not restore an earlier override. Restoring the terminal, at the end of
+  `run/2` or when a supervised app stops, puts the arrow back if a shape is
+  still set. Supervised apps should return the `ExRatatui.App` runtime opt
+  `pointer:` instead, which also skips writes that change nothing.
 
   ## Examples
 

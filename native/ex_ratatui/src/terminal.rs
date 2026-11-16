@@ -96,6 +96,7 @@ impl Drop for TerminalResource {
 
         if self.is_crossterm {
             if let Some(AnyTerminal::Crossterm(_)) = guard.take() {
+                reset_mouse_pointer(&POINTER_OVERRIDDEN, &mut std::io::stdout().lock());
                 pop_keyboard_enhancement(self);
                 let _ = std::io::stdout().execute(DisableMouseCapture);
                 let _ = std::io::stdout().execute(DisableFocusChange);
@@ -203,6 +204,7 @@ fn restore_terminal(resource: ResourceArc<TerminalResource>) -> Result<Atom, Err
 
     match guard.take() {
         Some(AnyTerminal::Crossterm(_)) => {
+            reset_mouse_pointer(&POINTER_OVERRIDDEN, &mut std::io::stdout().lock());
             pop_keyboard_enhancement(&resource);
             let _ = std::io::stdout().execute(DisableMouseCapture);
             let _ = std::io::stdout().execute(DisableFocusChange);
@@ -279,12 +281,30 @@ fn set_terminal_title(title: String) -> Result<Atom, Error> {
     Ok(atoms::ok())
 }
 
+/// Whether `set_mouse_pointer` left a shape other than the default arrow.
+/// Terminal teardown reads it to put the arrow back. That covers an owner
+/// process that was killed, where no Elixir cleanup runs and only `Drop`
+/// does.
+static POINTER_OVERRIDDEN: AtomicBool = AtomicBool::new(false);
+
+const DEFAULT_POINTER: &str = "default";
+
 #[rustler::nif(schedule = "DirtyIo")]
 fn set_mouse_pointer(shape: String) -> Result<Atom, Error> {
     let sequence = mouse_pointer_sequence(&shape).ok_or(Error::BadArg)?;
     write_mouse_pointer(&mut std::io::stdout().lock(), sequence)
         .map_err(|e| Error::Term(Box::new(format!("{e}"))))?;
+    POINTER_OVERRIDDEN.store(shape != DEFAULT_POINTER, Ordering::Relaxed);
     Ok(atoms::ok())
+}
+
+/// Writes the default arrow if a shape is still set, and forgets it.
+fn reset_mouse_pointer(overridden: &AtomicBool, writer: &mut impl Write) {
+    if overridden.swap(false, Ordering::Relaxed) {
+        if let Some(sequence) = mouse_pointer_sequence(DEFAULT_POINTER) {
+            let _ = write_mouse_pointer(writer, sequence);
+        }
+    }
 }
 
 fn mouse_pointer_sequence(shape: &str) -> Option<&'static [u8]> {
@@ -463,6 +483,22 @@ mod pointer_tests {
         ] {
             assert!(mouse_pointer_sequence(invalid).is_none());
         }
+    }
+
+    #[test]
+    fn teardown_resets_a_shape_once_and_only_if_one_is_set() {
+        let overridden = AtomicBool::new(false);
+        let mut output = Vec::new();
+        reset_mouse_pointer(&overridden, &mut output);
+        assert!(output.is_empty());
+
+        overridden.store(true, Ordering::Relaxed);
+        reset_mouse_pointer(&overridden, &mut output);
+        assert_eq!(output, b"\x1b]22;default\x1b\\");
+        assert!(!overridden.load(Ordering::Relaxed));
+
+        reset_mouse_pointer(&overridden, &mut output);
+        assert_eq!(output, b"\x1b]22;default\x1b\\");
     }
 
     #[test]
