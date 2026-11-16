@@ -417,27 +417,17 @@ defmodule ExRatatui.ServerTest do
       refute log =~ "Task.Supervisor", "expected no Task.Supervisor log, got:\n#{log}"
     end
 
-    test "server stops when terminal init fails (no TTY)" do
+    test "server stops when terminal init fails" do
       Process.flag(:trap_exit, true)
 
-      # Without test_mode, init_terminal(nil) calls Native.init_terminal()
-      # which fails in headless CI — covering the {:error, reason} branch
-      result =
-        ExRatatui.Server.start_link(
-          mod: TestApp,
-          name: nil,
-          test_pid: self()
-        )
-
-      case result do
-        {:error, {:terminal_init_failed, _}} ->
-          # Expected in CI: no TTY available
-          :ok
-
-        {:ok, pid} ->
-          # Has a real TTY (local dev) — just clean up
-          GenServer.stop(pid)
-      end
+      # Without test_mode the server opens the real terminal, which
+      # test_helper.exs makes fail.
+      assert {:error, {:terminal_init_failed, :no_terminal_in_tests}} =
+               ExRatatui.Server.start_link(
+                 mod: TestApp,
+                 name: nil,
+                 test_pid: self()
+               )
     end
   end
 

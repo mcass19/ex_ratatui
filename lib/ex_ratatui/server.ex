@@ -822,7 +822,7 @@ defmodule ExRatatui.Server do
     end
   end
 
-  defp init_terminal(nil, focus?, mouse?), do: Native.init_terminal(focus?, mouse?)
+  defp init_terminal(nil, focus?, mouse?), do: ExRatatui.init_terminal(focus?, mouse?)
 
   defp init_terminal({width, height}, _focus?, _mouse?),
     do: ExRatatui.init_test_terminal(width, height)

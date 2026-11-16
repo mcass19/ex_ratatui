@@ -210,7 +210,18 @@ defmodule ExRatatui do
   def run(fun, opts \\ []) when is_function(fun, 1) and is_list(opts) do
     focus_events? = Keyword.get(opts, :focus_events, false)
     mouse_capture? = Keyword.get(opts, :mouse_capture, false)
-    Native.init_terminal(focus_events?, mouse_capture?) |> do_run(fun, opts)
+    init_terminal(focus_events?, mouse_capture?) |> do_run(fun, opts)
+  end
+
+  @doc false
+  # The one place that opens the real terminal (raw mode, alternate screen),
+  # shared by `run/2`, the `:local` runtime and `Distributed.attach/3`. Tests
+  # override it with `config :ex_ratatui, :init_terminal_fn, fn _, _ -> ... end`
+  # (see test/test_helper.exs), so the suite never takes over the terminal it
+  # runs in.
+  def init_terminal(focus_events?, mouse_capture?) do
+    init = Application.get_env(:ex_ratatui, :init_terminal_fn, &Native.init_terminal/2)
+    init.(focus_events?, mouse_capture?)
   end
 
   @doc false
