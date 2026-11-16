@@ -122,48 +122,58 @@ defmodule MousePointerDemo do
   defp pointer_shapes(false), do: "off (EX_RATATUI_POINTER=1)"
 end
 
-case System.argv() do
-  ["--ssh" | _] ->
-    {:ok, _daemon} =
-      ExRatatui.SSH.Daemon.start_link(
-        mod: MousePointerDemo,
-        name: nil,
-        port: 2222,
-        system_dir:
-          ExRatatui.SSH.Daemon.ensure_host_key!(
-            Path.join(System.tmp_dir!(), "ex_ratatui_example_host_keys")
-          ),
-        auth_methods: ~c"password",
-        user_passwords: [{~c"demo", ~c"demo"}],
-        app_opts: [mouse_capture: true]
-      )
+# Each mode starts one process; the script then waits for it to stop. The
+# daemon and the listener are linked to this script, so letting it finish
+# would take them down with it.
+{:ok, pid} =
+  case System.argv() do
+    ["--ssh" | _] ->
+      {:ok, daemon} =
+        ExRatatui.SSH.Daemon.start_link(
+          mod: MousePointerDemo,
+          name: nil,
+          port: 2222,
+          system_dir:
+            ExRatatui.SSH.Daemon.ensure_host_key!(
+              Path.join(System.tmp_dir!(), "ex_ratatui_example_host_keys")
+            ),
+          auth_methods: ~c"password",
+          user_passwords: [{~c"demo", ~c"demo"}],
+          app_opts: [mouse_capture: true]
+        )
 
-    IO.puts("ssh demo@localhost -p 2222   (password: demo) — Ctrl-C twice stops the daemon")
+      IO.puts("ssh demo@localhost -p 2222   (password: demo) — Ctrl-C twice stops the daemon")
+      {:ok, daemon}
 
-  ["--distributed" | _] ->
-    if not Node.alive?() do
-      IO.puts(:stderr, "Start this node with --sname (or --name) and a --cookie to attach to it.")
-      System.halt(1)
-    end
+    ["--distributed" | _] ->
+      if not Node.alive?() do
+        IO.puts(
+          :stderr,
+          "Start this node with --sname (or --name) and a --cookie to attach to it."
+        )
 
-    {:ok, _listener} = ExRatatui.Distributed.Listener.start_link(mod: MousePointerDemo)
+        System.halt(1)
+      end
 
-    IO.puts("""
-    From another node with the same cookie:
+      {:ok, listener} = ExRatatui.Distributed.Listener.start_link(mod: MousePointerDemo)
 
-        ExRatatui.Distributed.attach(#{inspect(Node.self())}, MousePointerDemo, mouse_capture: true)
+      IO.puts("""
+      From another node with the same cookie:
 
-    Ctrl-C twice stops this node.
-    """)
+          ExRatatui.Distributed.attach(#{inspect(Node.self())}, MousePointerDemo, mouse_capture: true)
 
-  _ ->
-    # Start the app directly (not supervised, since this is a script)
-    {:ok, pid} = MousePointerDemo.start_link(name: nil, mouse_capture: true)
+      Ctrl-C twice stops this node.
+      """)
 
-    # Wait for the GenServer to exit
-    ref = Process.monitor(pid)
+      {:ok, listener}
 
-    receive do
-      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-    end
+    _ ->
+      # Start the app directly (not supervised, since this is a script)
+      MousePointerDemo.start_link(name: nil, mouse_capture: true)
+  end
+
+ref = Process.monitor(pid)
+
+receive do
+  {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
 end

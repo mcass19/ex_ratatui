@@ -119,29 +119,34 @@ defmodule KeyReleasesDemo do
   defp now, do: System.monotonic_time(:millisecond)
 end
 
-case System.argv() do
-  ["--ssh" | _] ->
-    {:ok, _daemon} =
-      ExRatatui.SSH.Daemon.start_link(
-        mod: KeyReleasesDemo,
-        name: nil,
-        port: 2222,
-        system_dir:
-          ExRatatui.SSH.Daemon.ensure_host_key!(
-            Path.join(System.tmp_dir!(), "ex_ratatui_example_host_keys")
-          ),
-        auth_methods: ~c"password",
-        user_passwords: [{~c"demo", ~c"demo"}],
-        app_opts: [keyboard_enhancement: true]
-      )
+# Either way the script waits for what it started: the daemon is linked to
+# it, so letting the script finish would take the daemon down with it.
+{:ok, pid} =
+  case System.argv() do
+    ["--ssh" | _] ->
+      {:ok, daemon} =
+        ExRatatui.SSH.Daemon.start_link(
+          mod: KeyReleasesDemo,
+          name: nil,
+          port: 2222,
+          system_dir:
+            ExRatatui.SSH.Daemon.ensure_host_key!(
+              Path.join(System.tmp_dir!(), "ex_ratatui_example_host_keys")
+            ),
+          auth_methods: ~c"password",
+          user_passwords: [{~c"demo", ~c"demo"}],
+          app_opts: [keyboard_enhancement: true]
+        )
 
-    IO.puts("ssh demo@localhost -p 2222   (password: demo) — Ctrl-C twice stops the daemon")
+      IO.puts("ssh demo@localhost -p 2222   (password: demo) — Ctrl-C twice stops the daemon")
+      {:ok, daemon}
 
-  _ ->
-    {:ok, pid} = KeyReleasesDemo.start_link(keyboard_enhancement: true)
-    ref = Process.monitor(pid)
+    _ ->
+      KeyReleasesDemo.start_link(keyboard_enhancement: true)
+  end
 
-    receive do
-      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-    end
+ref = Process.monitor(pid)
+
+receive do
+  {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
 end
