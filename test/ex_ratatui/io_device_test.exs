@@ -140,11 +140,14 @@ defmodule ExRatatui.IODeviceTest do
     wait_for_reader(device)
   end
 
-  defp wait_for_reader(device, attempts \\ 50) do
+  defp wait_for_reader(device, attempts \\ 1_000) do
     case :sys.get_state(device).reader do
       nil when attempts > 0 ->
         Process.sleep(5)
         wait_for_reader(device, attempts - 1)
+
+      nil ->
+        flunk("the bridge never asked the device for input")
 
       _reader ->
         :ok
@@ -299,7 +302,9 @@ defmodule ExRatatui.IODeviceTest do
       device = start_device()
       session = ExRatatui.Session.new(80, 24)
       timer = Process.send_after(self(), :esc_timeout, 0)
-      Process.sleep(10)
+      # The timer has fired and its message is back in the mailbox.
+      assert_receive :esc_timeout
+      send(self(), :esc_timeout)
 
       state = %IODevice{
         device: device,

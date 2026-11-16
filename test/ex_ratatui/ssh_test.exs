@@ -571,11 +571,11 @@ defmodule ExRatatui.SSHTest do
       {:ok, server} = __MODULE__.FakeServer.start_link()
       session = Session.new(80, 24)
 
-      # Use a 0 ms timer so it fires immediately and lands in the
-      # mailbox before the next handle_ssh_msg call.
+      # A timer that has fired, with its message back in the mailbox
+      # before the next handle_ssh_msg call.
       timer_ref = Process.send_after(self(), :esc_timeout, 0)
-      # Give the timer time to deliver.
-      Process.sleep(5)
+      assert_receive :esc_timeout
+      send(self(), :esc_timeout)
 
       state =
         build_state()
