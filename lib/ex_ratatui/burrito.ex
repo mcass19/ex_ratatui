@@ -179,21 +179,57 @@ defmodule ExRatatui.Burrito do
   end
 
   defp run_tui(tui_module, name, halt) do
-    case tui_module.start_link([]) do
-      {:ok, pid} ->
-        # An abnormal TUI exit must arrive as a DOWN message — not as an
-        # exit signal that kills the caller before it can set the exit
-        # code, leaving the wrapped binary hanging on an idle BEAM.
-        ref = Process.monitor(pid)
-        Process.unlink(pid)
+    # Trapped before the start: a TUI can stop before `start_link/1` even
+    # returns. Its exit then arrives as a message carrying the real reason,
+    # where a monitor taken afterwards only reports `:noproc`, and where an
+    # untrapped crash would kill this process before it sets the exit code,
+    # leaving the wrapped binary hanging on an idle BEAM.
+    trap_exit? = Process.flag(:trap_exit, true)
 
-        receive do
-          {:DOWN, ^ref, :process, ^pid, reason} -> shut_down(reason, name, halt)
-        end
+    result =
+      case tui_module.start_link([]) do
+        {:ok, pid} -> {:stopped, await_exit(pid)}
+        {:error, reason} -> {:error, reason}
+      end
+
+    Process.flag(:trap_exit, trap_exit?)
+
+    case result do
+      {:stopped, reason} ->
+        shut_down(reason, name, halt)
 
       {:error, reason} ->
         IO.puts(:stderr, "#{name} failed to start: #{inspect(reason)}")
         halt.(1)
+    end
+  end
+
+  # One message tells us the TUI stopped, and which one is known up front,
+  # so nothing of its exit is left behind for a caller that stops trapping.
+  defp await_exit(pid) do
+    {:links, links} = Process.info(self(), :links)
+
+    if pid in links do
+      # Linked and still running: its exit arrives as a message.
+      receive do
+        {:EXIT, ^pid, reason} -> reason
+      end
+    else
+      # No link left. Either it already stopped, and its exit is in the
+      # mailbox, or `start_link/1` never linked and a monitor has to do.
+      receive do
+        {:EXIT, ^pid, reason} -> reason
+      after
+        0 -> await_down(pid)
+      end
+    end
+  end
+
+  defp await_down(pid) do
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, reason} -> reason
     end
   end
 
