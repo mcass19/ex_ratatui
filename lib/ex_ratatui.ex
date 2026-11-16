@@ -418,6 +418,16 @@ defmodule ExRatatui do
     raise ArgumentError, "invalid mouse pointer shape: #{inspect(shape)}"
   end
 
+  @doc false
+  # The OSC 22 bytes for a shape, for transports that write to a terminal
+  # other than the local one.
+  @spec mouse_pointer_sequence(mouse_pointer()) :: String.t()
+  def mouse_pointer_sequence(shape), do: "\e]22;#{mouse_pointer_name(shape)}\e\\"
+
+  @doc false
+  @spec mouse_pointer?(term()) :: boolean()
+  def mouse_pointer?(shape), do: shape in @mouse_pointers
+
   @doc """
   Sets the image protocol hint on a terminal reference.
 

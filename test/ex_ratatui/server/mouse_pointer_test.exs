@@ -203,16 +203,13 @@ defmodule ExRatatui.Server.MousePointerTest do
     GenServer.stop(pid)
   end
 
-  test "cell, byte-stream, and distributed transports ignore pointer opts" do
-    cs = ExRatatui.CellSession.new(20, 5)
-    session = ExRatatui.Session.new(20, 5)
+  test "a cell session has no terminal, so pointer opts are ignored" do
     test_pid = self()
 
     for transport <- [
-          {:cell_session, cs, fn _diff -> :ok end,
-           fn intent -> send(test_pid, {:intent, intent}) end},
-          {:session, session, fn _bytes -> :ok end},
-          {:distributed_server, self(), 20, 5}
+          {:cell_session, ExRatatui.CellSession.new(20, 5), fn _diff -> :ok end},
+          {:cell_session, ExRatatui.CellSession.new(20, 5), fn _diff -> :ok end,
+           fn intent -> send(test_pid, {:intent, intent}) end}
         ] do
       {:ok, pid} =
         Server.start_link(
@@ -225,14 +222,91 @@ defmodule ExRatatui.Server.MousePointerTest do
         )
 
       assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1})
-      send(pid, {:noreply, [pointer: :text, render?: false]})
-      assert %{pointer: nil, transport: transport} = Runtime.snapshot(pid)
-      assert transport != :local
+      assert %{pointer: nil, transport: :cell_session} = Runtime.snapshot(pid)
       GenServer.stop(pid)
     end
 
     refute_received {:pointer, _}
     refute_received {:intent, _}
+  end
+
+  describe "a byte-stream session (SSH, the IEx shell)" do
+    defp start_session(opts \\ []) do
+      test_pid = self()
+      session = ExRatatui.Session.new(20, 5)
+      writer = fn bytes -> send(test_pid, {:bytes, IO.iodata_to_binary(bytes)}) end
+
+      opts =
+        Keyword.merge(
+          [mod: PointerApp, name: nil, test_pid: self(), transport: {:session, session, writer}],
+          opts
+        )
+
+      {:ok, pid} = Server.start_link(opts)
+      pid
+    end
+
+    # Frames go through the same writer; pick the pointer escapes out.
+    defp pointer_writes do
+      receive do
+        {:bytes, "\e]22;" <> _ = bytes} -> [bytes | pointer_writes()]
+        {:bytes, _frame} -> pointer_writes()
+      after
+        0 -> []
+      end
+    end
+
+    test "writes the escape through the session's writer, once per change" do
+      pid = start_session(mount_opts: [pointer: :pointer])
+      assert Runtime.snapshot(pid).pointer == :pointer
+
+      for _ <- 1..20, do: assert(:ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1}))
+      assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 10})
+      assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 11})
+      assert Runtime.snapshot(pid).pointer == :default
+
+      assert pointer_writes() == ["\e]22;pointer\e\\", "\e]22;default\e\\"]
+
+      # Already the arrow: nothing to put back on the way out.
+      GenServer.stop(pid)
+      assert pointer_writes() == []
+    end
+
+    test "puts the arrow back when the app stops with a shape set" do
+      pid = start_session()
+      send(pid, {:noreply, [pointer: :not_allowed, render?: false]})
+      assert Runtime.snapshot(pid).pointer == :not_allowed
+      assert pointer_writes() == ["\e]22;not-allowed\e\\"]
+
+      GenServer.stop(pid)
+      assert_receive {:terminated, :normal}
+      assert pointer_writes() == ["\e]22;default\e\\"]
+    end
+  end
+
+  describe "an attached node (Distributed.attach/3)" do
+    test "tells the client the shape, once per change, and leaves the reset to it" do
+      {:ok, pid} =
+        Server.start_link(
+          mod: PointerApp,
+          name: nil,
+          test_pid: self(),
+          transport: {:distributed_server, self(), 20, 5},
+          mount_opts: [pointer: :pointer]
+        )
+
+      assert_receive {:ex_ratatui_pointer, :pointer}
+      assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1})
+      refute_received {:ex_ratatui_pointer, _}
+
+      send(pid, {:noreply, [pointer: :grab, render?: false]})
+      assert Runtime.snapshot(pid).pointer == :grab
+      assert_received {:ex_ratatui_pointer, :grab}
+
+      # The client restores its own terminal, arrow included.
+      GenServer.stop(pid)
+      refute_received {:ex_ratatui_pointer, _}
+    end
   end
 
   test "reducer init and update share the same pointer behavior" do

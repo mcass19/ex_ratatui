@@ -85,6 +85,7 @@ The attach sequence: `attach/2` connects the nodes, starts the local `Distribute
 | Direction | Message | Purpose |
 |-----------|---------|---------|
 | Server -> Client | `{:ex_ratatui_draw, widgets}` | Widget list after each render |
+| Server -> Client | `{:ex_ratatui_pointer, shape}` | Mouse pointer shape from the app's `pointer:` runtime opt, sent when it changes |
 | Client -> Server | `{:ex_ratatui_event, event}` | Key/mouse events |
 | Client -> Server | `{:ex_ratatui_resize, w, h}` | Terminal resize |
 
