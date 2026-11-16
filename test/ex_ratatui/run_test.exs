@@ -60,13 +60,7 @@ defmodule ExRatatui.RunTest do
 
     test "opens the terminal with its start options" do
       Process.flag(:trap_exit, true)
-      test_pid = self()
-
-      # Refused, so no server is left polling the suite's own input.
-      Application.put_env(:ex_ratatui, :init_terminal_fn, fn focus_events?, mouse_capture? ->
-        send(test_pid, {:init_terminal, focus_events?, mouse_capture?})
-        {:error, :refused}
-      end)
+      refuse_terminal()
 
       assert {:error, {:terminal_init_failed, :refused}} =
                ExRatatui.Server.start_link(
@@ -78,5 +72,38 @@ defmodule ExRatatui.RunTest do
 
       assert_received {:init_terminal, true, true}
     end
+  end
+
+  describe "Distributed.attach/3's local client" do
+    test "opens the terminal without mouse capture by default" do
+      Process.flag(:trap_exit, true)
+      refuse_terminal()
+
+      assert {:error, {:terminal_init_failed, :refused}} =
+               ExRatatui.Distributed.start_local_client([])
+
+      assert_received {:init_terminal, false, false}
+    end
+
+    test "opens the terminal with mouse capture when asked" do
+      Process.flag(:trap_exit, true)
+      refuse_terminal()
+
+      assert {:error, {:terminal_init_failed, :refused}} =
+               ExRatatui.Distributed.start_local_client(mouse_capture: true)
+
+      assert_received {:init_terminal, false, true}
+    end
+  end
+
+  # Reports how the terminal was asked for and refuses it, so nothing is
+  # left polling the suite's own input.
+  defp refuse_terminal do
+    test_pid = self()
+
+    Application.put_env(:ex_ratatui, :init_terminal_fn, fn focus_events?, mouse_capture? ->
+      send(test_pid, {:init_terminal, focus_events?, mouse_capture?})
+      {:error, :refused}
+    end)
   end
 end

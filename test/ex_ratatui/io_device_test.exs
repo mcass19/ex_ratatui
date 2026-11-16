@@ -250,6 +250,22 @@ defmodule ExRatatui.IODeviceTest do
       assert_receive {:written, "\e[<u" <> @leave_screen}
     end
 
+    test "asks for mouse reports and delivers them as events" do
+      device = start_device()
+      task = run(device, mouse_capture: true)
+
+      assert_receive {:written, @enter_screen <> "\e[?1000h\e[?1002h\e[?1003h\e[?1006h"}
+      ready(device)
+
+      FakeDevice.type(device, "\e[<0;5;3M")
+      assert_receive {:event, %Event.Mouse{kind: "down", button: "left", x: 4, y: 2}}, 1000
+
+      wait_for_reader(device)
+      FakeDevice.type(device, "q")
+      assert Task.await(task) == :ok
+      assert_receive {:written, "\e[?1006l\e[?1003l\e[?1002l\e[?1000l" <> @leave_screen}
+    end
+
     test "an app stopping with {:shutdown, _} is a normal return" do
       device = start_device()
       task = run(device)

@@ -47,7 +47,7 @@ The local branch starts the app on the `:local` transport and waits for it to ex
 
 ## How it works
 
-Under the hood this is the same byte-stream path as the SSH transport. An `ExRatatui.Session` renders each frame to ANSI bytes, which go to the group leader as `put_chars` requests. Input is read one character at a time with `get_chars`, echo off, and fed to the session's input parser, so keys and key releases decode exactly as they do over SSH. A lone `Esc` is told apart from the start of an escape sequence by a 50 ms timeout.
+Under the hood this is the same byte-stream path as the SSH transport. An `ExRatatui.Session` renders each frame to ANSI bytes, which go to the group leader as `put_chars` requests. Input is read one character at a time with `get_chars`, echo off, and fed to the session's input parser, so keys, key releases and mouse reports decode exactly as they do over SSH. A lone `Esc` is told apart from the start of an escape sequence by a 50 ms timeout.
 
 The Erlang I/O protocol has no resize notification, so the device's columns and rows are polled every 250 ms and a change arrives as an `ExRatatui.Event.Resize` like on any other transport. The poll is asynchronous: a slow shell never holds up reading keys.
 
@@ -55,11 +55,15 @@ The Erlang I/O protocol has no resize notification, so the device's columns and 
 
 `keyboard_enhancement: true` asks the terminal for the kitty keyboard protocol, as on the other transports: pushed once inside the alternate screen, popped before leaving it. Over a shell there is no way to check whether the terminal took it, so `ExRatatui.Runtime.snapshot/1` reports `nil`; the first `"release"` an app sees is the signal. See [Key releases](../core/building_uis.md#key-releases).
 
+## Mouse
+
+`mouse_capture: true` asks the terminal for mouse reports for as long as the app runs; they arrive as `ExRatatui.Event.Mouse`, as on the other transports.
+
 ## Limits
 
 - Images render as `:halfblocks`; the transport has no `:image_protocol` option yet.
 - Resizes land up to 250 ms late.
-- Bracketed paste, mouse and focus events aren't decoded, the same gap as the SSH transport (see the [Transports](transports.md) matrix).
+- Bracketed paste and focus events aren't decoded, the same gap as the SSH transport (see the [Transports](transports.md) matrix).
 - The shell is blocked while the app runs: `run/2` is meant for an interactive session, not for supervising long-lived apps. Use the [SSH transport](ssh_transport.md) for that.
 
 ## Related

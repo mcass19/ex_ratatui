@@ -260,7 +260,7 @@ children = [
 ]
 ```
 
-`:mouse_capture` and `:focus_events` only exist on `:local`, and so do the events: SSH, the IEx shell and `Distributed.attach/3` deliver no mouse or focus events yet. The [Transports](../transports/transports.md#feature-matrix) matrix has the per-transport details.
+`:mouse_capture` and `:keyboard_enhancement` also work off the local terminal: over SSH inside `:app_opts`, and as options to `ExRatatui.IODevice.run/2` and `ExRatatui.Distributed.attach/3`. `:focus_events` is `:local` only. The [Transports](../transports/transports.md#feature-matrix) matrix has the per-transport details.
 
 ## Testing
 

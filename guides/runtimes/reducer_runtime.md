@@ -283,7 +283,7 @@ event = %ExRatatui.Event.Key{code: "up", modifiers: [], kind: "press"}
 
 ## Running over transports
 
-Reducer apps work across all transports with zero code changes — exactly like callback apps. See [Running Over Transports](callback_runtime.md#running-over-transports) in the Callback Runtime guide; everything there (including the `:local`-only `mouse_capture` / `focus_events` opts) applies unchanged.
+Reducer apps work across all transports with zero code changes — exactly like callback apps. See [Running Over Transports](callback_runtime.md#running-over-transports) in the Callback Runtime guide; everything there (including the `mouse_capture` / `focus_events` opts) applies unchanged.
 
 ## Testing
 

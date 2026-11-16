@@ -11,6 +11,8 @@ defmodule ExRatatui.SSHTest do
   @cpr_size_query "\e[s\e[9999;9999H\e[6n\e[u"
   @push_keyboard_enhancement "\e[>15u"
   @pop_keyboard_enhancement "\e[<u"
+  @enable_mouse_capture "\e[?1000h\e[?1002h\e[?1003h\e[?1006h"
+  @disable_mouse_capture "\e[?1006l\e[?1003l\e[?1002l\e[?1000l"
 
   defmodule SampleApp do
     use ExRatatui.App
@@ -438,6 +440,29 @@ defmodule ExRatatui.SSHTest do
       assert_receive {:server_got,
                       {:ex_ratatui_event,
                        %ExRatatui.Event.Key{code: "a", modifiers: [], kind: "press"}}}
+
+      Session.close(state.session)
+      GenServer.stop(server)
+    end
+
+    test "forwards a mouse report from the client as an Event.Mouse" do
+      {:ok, server} = __MODULE__.FakeServer.start_link()
+
+      state =
+        build_state(starter: fn _opts -> {:ok, server} end)
+        |> prime_with_pty(80, 24)
+
+      state = %{state | server_pid: server}
+
+      data_msg = {:ssh_cm, :conn, {:data, state.channel_id, 0, "\e[<0;5;3M\e[<35;6;3M"}}
+      assert {:ok, ^state} = SSH.handle_ssh_msg(data_msg, state)
+
+      assert_receive {:server_got,
+                      {:ex_ratatui_event,
+                       %ExRatatui.Event.Mouse{kind: "down", button: "left", x: 4, y: 2}}}
+
+      assert_receive {:server_got,
+                      {:ex_ratatui_event, %ExRatatui.Event.Mouse{kind: "moved", x: 5, y: 2}}}
 
       Session.close(state.session)
       GenServer.stop(server)
@@ -921,6 +946,42 @@ defmodule ExRatatui.SSHTest do
       # Popped before leaving it.
       assert :ok = SSH.terminate(:normal, %{state | rendering: true, session: nil})
       assert_receive {:sent, :conn, _, @pop_keyboard_enhancement <> @leave_screen}
+
+      Session.close(state.session)
+    end
+
+    test "asks the client for mouse reports when the app wants them" do
+      state =
+        build_state(app_opts: [mouse_capture: true])
+        |> prime_with_pty(80, 24)
+
+      {:ok, _} = SSH.start_server(state)
+
+      assert_receive {:sent, :conn, _, @enter_screen <> @enable_mouse_capture}
+      assert_receive {:server_started, opts}
+      assert opts[:mouse_capture] == true
+
+      # Switched off before leaving: the modes outlive the alternate screen.
+      assert :ok = SSH.terminate(:normal, %{state | rendering: true, session: nil})
+      assert_receive {:sent, :conn, _, @disable_mouse_capture <> @leave_screen}
+
+      Session.close(state.session)
+    end
+
+    test "mouse reports and the keyboard protocol are undone in reverse order" do
+      state =
+        build_state(app_opts: [mouse_capture: true, keyboard_enhancement: true])
+        |> prime_with_pty(80, 24)
+
+      {:ok, _} = SSH.start_server(state)
+
+      assert_receive {:sent, :conn, _,
+                      @enter_screen <> @push_keyboard_enhancement <> @enable_mouse_capture}
+
+      assert :ok = SSH.terminate(:normal, %{state | rendering: true, session: nil})
+
+      assert_receive {:sent, :conn, _,
+                      @disable_mouse_capture <> @pop_keyboard_enhancement <> @leave_screen}
 
       Session.close(state.session)
     end

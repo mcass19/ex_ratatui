@@ -85,7 +85,7 @@ The attach sequence: `attach/2` connects the nodes, starts the local `Distribute
 | Direction | Message | Purpose |
 |-----------|---------|---------|
 | Server -> Client | `{:ex_ratatui_draw, widgets}` | Widget list after each render |
-| Client -> Server | `{:ex_ratatui_event, event}` | Key events (no mouse yet: the attaching terminal starts without mouse capture) |
+| Client -> Server | `{:ex_ratatui_event, event}` | Key/mouse events |
 | Client -> Server | `{:ex_ratatui_resize, w, h}` | Terminal resize |
 
 All messages are plain BEAM terms sent via `send/2` — no encoding, no NIF, no serialization overhead.
@@ -132,6 +132,7 @@ ExRatatui.Distributed.attach(:"app@host", StatsTui, listener: :stats_dist)
 | `:image_protocol` | `:auto \| :halfblocks \| :kitty \| :sixel \| :iterm2` | `nil` | Image protocol hint for the local terminal — drives how `protocol: :auto` images render (see [Images](../core/images.md)) |
 | `:image_font_size` | `{width_px, height_px}` | `nil` | Local cell pixel size for Kitty / Sixel / iTerm2 image scaling |
 | `:keyboard_enhancement` | `boolean()` | `false` | Ask the local terminal for key repeat and release events, forwarded to the remote app (see [Key releases](../core/building_uis.md#key-releases)) |
+| `:mouse_capture` | `boolean()` | `false` | Turn on mouse reporting on the local terminal; the events are forwarded to the remote app |
 
 ## Forwarding `mount/1` opts
 

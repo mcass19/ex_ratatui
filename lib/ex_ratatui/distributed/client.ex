@@ -60,7 +60,8 @@ defmodule ExRatatui.Distributed.Client do
     poll_interval = Keyword.get(opts, :poll_interval, 16)
     test_mode = Keyword.get(opts, :test_mode)
 
-    init_fn = Keyword.get(opts, :init_terminal, &default_init_terminal/1)
+    mouse_capture? = Keyword.get(opts, :mouse_capture, false)
+    init_fn = Keyword.get(opts, :init_terminal, &default_init_terminal(&1, mouse_capture?))
     image_protocol = Keyword.get(opts, :image_protocol)
     image_font_size = Keyword.get(opts, :image_font_size)
 
@@ -186,8 +187,13 @@ defmodule ExRatatui.Distributed.Client do
   end
 
   @doc false
-  def default_init_terminal(nil), do: ExRatatui.init_terminal(false, false)
-  def default_init_terminal({width, height}), do: ExRatatui.init_test_terminal(width, height)
+  def default_init_terminal(test_mode, mouse_capture? \\ false)
+
+  def default_init_terminal(nil, mouse_capture?),
+    do: ExRatatui.init_terminal(false, mouse_capture?)
+
+  def default_init_terminal({width, height}, _mouse_capture?),
+    do: ExRatatui.init_test_terminal(width, height)
 
   defp restore_terminal(terminal_ref) do
     Native.restore_terminal(terminal_ref)

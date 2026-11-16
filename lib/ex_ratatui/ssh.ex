@@ -203,6 +203,14 @@ defmodule ExRatatui.SSH do
   @push_keyboard_enhancement "\e[>15u"
   @pop_keyboard_enhancement "\e[<u"
 
+  # Mouse reporting, for apps started with `mouse_capture: true`: clicks and
+  # the wheel (1000), drags (1002) and plain movement (1003), in the SGR
+  # encoding (1006) the session's input parser decodes. The same set the
+  # local terminal asks for. These are terminal-wide modes, not tied to the
+  # alternate screen, so they are switched off again before leaving it.
+  @enable_mouse_capture "\e[?1000h\e[?1002h\e[?1003h\e[?1006h"
+  @disable_mouse_capture "\e[?1006l\e[?1003l\e[?1002l\e[?1000l"
+
   # Bare-Esc detection timeout (milliseconds). VTE's state machine
   # swallows 0x1B as the start of an escape sequence; if no follow-up
   # byte arrives within this window we emit a synthetic Esc press.
@@ -231,6 +239,7 @@ defmodule ExRatatui.SSH do
     subsystem_mode: false,
     esc_timer: nil,
     keyboard_enhancement: false,
+    mouse_capture: false,
     stop_grace_ms: @stop_grace_ms
   ]
 
@@ -251,6 +260,7 @@ defmodule ExRatatui.SSH do
           subsystem_mode: boolean(),
           esc_timer: reference() | nil,
           keyboard_enhancement: boolean(),
+          mouse_capture: boolean(),
           stop_grace_ms: non_neg_integer()
         }
 
@@ -319,6 +329,7 @@ defmodule ExRatatui.SSH do
       image_protocol: image_protocol,
       image_font_size: image_font_size,
       keyboard_enhancement: Keyword.get(app_opts, :keyboard_enhancement, false),
+      mouse_capture: Keyword.get(app_opts, :mouse_capture, false),
       stop_grace_ms: stop_grace_ms
     }
 
@@ -690,13 +701,16 @@ defmodule ExRatatui.SSH do
     :ok
   end
 
-  defp enter_screen(%__MODULE__{keyboard_enhancement: true}),
-    do: @enter_screen <> @push_keyboard_enhancement
+  defp enter_screen(%__MODULE__{} = state) do
+    @enter_screen <>
+      if(state.keyboard_enhancement, do: @push_keyboard_enhancement, else: "") <>
+      if(state.mouse_capture, do: @enable_mouse_capture, else: "")
+  end
 
-  defp enter_screen(_state), do: @enter_screen
-
-  defp leave_screen(%__MODULE__{keyboard_enhancement: true}),
-    do: @pop_keyboard_enhancement <> @leave_screen
-
-  defp leave_screen(_state), do: @leave_screen
+  # Undone in the reverse order.
+  defp leave_screen(%__MODULE__{} = state) do
+    if(state.mouse_capture, do: @disable_mouse_capture, else: "") <>
+      if(state.keyboard_enhancement, do: @pop_keyboard_enhancement, else: "") <>
+      @leave_screen
+  end
 end

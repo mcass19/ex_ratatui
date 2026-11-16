@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Mouse pointer shapes on the local terminal.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and the arrow comes back when the app stops, a crash or a kill included. `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. Other transports ignore the opt. `ExRatatui.Runtime.snapshot/1` reports the current shape as `:pointer`, also under `test_mode`, where nothing is written. Thanks to @houllette!
 
-- **Mouse reports decode on byte-stream sessions.** `ExRatatui.Session.feed_input/2` and `ExRatatui.CellSession.feed_input/2` turn SGR mouse reports (`CSI < b ; x ; y M`) into `%Event.Mouse{}`: clicks, releases, drags, movement and the wheel, with modifiers, named the way the local terminal names them.
+- **Mouse events over SSH, the IEx shell and `Distributed.attach/3`.** `mouse_capture: true` now works off the local terminal too: inside `:app_opts` for SSH, and as an option to `ExRatatui.IODevice.run/2` and `ExRatatui.Distributed.attach/3`. Clicks, releases, drags, movement and the wheel arrive as the same `%Event.Mouse{}` the local terminal sends. The docs already said SSH and attach delivered mouse events, but nothing asked the terminal for them or decoded them. `ExRatatui.Session.feed_input/2` and `ExRatatui.CellSession.feed_input/2` decode SGR mouse reports for hosts that feed raw bytes.
 
 ### Fixed
 
@@ -19,8 +19,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`ExRatatui.IODevice.run/2` no longer returns `{:error, :noproc}` for an app that stops right away.** It started the TUI and only then began watching it, so an app that stopped in between was reported as an error instead of `:ok` (or its real exit reason).
 
 - **A Burrito-packaged TUI that stops right after starting exits with the right code.** `ExRatatui.Burrito.main/3` only began watching the TUI after `start_link/1` returned, so one that had already stopped was reported as `:noproc` (exit code 1 for a normal stop), and one that had already crashed could take the entry point down with it, leaving the binary hanging.
-
-- **Docs no longer claim mouse events over SSH, the IEx shell and distributed attach.** The guides and the [Transports](guides/transports/transports.md) matrix said those transports decode mouse input. They don't yet: the byte-stream parser has no mouse decoding and `Distributed.attach/3` starts its terminal without mouse capture, so `Event.Mouse` only arrives on the local terminal with `mouse_capture: true`.
 
 - **`mix ex_ratatui.gen.burrito --ci github` builds the Apple Silicon binary on `macos-15`.** The scaffolded workflow used `macos-14`, which GitHub retired on November 2, 2026, so that job no longer starts. Projects that already generated the workflow should change the label in `.github/workflows/release.yml` themselves.
 
