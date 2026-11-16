@@ -13,6 +13,10 @@ defmodule ExRatatui.Runtime do
     * `:keyboard_enhancement` — on the `:local` transport, `nil` unless the
       app was started with `keyboard_enhancement: true`, then whether the
       terminal reports key releases; `nil` on every other transport
+    * `:pointer` — the mouse pointer shape last set through the `pointer:`
+      runtime opt, `nil` when none was. Under `test_mode` nothing is written
+      to a terminal, but the shape is recorded, so tests can assert on it;
+      `nil` on every other transport
 
   `inject_event/2` delivers a synthetic terminal event through the same runtime
   transition path as a polled input event. This is useful for deterministic
@@ -43,7 +47,8 @@ defmodule ExRatatui.Runtime do
         subscription_count: non_neg_integer(),
         subscriptions: [%{id: term(), kind: atom(), interval_ms: pos_integer(), fired?: boolean(), active?: boolean()}],
         active_async_commands: non_neg_integer(),
-        keyboard_enhancement: boolean() | nil
+        keyboard_enhancement: boolean() | nil,
+        pointer: ExRatatui.mouse_pointer() | nil
       }
   """
   @spec snapshot(GenServer.server()) :: map()

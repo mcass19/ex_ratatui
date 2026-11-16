@@ -78,7 +78,7 @@ end
 
 `start_supervised!/1` (from ExUnit) guarantees the server is cleaned up at the end of the test — always use it over bare `start_link/1`.
 
-`Runtime.snapshot/1` returns a map with `render_count`, `dimensions`, `subscriptions`, `active_async_commands`, and more. See `ExRatatui.Runtime` for the full shape.
+`Runtime.snapshot/1` returns a map with `render_count`, `dimensions`, `subscriptions`, `active_async_commands`, `pointer` (the mouse pointer shape last set through the `pointer:` runtime opt), and more. See `ExRatatui.Runtime` for the full shape.
 
 ### Pattern 2: assert via a `test_pid`
 
