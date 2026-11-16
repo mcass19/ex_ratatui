@@ -260,7 +260,7 @@ children = [
 ]
 ```
 
-SSH and Distributed transports decode mouse events unconditionally because their VTE-based input parser handles them regardless; the opts above only matter for `:local`.
+`:mouse_capture` and `:focus_events` only exist on `:local`, and so do the events: SSH, the IEx shell and `Distributed.attach/3` deliver no mouse or focus events yet. The [Transports](../transports/transports.md#feature-matrix) matrix has the per-transport details.
 
 ## Testing
 

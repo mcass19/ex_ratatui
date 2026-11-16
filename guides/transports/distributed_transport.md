@@ -85,7 +85,7 @@ The attach sequence: `attach/2` connects the nodes, starts the local `Distribute
 | Direction | Message | Purpose |
 |-----------|---------|---------|
 | Server -> Client | `{:ex_ratatui_draw, widgets}` | Widget list after each render |
-| Client -> Server | `{:ex_ratatui_event, event}` | Key/mouse events |
+| Client -> Server | `{:ex_ratatui_event, event}` | Key events (no mouse yet: the attaching terminal starts without mouse capture) |
 | Client -> Server | `{:ex_ratatui_resize, w, h}` | Terminal resize |
 
 All messages are plain BEAM terms sent via `send/2` — no encoding, no NIF, no serialization overhead.
