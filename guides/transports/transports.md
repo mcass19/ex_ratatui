@@ -23,7 +23,7 @@ The internal telemetry tags match: `transport: :local`, `:session`, `:distribute
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | Every widget renders (Paragraph, List, Table, Block, Gauge, Chart, …) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Key events (`Event.Key`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
-| Mouse events (`Event.Mouse`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
+| Mouse events (`Event.Mouse`) | ✓ opt-in via `mouse_capture: true` | ✗ (input parser doesn't decode mouse reports yet) | ✗ (same, and mouse reporting is never requested) | ✗ (same) | ✗ (the attaching terminal starts without mouse capture) | — (caller constructs `%Event.Mouse{}` directly) |
 | Resize events (`Event.Resize`) | ✓ | ✓ | ✓ | ✓ (polled every 250 ms) | ✓ | ✓ (`resize/3`) |
 | Bracketed paste (`Event.Paste`) | ✓ | ✗ (VTE parser doesn't decode `CSI 200~/201~` yet) | ✗ (same) | ✗ (same) | ✗ (same) | — (caller constructs `%Event.Paste{}` directly) |
 | Key repeat / release (`Event.Key` `kind: "repeat"` / `"release"`) | ✓ opt-in via `keyboard_enhancement: true` | ✓ (parser decodes; the owner pushes `CSI > 15 u`) | ✓ opt-in via `app_opts: [keyboard_enhancement: true]` | ✓ opt-in via `keyboard_enhancement: true` | ✓ opt-in on `attach/3` | ✓ (`feed_input/2`) |
