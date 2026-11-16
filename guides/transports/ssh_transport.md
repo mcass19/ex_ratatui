@@ -281,6 +281,16 @@ ExRatatui.SSH.subsystem(MyApp.TUI, app_opts: [keyboard_enhancement: true])
 
 There is no support check over SSH: a terminal without the protocol just keeps sending presses, and the first `"release"` is the signal that it has it. See [Key releases](../core/building_uis.md#key-releases).
 
+## Mouse
+
+`mouse_capture: true` in `:app_opts` asks each client's terminal for mouse reports, and clicks, the wheel, drags and movement arrive in `handle_event/2` as `%ExRatatui.Event.Mouse{}`, the same events the local terminal sends. It goes through `subsystem/2` too:
+
+```elixir
+ExRatatui.SSH.subsystem(MyApp.TUI, app_opts: [mouse_capture: true])
+```
+
+It is off by default because it takes over the terminal's own text selection. Reporting is switched off again when the app stops. A connection that drops first leaves the client's terminal still reporting, since nothing can reach it any more; `reset` in that terminal clears it.
+
 ## Testing
 
 ### Unit tests
@@ -301,7 +311,6 @@ The integration tests run as part of the default `mix test` — no special flags
 
   * **One channel per session.** We don't support SSH port forwarding or multiple channels on a single connection. If that's needed, run a second daemon instance on a different port.
   * **No X11 / agent forwarding.** The TUI doesn't need either; both are unconditionally rejected.
-  * **No mouse events yet.** The session never asks the client's terminal for mouse reporting, and the input parser doesn't decode mouse reports. `mouse_capture:` is a `:local` option.
   * **Shell mode needs a PTY.** Clients that connect with `ssh host` (no `-T`, no subsystem) must request a PTY or the channel is closed immediately. `ssh host -T` will _not_ work; `ssh host` or `ssh host -t` will.
   * **Subsystem mode starts at 80x24 until the CPR reply comes back.** OTP consumes `pty_req` before a subsystem handler exists, so the transport discovers the client's real dimensions via a Cursor Position Report (`ESC[6n`) roundtrip on `channel_up`. The first frame paints at 80x24 until the response arrives on the next `{:data, ...}` message, which is usually invisibly fast but is not strictly instantaneous. Clients that don't answer `ESC[6n` at all (very rare — this is a half-century-old ANSI spec) stay at 80x24 until their first `window_change`.
   * **No keystroke replay.** If a client disconnects mid-session, the state is gone. There's no server-side scrollback or reattach (think `tmux`, not `screen`).

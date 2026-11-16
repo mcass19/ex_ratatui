@@ -195,9 +195,9 @@ defmodule ExRatatui do
       move) as `%Event.Mouse{}` from `poll_event/1`. Defaults to
       `false`. When on, the terminal's native text-selection is
       captured by the app; pair with `ExRatatui.Focus.handle_mouse/2`
-      (or a custom dispatcher) to route the events. Mouse events only
-      arrive on the local terminal: SSH, the IEx shell and
-      `ExRatatui.Distributed.attach/3` don't deliver them yet.
+      (or a custom dispatcher) to route the events. SSH (inside
+      `:app_opts`), `ExRatatui.IODevice.run/2` and
+      `ExRatatui.Distributed.attach/3` take the same option.
     * `:keyboard_enhancement` — ask the terminal for key repeat and
       release events (the kitty keyboard protocol), so `poll_event/1`
       returns `%Event.Key{}` with `kind: "repeat"` and `kind: "release"`

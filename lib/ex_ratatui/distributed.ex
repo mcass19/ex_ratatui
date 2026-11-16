@@ -78,6 +78,10 @@ defmodule ExRatatui.Distributed do
       release events, forwarded to the remote app like any other key
       (default: `false`). See
       [Key releases](building_uis.html#key-releases).
+    * `:mouse_capture` — turn on mouse reporting on the local terminal;
+      clicks, the wheel, drags and movement reach the remote app as
+      `ExRatatui.Event.Mouse` (default: `false`, since it takes over the
+      terminal's own text selection).
 
   Returns `:ok` when the session ends normally, or `{:error, reason}`.
   """
@@ -151,7 +155,8 @@ defmodule ExRatatui.Distributed do
         :init_terminal,
         :image_protocol,
         :image_font_size,
-        :keyboard_enhancement
+        :keyboard_enhancement,
+        :mouse_capture
       ])
 
     Client.start_link(client_opts)

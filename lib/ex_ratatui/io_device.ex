@@ -34,6 +34,10 @@ defmodule ExRatatui.IODevice do
     * `:keyboard_enhancement` — ask the terminal for key repeat and
       release events, as over SSH. See
       [Key releases](building_uis.html#key-releases).
+    * `:mouse_capture` — ask the terminal for mouse reports (clicks, the
+      wheel, drags and movement), delivered as `ExRatatui.Event.Mouse`.
+      Off by default: it takes over the terminal's own text selection
+      while the app runs.
   """
 
   use GenServer
@@ -45,11 +49,14 @@ defmodule ExRatatui.IODevice do
   alias ExRatatui.Transport.ByteStream
 
   # Same screen setup and teardown as `ExRatatui.SSH`: alternate screen,
-  # hidden cursor, and the kitty keyboard flags pushed inside it.
+  # hidden cursor, the kitty keyboard flags pushed inside it, and mouse
+  # reporting switched on and off around it.
   @enter_screen "\e[?1049h\e[?25l"
   @leave_screen "\e[?1049l\e[?25h\e[0m"
   @push_keyboard_enhancement "\e[>15u"
   @pop_keyboard_enhancement "\e[<u"
+  @enable_mouse_capture "\e[?1000h\e[?1002h\e[?1003h\e[?1006h"
+  @disable_mouse_capture "\e[?1006l\e[?1003l\e[?1002l\e[?1000l"
 
   @esc_timeout_ms 50
   @resize_interval_ms 250
@@ -64,6 +71,7 @@ defmodule ExRatatui.IODevice do
     :size,
     esc_timer: nil,
     keyboard_enhancement: false,
+    mouse_capture: false,
     resize_interval_ms: @resize_interval_ms
   ]
 
@@ -179,6 +187,7 @@ defmodule ExRatatui.IODevice do
         session: Session.new(width, height),
         size: {width, height},
         keyboard_enhancement: Keyword.get(opts, :keyboard_enhancement, false),
+        mouse_capture: Keyword.get(opts, :mouse_capture, false),
         resize_interval_ms: Keyword.get(opts, :resize_interval_ms, @resize_interval_ms)
       }
 
@@ -337,13 +346,16 @@ defmodule ExRatatui.IODevice do
     end
   end
 
-  defp enter_screen(%__MODULE__{keyboard_enhancement: true}),
-    do: @enter_screen <> @push_keyboard_enhancement
+  defp enter_screen(%__MODULE__{} = state) do
+    @enter_screen <>
+      if(state.keyboard_enhancement, do: @push_keyboard_enhancement, else: "") <>
+      if(state.mouse_capture, do: @enable_mouse_capture, else: "")
+  end
 
-  defp enter_screen(_state), do: @enter_screen
-
-  defp leave_screen(%__MODULE__{keyboard_enhancement: true}),
-    do: @pop_keyboard_enhancement <> @leave_screen
-
-  defp leave_screen(_state), do: @leave_screen
+  # Undone in the reverse order.
+  defp leave_screen(%__MODULE__{} = state) do
+    if(state.mouse_capture, do: @disable_mouse_capture, else: "") <>
+      if(state.keyboard_enhancement, do: @pop_keyboard_enhancement, else: "") <>
+      @leave_screen
+  end
 end

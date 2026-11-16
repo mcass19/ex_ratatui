@@ -352,7 +352,7 @@ def handle_event(%Event.Mouse{} = mouse, state) do
 end
 ```
 
-The local terminal needs mouse capture explicitly turned on — pass `mouse_capture: true` to `ExRatatui.run/2` or as a `start_link` option on the `:local` `ExRatatui.App`. Mouse events only arrive on the local terminal today: SSH, the IEx shell and `Distributed.attach/3` don't deliver them yet. Scroll-wheel routing is intentionally not built in; `Focus.current/1` after `handle_mouse/2` routes "to the focused widget", `Focus.at/3` routes "to the widget under the cursor" — pick whichever fits.
+Mouse capture has to be turned on explicitly, since it takes over the terminal's own text selection — pass `mouse_capture: true` to `ExRatatui.run/2` or as a `start_link` option on the `:local` `ExRatatui.App`. The same option works over SSH (inside `:app_opts`), in `ExRatatui.IODevice.run/2` and in `ExRatatui.Distributed.attach/3`, and the events are the same everywhere. Scroll-wheel routing is intentionally not built in; `Focus.current/1` after `handle_mouse/2` routes "to the focused widget", `Focus.at/3` routes "to the widget under the cursor" — pick whichever fits.
 
 Overlapping regions resolve to the smallest by area (leaf-inside-container picks the leaf). Boundaries are half-open (`x >= rx and x < rx + w`) — natural for ratatui rect semantics. Registering a region for an ID that isn't in the ring raises.
 
