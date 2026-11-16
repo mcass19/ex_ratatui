@@ -3,6 +3,8 @@
 #     then: ssh demo@localhost -p 2223   (password: demo)
 #     and, at the remote iex> prompt:
 #           ExRatatui.IODevice.run(ShellDemo)
+#     or, to see mouse events too:
+#           ExRatatui.IODevice.run(ShellDemo, mouse_capture: true)
 #
 # Controls: any key shows up in the window; q = back to the IEx prompt
 #
@@ -26,7 +28,7 @@ defmodule ShellDemo do
   def mount(_opts) do
     # The app runs under the caller's group leader, so this asks the SSH
     # session's I/O device: true here, false from a local `iex`.
-    {:ok, %{last_key: nil, io_device?: ExRatatui.IODevice.io_device?()}}
+    {:ok, %{last_key: nil, last_mouse: nil, io_device?: ExRatatui.IODevice.io_device?()}}
   end
 
   @impl true
@@ -37,6 +39,7 @@ defmodule ShellDemo do
 
     size:      #{frame.width} × #{frame.height}  (resize the window: it follows within 250 ms)
     last key:  #{inspect(state.last_key)}
+    last mouse: #{inspect(state.last_mouse)}  (with `mouse_capture: true`)
     io_device?: #{state.io_device?}
 
     q hands the iex> prompt back.
@@ -61,6 +64,9 @@ defmodule ShellDemo do
 
   def handle_event(%Event.Key{code: code, modifiers: mods}, state),
     do: {:noreply, %{state | last_key: {code, mods}}}
+
+  def handle_event(%Event.Mouse{kind: kind, button: button, x: x, y: y}, state),
+    do: {:noreply, %{state | last_mouse: {kind, button, x, y}}}
 
   def handle_event(_event, state), do: {:noreply, state}
 end
