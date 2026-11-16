@@ -85,15 +85,15 @@ defmodule ExRatatui.IODevice do
   def run(mod, opts \\ []) when is_atom(mod) and is_list(opts) do
     device = opts |> Keyword.get_lazy(:device, &Process.group_leader/0) |> GenServer.whereis()
 
-    case GenServer.start(__MODULE__, {mod, device, opts}) do
-      {:ok, pid} -> await(pid)
+    # Started and monitored in one step: an app can stop before this process
+    # runs again, and a monitor taken after that only reports `:noproc`.
+    case :gen_server.start_monitor(__MODULE__, {mod, device, opts}, []) do
+      {:ok, {pid, ref}} -> await(pid, ref)
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp await(pid) do
-    ref = Process.monitor(pid)
-
+  defp await(pid, ref) do
     receive do
       {:DOWN, ^ref, :process, ^pid, reason} when reason in [:normal, :shutdown] -> :ok
       {:DOWN, ^ref, :process, ^pid, {:shutdown, _}} -> :ok
