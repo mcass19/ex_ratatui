@@ -102,6 +102,35 @@ defmodule ExRatatui.Distributed.IntegrationTest do
       :rpc.call(peer_node, Supervisor, :stop, [listener])
     end
 
+    test "mouse events reach the remote app and its pointer shape comes back", %{
+      peer_node: peer_node
+    } do
+      {:ok, listener} = start_peer_listener(peer_node, app_opts: [test_pid: self()])
+
+      {:ok, server_pid} =
+        :rpc.call(peer_node, Listener, :start_session, [self(), 80, 24, listener])
+
+      assert_receive {:mounted, ^server_pid, _opts}, 2000
+      assert_receive {:ex_ratatui_draw, _widgets}, 2000
+
+      move = fn x ->
+        event = %ExRatatui.Event.Mouse{kind: "moved", button: "", x: x, y: 0, modifiers: []}
+        send(server_pid, {:ex_ratatui_event, event})
+      end
+
+      move.(2)
+      assert_receive {:ex_ratatui_pointer, :pointer}, 2000
+
+      # Still over it: nothing is sent until the shape changes.
+      move.(3)
+      move.(40)
+      assert_receive {:ex_ratatui_pointer, :default}, 2000
+      refute_received {:ex_ratatui_pointer, _}
+
+      GenServer.stop(server_pid)
+      :rpc.call(peer_node, Supervisor, :stop, [listener])
+    end
+
     test "server stops when client disconnects", %{peer_node: peer_node} do
       {:ok, listener} = start_peer_listener(peer_node, app_opts: [test_pid: self()])
 

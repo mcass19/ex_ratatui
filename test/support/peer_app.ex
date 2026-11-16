@@ -27,6 +27,11 @@ defmodule ExRatatui.Test.PeerApp do
     {:stop, state}
   end
 
+  # Hover feedback: the shape travels back to the attaching node.
+  def handle_event(%ExRatatui.Event.Mouse{kind: "moved", x: x}, state) do
+    {:noreply, state, pointer: if(x < 10, do: :pointer, else: :default), render?: false}
+  end
+
   def handle_event(_event, state) do
     {:noreply, %{state | count: state.count + 1}}
   end

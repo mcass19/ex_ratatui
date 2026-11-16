@@ -1,5 +1,11 @@
 # Example: buttons that react to the mouse, with a hand pointer over them.
 # Run with: EX_RATATUI_POINTER=1 mix run examples/basics/mouse_pointer.exs
+#      or:  EX_RATATUI_POINTER=1 mix run --no-halt examples/basics/mouse_pointer.exs --ssh
+#           then: ssh demo@localhost -p 2222   (password: demo)
+#      or:  EX_RATATUI_POINTER=1 elixir --sname app --cookie demo -S mix run --no-halt \
+#             examples/basics/mouse_pointer.exs --distributed
+#           then, from `iex --sname local --cookie demo -S mix`:
+#             ExRatatui.Distributed.attach(:"app@hostname", MousePointerDemo, mouse_capture: true)
 #
 # Controls: hover and click the buttons; q = quit
 #
@@ -12,7 +18,8 @@
 # Nothing detects whether a terminal understands pointer shapes (kitty and
 # Ghostty do), so the app decides: here EX_RATATUI_POINTER=1 is that
 # decision. Without it the buttons still light up and the pointer stays as
-# it is.
+# it is. The pointer that changes is the one of the terminal the app is
+# drawn on: over SSH or an attach that is the client's, not this node's.
 
 alias ExRatatui.Event.{Key, Mouse}
 alias ExRatatui.Layout.Rect
@@ -115,12 +122,48 @@ defmodule MousePointerDemo do
   defp pointer_shapes(false), do: "off (EX_RATATUI_POINTER=1)"
 end
 
-# Start the app directly (not supervised, since this is a script)
-{:ok, pid} = MousePointerDemo.start_link(name: nil, mouse_capture: true)
+case System.argv() do
+  ["--ssh" | _] ->
+    {:ok, _daemon} =
+      ExRatatui.SSH.Daemon.start_link(
+        mod: MousePointerDemo,
+        name: nil,
+        port: 2222,
+        system_dir:
+          ExRatatui.SSH.Daemon.ensure_host_key!(
+            Path.join(System.tmp_dir!(), "ex_ratatui_example_host_keys")
+          ),
+        auth_methods: ~c"password",
+        user_passwords: [{~c"demo", ~c"demo"}],
+        app_opts: [mouse_capture: true]
+      )
 
-# Wait for the GenServer to exit
-ref = Process.monitor(pid)
+    IO.puts("ssh demo@localhost -p 2222   (password: demo) — Ctrl-C twice stops the daemon")
 
-receive do
-  {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+  ["--distributed" | _] ->
+    if not Node.alive?() do
+      IO.puts(:stderr, "Start this node with --sname (or --name) and a --cookie to attach to it.")
+      System.halt(1)
+    end
+
+    {:ok, _listener} = ExRatatui.Distributed.Listener.start_link(mod: MousePointerDemo)
+
+    IO.puts("""
+    From another node with the same cookie:
+
+        ExRatatui.Distributed.attach(#{inspect(Node.self())}, MousePointerDemo, mouse_capture: true)
+
+    Ctrl-C twice stops this node.
+    """)
+
+  _ ->
+    # Start the app directly (not supervised, since this is a script)
+    {:ok, pid} = MousePointerDemo.start_link(name: nil, mouse_capture: true)
+
+    # Wait for the GenServer to exit
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    end
 end
