@@ -20,6 +20,10 @@
 //! F1–F4 and the `~` keys gain an event-type sub-parameter
 //! (`CSI 1 ; mods:event A`); both are decoded into `"press"`, `"repeat"`
 //! and `"release"` the way crossterm does for the local terminal.
+//!
+//! Mouse reports are decoded in their SGR form (`CSI < b ; x ; y M`, or `m`
+//! for a button release), which is what a terminal sends once the transport
+//! has asked for `CSI ? 1006 h`. The legacy X10 form is not decoded.
 
 use vte::{Params, Parser, Perform};
 
@@ -145,8 +149,15 @@ impl Perform for InputPerformer<'_> {
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, action: char) {
-        // Private-marker sequences (`CSI ? … u`, the answer to a keyboard
-        // protocol query, and the like) are replies, not keys.
+        if intermediates == b"<" {
+            if let Some(event) = sgr_mouse(params, action) {
+                self.out.push(event);
+            }
+            return;
+        }
+
+        // Other private-marker sequences (`CSI ? … u`, the answer to a
+        // keyboard protocol query, and the like) are replies, not keys.
         if !intermediates.is_empty() {
             return;
         }
@@ -228,6 +239,66 @@ fn csi_to_event(params: &Params, action: char) -> Option<NifEvent> {
     }
 
     None
+}
+
+/// Decodes an SGR mouse report, `CSI < b ; x ; y M` (or `m` for a button
+/// release), into the event crossterm reports for the same input on the
+/// local terminal.
+///
+/// `b` packs the button and what was held: bits 0-1 and 6-7 are the button
+/// number (0 left, 1 middle, 2 right, 4-7 the wheel), bit 2 shift, bit 3
+/// alt, bit 4 ctrl, and bit 5 says the mouse moved. `x` and `y` are
+/// 1-based on the wire and 0-based in our events. Reports we have no name
+/// for, or that are missing a coordinate, produce nothing.
+fn sgr_mouse(params: &Params, action: char) -> Option<NifEvent> {
+    if action != 'M' && action != 'm' {
+        return None;
+    }
+
+    let mut values = params.iter().map(|param| param.first().copied());
+    let cb = values.next()??;
+    let x = values.next()??.checked_sub(1)?;
+    let y = values.next()??.checked_sub(1)?;
+
+    let button = (cb & 0b0000_0011) | ((cb & 0b1100_0000) >> 4);
+    let moved = cb & 0b0010_0000 != 0;
+
+    let (kind, button) = match (button, moved) {
+        (0, false) => ("down", "left"),
+        (1, false) => ("down", "middle"),
+        (2, false) => ("down", "right"),
+        (0, true) => ("drag", "left"),
+        (1, true) => ("drag", "middle"),
+        (2, true) => ("drag", "right"),
+        (3, false) => ("up", "left"),
+        (3, true) | (4, true) | (5, true) => ("moved", ""),
+        (4, false) => ("scroll_up", ""),
+        (5, false) => ("scroll_down", ""),
+        (6, false) => ("scroll_left", ""),
+        (7, false) => ("scroll_right", ""),
+        _ => return None,
+    };
+
+    // A release repeats the button of its press and ends in `m`.
+    let kind = if action == 'm' && kind == "down" {
+        "up"
+    } else {
+        kind
+    };
+
+    // In the order the local terminal lists them.
+    let mut modifiers = Vec::new();
+    if cb & 0b0000_0100 != 0 {
+        modifiers.push("shift".into());
+    }
+    if cb & 0b0001_0000 != 0 {
+        modifiers.push("ctrl".into());
+    }
+    if cb & 0b0000_1000 != 0 {
+        modifiers.push("alt".into());
+    }
+
+    Some(NifEvent::Mouse(kind.into(), button.into(), x, y, modifiers))
 }
 
 /// Decodes a kitty keyboard protocol key: `CSI code[:shifted[:base]] ;
@@ -820,6 +891,117 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         assert_eq!(unwrap_key(&events[0]).2, "release");
+    }
+
+    /// The single mouse event `bytes` decode to.
+    fn mouse(bytes: &[u8]) -> (String, String, u16, u16, Vec<String>) {
+        match parse(bytes).as_slice() {
+            [NifEvent::Mouse(kind, button, x, y, mods)] => {
+                (kind.clone(), button.clone(), *x, *y, mods.clone())
+            }
+            other => panic!("expected one Mouse event, got {} events", other.len()),
+        }
+    }
+
+    fn mouse_kind(bytes: &[u8]) -> (String, String) {
+        let (kind, button, _, _, _) = mouse(bytes);
+        (kind, button)
+    }
+
+    #[test]
+    fn sgr_mouse_press_and_release_are_zero_based() {
+        assert_eq!(
+            mouse(b"\x1b[<0;5;3M"),
+            ("down".into(), "left".into(), 4, 2, vec![])
+        );
+        assert_eq!(
+            mouse(b"\x1b[<0;5;3m"),
+            ("up".into(), "left".into(), 4, 2, vec![])
+        );
+        assert_eq!(
+            mouse(b"\x1b[<0;1;1M"),
+            ("down".into(), "left".into(), 0, 0, vec![])
+        );
+        assert_eq!(
+            mouse(b"\x1b[<0;300;120M"),
+            ("down".into(), "left".into(), 299, 119, vec![])
+        );
+    }
+
+    #[test]
+    fn sgr_mouse_buttons_drags_moves_and_wheel() {
+        let named = |kind: &str, button: &str| (kind.to_string(), button.to_string());
+
+        assert_eq!(mouse_kind(b"\x1b[<1;2;2M"), named("down", "middle"));
+        assert_eq!(mouse_kind(b"\x1b[<2;2;2M"), named("down", "right"));
+        assert_eq!(mouse_kind(b"\x1b[<2;2;2m"), named("up", "right"));
+        assert_eq!(mouse_kind(b"\x1b[<3;2;2M"), named("up", "left"));
+
+        assert_eq!(mouse_kind(b"\x1b[<32;2;2M"), named("drag", "left"));
+        assert_eq!(mouse_kind(b"\x1b[<33;2;2M"), named("drag", "middle"));
+        assert_eq!(mouse_kind(b"\x1b[<34;2;2M"), named("drag", "right"));
+        // A drag that ends in `m` is still a drag: only a press turns into
+        // a release.
+        assert_eq!(mouse_kind(b"\x1b[<32;2;2m"), named("drag", "left"));
+        assert_eq!(mouse_kind(b"\x1b[<35;2;2M"), named("moved", ""));
+
+        assert_eq!(mouse_kind(b"\x1b[<64;2;2M"), named("scroll_up", ""));
+        assert_eq!(mouse_kind(b"\x1b[<65;2;2M"), named("scroll_down", ""));
+        assert_eq!(mouse_kind(b"\x1b[<66;2;2M"), named("scroll_left", ""));
+        assert_eq!(mouse_kind(b"\x1b[<67;2;2M"), named("scroll_right", ""));
+    }
+
+    #[test]
+    fn sgr_mouse_modifiers_come_in_the_local_order() {
+        let mods = |bytes: &[u8]| mouse(bytes).4;
+
+        assert_eq!(mods(b"\x1b[<4;2;2M"), vec!["shift"]);
+        assert_eq!(mods(b"\x1b[<8;2;2M"), vec!["alt"]);
+        assert_eq!(mods(b"\x1b[<16;2;2M"), vec!["ctrl"]);
+        assert_eq!(mods(b"\x1b[<28;2;2M"), vec!["shift", "ctrl", "alt"]);
+        // Ctrl held while the mouse moves.
+        assert_eq!(
+            mouse(b"\x1b[<51;2;2M"),
+            ("moved".into(), "".into(), 1, 1, vec!["ctrl".to_string()])
+        );
+    }
+
+    #[test]
+    fn sgr_mouse_report_split_across_feeds() {
+        let mut parser = InputParser::new();
+        let mut events = Vec::new();
+
+        parser.feed(b"\x1b[<0;1", &mut events);
+        assert!(events.is_empty());
+        parser.feed(b"0;7M", &mut events);
+
+        match events.as_slice() {
+            [NifEvent::Mouse(kind, button, 9, 6, _)] => {
+                assert_eq!((kind.as_str(), button.as_str()), ("down", "left"));
+            }
+            _ => panic!("expected one Mouse event"),
+        }
+    }
+
+    #[test]
+    fn malformed_or_unknown_mouse_reports_are_dropped() {
+        // Missing coordinates, a zero coordinate, a button we have no name
+        // for, and a final byte that is not a mouse report.
+        assert!(parse(b"\x1b[<0M").is_empty());
+        assert!(parse(b"\x1b[<0;5M").is_empty());
+        assert!(parse(b"\x1b[<0;0;3M").is_empty());
+        assert!(parse(b"\x1b[<0;5;0M").is_empty());
+        assert!(parse(b"\x1b[<128;5;3M").is_empty());
+        assert!(parse(b"\x1b[<0;5;3A").is_empty());
+    }
+
+    #[test]
+    fn mouse_reports_and_keys_mix_in_one_feed() {
+        let events = parse(b"a\x1b[<0;5;3M\x1b[A");
+        assert_eq!(events.len(), 3);
+        assert_eq!(unwrap_key(&events[0]).0, "a");
+        assert!(matches!(&events[1], NifEvent::Mouse(kind, _, 4, 2, _) if kind == "down"));
+        assert_eq!(unwrap_key(&events[2]).0, "up");
     }
 
     #[test]

@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Mouse pointer shapes on the local terminal.** Apps return `pointer: :pointer` (or another shape) from a callback to change the operating-system mouse pointer, a hand over a clickable region for instance, and `pointer: :default` to go back to the arrow. The runtime writes only when the shape changes, also with `render?: false`, and the arrow comes back when the app stops, a crash or a kill included. `ExRatatui.set_mouse_pointer/1` is the low-level call. Shapes go out as OSC 22 names, which kitty and Ghostty support; nothing is detected, so the app decides whether to ask. Other transports ignore the opt. `ExRatatui.Runtime.snapshot/1` reports the current shape as `:pointer`, also under `test_mode`, where nothing is written. Thanks to @houllette!
 
+- **Mouse reports decode on byte-stream sessions.** `ExRatatui.Session.feed_input/2` and `ExRatatui.CellSession.feed_input/2` turn SGR mouse reports (`CSI < b ; x ; y M`) into `%Event.Mouse{}`: clicks, releases, drags, movement and the wheel, with modifiers, named the way the local terminal names them.
+
 ### Fixed
 
 - **`ExRatatui.Runtime.inject_event/2` delivers intents.** A transition reached through an injected event dropped its `intents:` instead of handing them to the transport's intent writer, so tests could not see them. They now go out before the call returns, and before the server exits on a `{:stop, ...}` transition, as with real input.

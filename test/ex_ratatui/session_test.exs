@@ -166,6 +166,24 @@ defmodule ExRatatui.SessionTest do
       assert :ok = Native.session_close(ref)
     end
 
+    test "parses SGR mouse reports" do
+      ref = Native.session_new(20, 5)
+
+      # 1-based on the wire, 0-based in the event; `m` is a release.
+      assert [{:mouse, "down", "left", 4, 2, []}] = Native.session_feed_input(ref, "\e[<0;5;3M")
+      assert [{:mouse, "up", "left", 4, 2, []}] = Native.session_feed_input(ref, "\e[<0;5;3m")
+      assert [{:mouse, "moved", "", 9, 0, []}] = Native.session_feed_input(ref, "\e[<35;10;1M")
+      assert [{:mouse, "drag", "right", 0, 0, []}] = Native.session_feed_input(ref, "\e[<34;1;1M")
+
+      assert [{:mouse, "scroll_up", "", 1, 1, ["ctrl"]}] =
+               Native.session_feed_input(ref, "\e[<80;2;2M")
+
+      # A report missing a coordinate is dropped.
+      assert [] = Native.session_feed_input(ref, "\e[<0;5M")
+
+      assert :ok = Native.session_close(ref)
+    end
+
     test "parses CSI sequences with modifiers" do
       ref = Native.session_new(20, 5)
 
