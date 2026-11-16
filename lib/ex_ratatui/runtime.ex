@@ -16,7 +16,7 @@ defmodule ExRatatui.Runtime do
     * `:pointer` — the mouse pointer shape last set through the `pointer:`
       runtime opt, `nil` when none was. Under `test_mode` nothing is written
       to a terminal, but the shape is recorded, so tests can assert on it;
-      `nil` on every other transport
+      always `nil` for a cell session, which has no terminal
 
   `inject_event/2` delivers a synthetic terminal event through the same runtime
   transition path as a polled input event. This is useful for deterministic

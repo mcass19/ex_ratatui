@@ -303,6 +303,44 @@ defmodule ExRatatui.Distributed.ClientTest do
     end
   end
 
+  describe "pointer shapes from the remote app" do
+    test "are set on the local terminal, skipping shapes this version doesn't know" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+      test_pid = self()
+
+      {:ok, pid} =
+        Client.start_link(
+          remote_pid: remote,
+          test_mode: {80, 24},
+          mouse_pointer_fn: fn shape ->
+            send(test_pid, {:pointer, shape})
+            :ok
+          end
+        )
+
+      send(pid, {:ex_ratatui_pointer, :pointer})
+      send(pid, {:ex_ratatui_pointer, :from_a_newer_version})
+      send(pid, {:ex_ratatui_pointer, :default})
+      :sys.get_state(pid)
+
+      assert_received {:pointer, :pointer}
+      assert_received {:pointer, :default}
+      refute_received {:pointer, _}
+
+      GenServer.stop(pid)
+    end
+
+    test "are ignored by a headless client" do
+      remote = spawn(fn -> Process.sleep(:infinity) end)
+      {:ok, pid} = Client.start_link(remote_pid: remote, test_mode: {80, 24})
+
+      send(pid, {:ex_ratatui_pointer, :pointer})
+      assert %Client{pointer_setter: nil} = :sys.get_state(pid)
+
+      GenServer.stop(pid)
+    end
+  end
+
   describe "unrecognized messages" do
     test "unknown messages are silently ignored" do
       remote = spawn(fn -> Process.sleep(:infinity) end)

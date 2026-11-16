@@ -188,7 +188,7 @@ end
 | `trace?: bool` | unchanged | Toggle in-memory runtime tracing for debugging — see [Debugging](../internals/debugging.md#runtime-trace). |
 | `commands: [...]` | `[]` | Queue `ExRatatui.Command` structs; results are delivered to `handle_info/2`. Designed for the reducer runtime but executed under both. |
 | `render?: bool` | `true` | Skip the re-render for this callback return. Works under both runtimes. |
-| `pointer: shape` | unchanged | Mouse pointer shape on the local terminal (`:pointer`, `:default`, …). See [Mouse pointer feedback](#mouse-pointer-feedback). |
+| `pointer: shape` | unchanged | Mouse pointer shape (`:pointer`, `:default`, …) on the terminal the app is drawn on. See [Mouse pointer feedback](#mouse-pointer-feedback). |
 
 `ExRatatui.App`'s Runtime opts section has the full list (including `probe_image_protocol:`).
 
@@ -207,9 +207,9 @@ def handle_event(%ExRatatui.Event.Mouse{kind: "moved"} = event, state) do
 end
 ```
 
-Terminal support varies ([kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document the shape names) and nothing is detected or queried, so the app decides whether to return `pointer:` at all. Only the `:local` transport acts on it; other transports ignore it. Under `test_mode` nothing is written, but `ExRatatui.Runtime.snapshot/1` reports the shape as `:pointer`, so a test can inject a `"moved"` event and assert on it.
+Terminal support varies ([kitty](https://sw.kovidgoyal.net/kitty/pointer-shapes/) and [Ghostty](https://ghostty.org/docs/vt/osc/22) document the shape names) and nothing is detected or queried, so the app decides whether to return `pointer:` at all. The shape is set on whichever terminal the app is drawn on: the local one, an SSH client's, the IEx shell's, or the attaching node's for `Distributed.attach/3`. A cell session has no terminal and ignores the opt. Under `test_mode` nothing is written, but `ExRatatui.Runtime.snapshot/1` reports the shape as `:pointer`, so a test can inject a `"moved"` event and assert on it.
 
-The arrow comes back when the app stops, whether it exits, crashes in a callback or is killed. Before handing the terminal to another program (an editor, say), return `pointer: :default` from the transition that queues the handoff: the pointer is applied before queued commands run. `ExRatatui.set_mouse_pointer/1` is the low-level call, for `ExRatatui.run/2` loops; the arrow comes back there too, when `run/2` restores the terminal. [`examples/basics/mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) shows the whole loop.
+The arrow comes back when the app stops or crashes in a callback. On the local terminal and on an attaching node that also covers a killed app; over SSH and the IEx shell a killed app, or a connection that drops, leaves the last shape in place. Before handing the terminal to another program (an editor, say), return `pointer: :default` from the transition that queues the handoff: the pointer is applied before queued commands run. `ExRatatui.set_mouse_pointer/1` is the low-level call, for `ExRatatui.run/2` loops; the arrow comes back there too, when `run/2` restores the terminal. [`examples/basics/mouse_pointer.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/basics/mouse_pointer.exs) shows the whole loop.
 
 
 ## Error handling and supervision

@@ -24,6 +24,7 @@ The internal telemetry tags match: `transport: :local`, `:session`, `:distribute
 | Every widget renders (Paragraph, List, Table, Block, Gauge, Chart, …) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Key events (`Event.Key`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (`feed_input/2`) |
 | Mouse events (`Event.Mouse`) | ✓ opt-in via `mouse_capture: true` | ✓ (parser decodes SGR reports; the owner asks the terminal for them, `CSI ? 1000 h` + `CSI ? 1006 h`) | ✓ opt-in via `app_opts: [mouse_capture: true]` | ✓ opt-in via `mouse_capture: true` | ✓ opt-in via `mouse_capture: true` on `attach/3` | ✓ (`feed_input/2`, or the caller constructs `%Event.Mouse{}`) |
+| Mouse pointer shapes (`pointer:` runtime opt) | ✓ | ✓ (OSC 22 through the writer) | ✓ | ✓ | ✓ (set on the attaching terminal) | ✗ (no terminal; the opt is ignored) |
 | Resize events (`Event.Resize`) | ✓ | ✓ | ✓ | ✓ (polled every 250 ms) | ✓ | ✓ (`resize/3`) |
 | Bracketed paste (`Event.Paste`) | ✓ | ✗ (VTE parser doesn't decode `CSI 200~/201~` yet) | ✗ (same) | ✗ (same) | ✗ (same) | — (caller constructs `%Event.Paste{}` directly) |
 | Key repeat / release (`Event.Key` `kind: "repeat"` / `"release"`) | ✓ opt-in via `keyboard_enhancement: true` | ✓ (parser decodes; the owner pushes `CSI > 15 u`) | ✓ opt-in via `app_opts: [keyboard_enhancement: true]` | ✓ opt-in via `keyboard_enhancement: true` | ✓ opt-in on `attach/3` | ✓ (`feed_input/2`) |

@@ -34,6 +34,7 @@ defmodule ExRatatui.Distributed.Client do
     :remote_pid,
     :remote_ref,
     :test_mode,
+    :pointer_setter,
     polling_enabled?: false,
     poll_interval: 16,
     terminal_initialized: false,
@@ -83,6 +84,14 @@ defmodule ExRatatui.Distributed.Client do
           terminal_ref: terminal_ref,
           poll_interval: poll_interval,
           test_mode: test_mode,
+          # Headless runs never write pointer controls; tests may supply a
+          # setter to watch the live path.
+          pointer_setter:
+            Keyword.get(
+              opts,
+              :mouse_pointer_fn,
+              if(test_mode, do: nil, else: &ExRatatui.set_mouse_pointer/1)
+            ),
           polling_enabled?: polling_enabled?,
           terminal_initialized: true,
           local_input: local_input
@@ -114,6 +123,15 @@ defmodule ExRatatui.Distributed.Client do
 
   def handle_info({:ex_ratatui_draw, widgets}, state) do
     draw_widgets(state, widgets)
+    {:noreply, state}
+  end
+
+  # The remote app's `pointer:` runtime opt, set on the terminal it is
+  # drawn on: this one. Restoring the terminal puts the arrow back. A shape
+  # this version does not know (from a newer remote) is skipped.
+  def handle_info({:ex_ratatui_pointer, shape}, %__MODULE__{pointer_setter: setter} = state)
+      when is_function(setter, 1) do
+    if ExRatatui.mouse_pointer?(shape), do: setter.(shape)
     {:noreply, state}
   end
 

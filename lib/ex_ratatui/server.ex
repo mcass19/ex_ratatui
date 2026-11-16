@@ -46,7 +46,7 @@ defmodule ExRatatui.Server do
     poll_interval: 16,
     terminal_initialized: false,
     local_input: :not_detached,
-    local_terminal: %{keyboard_enhancement: nil, pointer: nil, pointer_setter: nil},
+    terminal_state: %{keyboard_enhancement: nil, pointer: nil, pointer_setter: nil},
     # Nested so the struct stays within 32 keys (a flat map past that
     # switches to the slower hash-map representation).
     mailbox: %{warn_threshold: @default_mailbox_warn_threshold, alarm?: false, warned_at: nil},
@@ -163,7 +163,7 @@ defmodule ExRatatui.Server do
           terminal_size_fn: terminal_size_fn,
           # Headless runs never write pointer controls. Tests may supply a
           # setter to observe the live path without touching the host tty.
-          local_terminal: %{
+          terminal_state: %{
             keyboard_enhancement: nil,
             pointer: nil,
             pointer_setter:
@@ -185,7 +185,7 @@ defmodule ExRatatui.Server do
         # the terminal's answer from the input stream.
         state =
           put_in(
-            state.local_terminal.keyboard_enhancement,
+            state.terminal_state.keyboard_enhancement,
             ExRatatui.enable_keyboard_enhancement(terminal_ref, opts)
           )
 
@@ -278,6 +278,7 @@ defmodule ExRatatui.Server do
         state =
           state
           |> maybe_set_trace(runtime_opts)
+          |> maybe_set_mouse_pointer(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
           |> queue_intents(runtime_opts)
@@ -351,6 +352,7 @@ defmodule ExRatatui.Server do
         state =
           state
           |> maybe_set_trace(runtime_opts)
+          |> maybe_set_mouse_pointer(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
           |> queue_intents(runtime_opts)
@@ -413,6 +415,7 @@ defmodule ExRatatui.Server do
         state =
           state
           |> maybe_set_trace(runtime_opts)
+          |> maybe_set_mouse_pointer(runtime_opts)
           |> reconcile_subscriptions()
           |> queue_commands(runtime_opts)
           |> queue_intents(runtime_opts)
@@ -587,6 +590,8 @@ defmodule ExRatatui.Server do
     Session.close(state.session)
     app_terminate(state, reason)
     emit_transport_disconnect(state, reason)
+    # Last, and best effort: the client may already be gone.
+    reset_mouse_pointer(state)
     :ok
   end
 
@@ -1100,34 +1105,55 @@ defmodule ExRatatui.Server do
 
   defp maybe_set_mouse_pointer(state, %{pointer: nil}), do: state
 
+  # A cell session has no terminal to set a pointer on.
   defp maybe_set_mouse_pointer(
-         %__MODULE__{
-           transport: :local,
-           local_terminal: %{pointer: previous, pointer_setter: setter}
-         } = state,
+         %__MODULE__{transport: transport, terminal_state: %{pointer: previous}} = state,
          %{pointer: shape}
        )
-       when shape != previous do
-    case write_mouse_pointer(setter, shape) do
-      :ok -> put_in(state.local_terminal.pointer, shape)
+       when transport != :cell_session and shape != previous do
+    case write_mouse_pointer(state, shape) do
+      :ok -> put_in(state.terminal_state.pointer, shape)
       {:error, _reason} -> state
     end
   end
 
   defp maybe_set_mouse_pointer(state, _runtime_opts), do: state
 
-  defp reset_mouse_pointer(%__MODULE__{local_terminal: %{pointer: shape, pointer_setter: setter}})
+  defp reset_mouse_pointer(%__MODULE__{terminal_state: %{pointer: shape}} = state)
        when shape not in [nil, :default] do
-    _ = write_mouse_pointer(setter, :default)
+    _ = write_mouse_pointer(state, :default)
     :ok
   end
 
   defp reset_mouse_pointer(_state), do: :ok
 
-  # Headless runs have no setter: the shape is still recorded, so
+  # How a shape reaches the terminal the app is drawn on.
+  #
+  # Headless local runs have no setter: the shape is still recorded, so
   # `Runtime.snapshot/1` can report it, and nothing is written.
-  defp write_mouse_pointer(nil, _shape), do: :ok
-  defp write_mouse_pointer(setter, shape), do: setter.(shape)
+  defp write_mouse_pointer(
+         %__MODULE__{transport: :local, terminal_state: %{pointer_setter: nil}},
+         _shape
+       ),
+       do: :ok
+
+  defp write_mouse_pointer(
+         %__MODULE__{transport: :local, terminal_state: %{pointer_setter: setter}},
+         shape
+       ),
+       do: setter.(shape)
+
+  # A byte-stream session: the escape goes out with the frames.
+  defp write_mouse_pointer(%__MODULE__{transport: :session, writer_fn: writer}, shape) do
+    _ = writer.(ExRatatui.mouse_pointer_sequence(shape))
+    :ok
+  end
+
+  # An attached node: its client sets the pointer on its own terminal.
+  defp write_mouse_pointer(%__MODULE__{transport: :distributed_server, client_pid: pid}, shape) do
+    send(pid, {:ex_ratatui_pointer, shape})
+    :ok
+  end
 
   defp apply_transition({:continue, user_state, runtime_opts}, state) do
     next_state =
@@ -1466,8 +1492,8 @@ defmodule ExRatatui.Server do
           }
         end),
       active_async_commands: state.active_async_commands,
-      keyboard_enhancement: state.local_terminal.keyboard_enhancement,
-      pointer: state.local_terminal.pointer
+      keyboard_enhancement: state.terminal_state.keyboard_enhancement,
+      pointer: state.terminal_state.pointer
     }
   end
 
