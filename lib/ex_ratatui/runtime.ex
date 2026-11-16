@@ -116,6 +116,8 @@ defmodule ExRatatui.Runtime do
   This follows the same event path as a real polled input event, so it works
   for both callback-runtime and reducer-runtime apps. It is primarily useful
   under `test_mode`, where live terminal polling is intentionally disabled.
+  The render, commands and intents of the transition are done by the time
+  the call returns.
   """
   @spec inject_event(
           GenServer.server(),

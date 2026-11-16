@@ -541,13 +541,14 @@ defmodule ExRatatui.Server do
   def handle_call({:ex_ratatui_runtime_inject_event, event}, _from, state) do
     case dispatch_event(state, event) do
       {:stop, next_state} ->
-        {:stop, :normal, :ok, next_state}
+        {:stop, :normal, :ok, flush_pending_intents(next_state)}
 
       {:continue, next_state, render?} ->
         next_state =
           next_state
           |> maybe_render(render?)
           |> flush_pending_commands()
+          |> flush_pending_intents()
 
         {:reply, :ok, next_state}
     end

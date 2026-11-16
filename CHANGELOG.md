@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **`ExRatatui.Runtime.inject_event/2` delivers intents.** A transition reached through an injected event dropped its `intents:` instead of handing them to the transport's intent writer, so tests could not see them. They now go out before the call returns, and before the server exits on a `{:stop, ...}` transition, as with real input.
+
 - **`mix ex_ratatui.gen.burrito --ci github` builds the Apple Silicon binary on `macos-15`.** The scaffolded workflow used `macos-14`, which GitHub retired on November 2, 2026, so that job no longer starts. Projects that already generated the workflow should change the label in `.github/workflows/release.yml` themselves.
 
 ## [0.20.0] - 2026-11-06

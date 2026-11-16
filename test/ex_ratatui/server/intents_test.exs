@@ -132,6 +132,46 @@ defmodule ExRatatui.Server.IntentsTest do
     end
   end
 
+  describe "Runtime.inject_event/2" do
+    test "intents from an injected event are flushed before the call returns" do
+      cs = CellSession.new(20, 5)
+
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: Intents,
+          name: nil,
+          test_pid: self(),
+          transport: {:cell_session, cs, cell_writer(self()), intent_writer(self())}
+        )
+
+      assert_receive {:mounted, _opts}, 500
+
+      assert :ok = ExRatatui.Runtime.inject_event(pid, %Key{code: "navigate"})
+      assert_received {:writer_intent, {:navigate, "/dashboard"}}
+
+      GenServer.stop(pid)
+    end
+
+    test "intents from an injected stopping event fire before exit" do
+      Process.flag(:trap_exit, true)
+      cs = CellSession.new(20, 5)
+
+      {:ok, pid} =
+        ExRatatui.Server.start_link(
+          mod: Intents,
+          name: nil,
+          test_pid: self(),
+          transport: {:cell_session, cs, cell_writer(self()), intent_writer(self())}
+        )
+
+      assert_receive {:mounted, _opts}, 500
+
+      assert :ok = ExRatatui.Runtime.inject_event(pid, %Key{code: "stop_with_intent"})
+      assert_received {:writer_intent, {:redirect, "/login"}}
+      assert_receive {:EXIT, ^pid, :normal}, 500
+    end
+  end
+
   describe "shape validation" do
     test "non-list :intents value raises ArgumentError from the runtime" do
       # trap_exit absorbs the link from start_link so the test process
