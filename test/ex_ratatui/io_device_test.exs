@@ -256,6 +256,27 @@ defmodule ExRatatui.IODeviceTest do
       assert Task.await(task) == :ok
     end
 
+    test "an app that stops before the caller runs again is still a normal return" do
+      device = start_device()
+      task = run(device)
+
+      # The bridge is inside `init/1`, so the caller is parked waiting for
+      # it. Hold it there until the app has stopped and the bridge is gone:
+      # `run/2` has to be watching the bridge from the moment it exists.
+      assert_receive {:written, @enter_screen}
+      true = :erlang.suspend_process(task.pid)
+
+      ready(device)
+      {bridge, _reply_as} = :sys.get_state(device).reader
+      ref = Process.monitor(bridge)
+
+      FakeDevice.type(device, "x")
+      assert_receive {:DOWN, ^ref, :process, ^bridge, {:shutdown, :bye}}
+
+      true = :erlang.resume_process(task.pid)
+      assert Task.await(task) == :ok
+    end
+
     test "ignores messages it doesn't know" do
       device = start_device()
       task = run(device)

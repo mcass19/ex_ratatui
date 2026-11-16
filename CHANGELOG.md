@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **`ExRatatui.Runtime.inject_event/2` delivers intents.** A transition reached through an injected event dropped its `intents:` instead of handing them to the transport's intent writer, so tests could not see them. They now go out before the call returns, and before the server exits on a `{:stop, ...}` transition, as with real input.
 
+- **`ExRatatui.IODevice.run/2` no longer returns `{:error, :noproc}` for an app that stops right away.** It started the TUI and only then began watching it, so an app that stopped in between was reported as an error instead of `:ok` (or its real exit reason).
+
 - **Docs no longer claim mouse events over SSH, the IEx shell and distributed attach.** The guides and the [Transports](guides/transports/transports.md) matrix said those transports decode mouse input. They don't yet: the byte-stream parser has no mouse decoding and `Distributed.attach/3` starts its terminal without mouse capture, so `Event.Mouse` only arrives on the local terminal with `mouse_capture: true`.
 
 - **`mix ex_ratatui.gen.burrito --ci github` builds the Apple Silicon binary on `macos-15`.** The scaffolded workflow used `macos-14`, which GitHub retired on November 2, 2026, so that job no longer starts. Projects that already generated the workflow should change the label in `.github/workflows/release.yml` themselves.
