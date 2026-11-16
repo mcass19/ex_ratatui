@@ -1106,8 +1106,8 @@ defmodule ExRatatui.Server do
          } = state,
          %{pointer: shape}
        )
-       when is_function(setter, 1) and shape != previous do
-    case setter.(shape) do
+       when shape != previous do
+    case write_mouse_pointer(setter, shape) do
       :ok -> put_in(state.local_terminal.pointer, shape)
       {:error, _reason} -> state
     end
@@ -1117,11 +1117,16 @@ defmodule ExRatatui.Server do
 
   defp reset_mouse_pointer(%__MODULE__{local_terminal: %{pointer: shape, pointer_setter: setter}})
        when shape not in [nil, :default] do
-    _ = setter.(:default)
+    _ = write_mouse_pointer(setter, :default)
     :ok
   end
 
   defp reset_mouse_pointer(_state), do: :ok
+
+  # Headless runs have no setter: the shape is still recorded, so
+  # `Runtime.snapshot/1` can report it, and nothing is written.
+  defp write_mouse_pointer(nil, _shape), do: :ok
+  defp write_mouse_pointer(setter, shape), do: setter.(shape)
 
   defp apply_transition({:continue, user_state, runtime_opts}, state) do
     next_state =
@@ -1460,7 +1465,8 @@ defmodule ExRatatui.Server do
           }
         end),
       active_async_commands: state.active_async_commands,
-      keyboard_enhancement: state.local_terminal.keyboard_enhancement
+      keyboard_enhancement: state.local_terminal.keyboard_enhancement,
+      pointer: state.local_terminal.pointer
     }
   end
 

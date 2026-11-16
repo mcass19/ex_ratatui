@@ -155,12 +155,15 @@ defmodule ExRatatui.Server.MousePointerTest do
     assert_receive {:terminated, {%RuntimeError{}, _}}
   end
 
-  test "unused pointers and unmodified headless runtimes never write or reset" do
+  test "unused pointers never write or reset" do
     pid = start_app()
+    assert Runtime.snapshot(pid).pointer == nil
     GenServer.stop(pid)
     refute_received {:pointer, _}
+  end
 
-    # No injected setter: even explicit shapes stay inert in test_mode.
+  test "test_mode records the shape for the snapshot without writing it" do
+    # No injected setter: this is what an app's own test suite runs.
     {:ok, headless} =
       Server.start_link(
         mod: PointerApp,
@@ -170,9 +173,22 @@ defmodule ExRatatui.Server.MousePointerTest do
         mount_opts: [pointer: :pointer]
       )
 
-    assert :sys.get_state(headless).local_terminal.pointer == nil
+    assert Runtime.snapshot(headless).pointer == :pointer
+    assert :ok = Runtime.inject_event(headless, %Mouse{kind: "moved", x: 10})
+    assert Runtime.snapshot(headless).pointer == :default
     assert :ok = Runtime.inject_event(headless, %Mouse{kind: "moved", x: 1})
-    GenServer.stop(headless)
+    assert Runtime.snapshot(headless).pointer == :pointer
+
+    # Cleanup with an active shape and no setter is a no-op.
+    assert :ok = GenServer.stop(headless)
+    assert_receive {:terminated, :normal}
+  end
+
+  test "the snapshot follows the shape written to a live terminal" do
+    pid = start_app()
+    assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1})
+    assert_receive {:pointer, :pointer}
+    assert Runtime.snapshot(pid).pointer == :pointer
   end
 
   test "output errors are best-effort and do not claim a shape was set" do
@@ -182,7 +198,7 @@ defmodule ExRatatui.Server.MousePointerTest do
         mount_opts: [pointer: :pointer]
       )
 
-    assert :sys.get_state(pid).local_terminal.pointer == nil
+    assert Runtime.snapshot(pid).pointer == nil
     assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1})
     GenServer.stop(pid)
   end
@@ -210,7 +226,8 @@ defmodule ExRatatui.Server.MousePointerTest do
 
       assert :ok = Runtime.inject_event(pid, %Mouse{kind: "moved", x: 1})
       send(pid, {:noreply, [pointer: :text, render?: false]})
-      assert Runtime.snapshot(pid).transport != :local
+      assert %{pointer: nil, transport: transport} = Runtime.snapshot(pid)
+      assert transport != :local
       GenServer.stop(pid)
     end
 
